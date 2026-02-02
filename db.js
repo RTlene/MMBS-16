@@ -18,9 +18,6 @@ const sequelize = new Sequelize("mall_admin", MYSQL_USERNAME, MYSQL_PASSWORD, {
   host,
   port,
   dialect: "mysql",
-  dialectOptions: {
-    sql_mode: 'TRADITIONAL'
-  },
   timezone: '+08:00'
 });
 

@@ -158,7 +158,8 @@ app.get("/", async (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-const port = process.env.PORT || 3000;
+// 云托管默认探针检查 80 端口，未设置 PORT 时使用 80；本地开发可在 .env 中设置 PORT=3000
+const port = process.env.PORT || 80;
 const fs = require('fs');
 
 /** 启动时从配置文件恢复微信支付相关环境变量，避免每次部署后需重新在后台配置 */
