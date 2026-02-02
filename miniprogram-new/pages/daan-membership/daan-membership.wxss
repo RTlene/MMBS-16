@@ -1,0 +1,353 @@
+/* pages/daan-membership/daan-membership.wxss */
+
+.membership-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1a4d3a 0%, #0d2e1f 100%);
+  padding-bottom: 40rpx;
+}
+
+/* ==================== 顶部横幅 ==================== */
+.header-banner {
+  background: linear-gradient(135deg, #1a4d3a 0%, #0d2e1f 100%);
+  padding: 60rpx 40rpx 40rpx;
+  text-align: center;
+}
+
+.logo-section {
+  margin-bottom: 30rpx;
+}
+
+.logo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo-text {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #d4af37;
+  margin-bottom: 8rpx;
+  letter-spacing: 4rpx;
+}
+
+.logo-subtitle {
+  font-size: 28rpx;
+  color: #a8d5ba;
+  letter-spacing: 2rpx;
+}
+
+.certifications {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.cert-text {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+}
+
+/* ==================== 金色分割线 ==================== */
+.divider-line {
+  height: 2rpx;
+  background: linear-gradient(90deg, transparent 0%, #d4af37 20%, #d4af37 80%, transparent 100%);
+  margin: 40rpx 60rpx;
+  opacity: 0.8;
+}
+
+/* ==================== 通用区块样式 ==================== */
+.intro-section,
+.privilege-section,
+.contact-section {
+  background-color: transparent;
+  margin: 0 24rpx;
+  padding: 40rpx 0;
+}
+
+.section-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32rpx;
+}
+
+.title-text {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #d4af37;
+  margin-bottom: 16rpx;
+  position: relative;
+}
+
+.title-line {
+  width: 80rpx;
+  height: 4rpx;
+  background: linear-gradient(90deg, #d4af37 0%, #f4d03f 100%);
+  border-radius: 2rpx;
+}
+
+/* ==================== 公司介绍 ==================== */
+.intro-content {
+  margin-bottom: 32rpx;
+}
+
+.intro-text {
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.8;
+  text-align: justify;
+}
+
+.image-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20rpx;
+  margin-bottom: 32rpx;
+}
+
+.image-item {
+  position: relative;
+  width: 100%;
+  padding-top: 75%;
+  border-radius: 16rpx;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 2rpx solid rgba(212, 175, 55, 0.3);
+}
+
+.gallery-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.placeholder-icon {
+  font-size: 48rpx;
+  margin-bottom: 12rpx;
+  opacity: 0.6;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.placeholder-text {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.highlight-box {
+  background: linear-gradient(135deg, #1a4d3a 0%, #0d2e1f 100%);
+  border-radius: 16rpx;
+  padding: 32rpx;
+  text-align: center;
+  border: 2rpx solid #d4af37;
+}
+
+.highlight-text {
+  display: block;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #d4af37;
+  margin-bottom: 12rpx;
+}
+
+.highlight-subtitle {
+  display: block;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ==================== 会员特权 ==================== */
+.privilege-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.privilege-card {
+  display: flex;
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20rpx;
+  padding: 32rpx;
+  border: 2rpx solid rgba(212, 175, 55, 0.3);
+  backdrop-filter: blur(10rpx);
+  transition: transform 0.2s;
+}
+
+.privilege-card:active {
+  transform: scale(0.98);
+}
+
+.vip-card {
+  border-left: 6rpx solid #d4af37;
+}
+
+.ticket-card {
+  border-left: 6rpx solid #1a4d3a;
+}
+
+.privilege-icon {
+  width: 80rpx;
+  height: 80rpx;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
+
+.ticket-card .privilege-icon {
+  background: linear-gradient(135deg, #1a4d3a 0%, #2d6a4f 100%);
+}
+
+.icon-text {
+  font-size: 40rpx;
+}
+
+.privilege-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.privilege-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #d4af37;
+  margin-bottom: 12rpx;
+}
+
+.privilege-desc {
+  font-size: 26rpx;
+  color: #f4d03f;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.privilege-detail {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+  margin-top: 8rpx;
+}
+
+/* ==================== 联系信息 ==================== */
+.contact-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qr-code-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40rpx;
+  width: 100%;
+  margin-bottom: 40rpx;
+}
+
+.qr-code-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qr-code-box {
+  width: 260rpx;
+  height: 260rpx;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 16rpx;
+  padding: 20rpx;
+  border: 2rpx solid rgba(212, 175, 55, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
+}
+
+.qr-code-image {
+  width: 100%;
+  height: 100%;
+}
+
+.qr-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(245, 245, 245, 0.8);
+}
+
+.qr-tip {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.contact-info {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.info-item {
+  display: flex;
+  align-items: flex-start;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.info-label {
+  color: #d4af37;
+  font-weight: 600;
+  margin-right: 8rpx;
+  flex-shrink: 0;
+}
+
+.info-value {
+  color: rgba(255, 255, 255, 0.95);
+  flex: 1;
+}
+
+.phone {
+  color: #d4af37;
+  text-decoration: underline;
+}
+
+.address-detail {
+  padding-left: 80rpx;
+  margin-top: -8rpx;
+}
+
+.address-detail .info-value {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 26rpx;
+}
+
+/* ==================== 底部安全区 ==================== */
+.safe-area-bottom {
+  height: env(safe-area-inset-bottom);
+  min-height: 40rpx;
+}

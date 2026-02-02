@@ -1,0 +1,58 @@
+<!--pages/category/category.wxml-->
+<view class="category-page">
+  <scroll-view class="category-sidebar" scroll-y>
+    <view 
+      class="category-item {{currentCategoryId === item.id ? 'active' : ''}}"
+      wx:for="{{categories}}"
+      wx:key="id"
+      bindtap="onCategoryTap"
+      data-id="{{item.id}}"
+    >
+      <text class="category-name">{{item.name}}</text>
+    </view>
+  </scroll-view>
+
+  <scroll-view class="product-list" scroll-y enable-back-to-top>
+    <view class="product-grid">
+      <view 
+        class="product-item"
+        wx:for="{{products}}"
+        wx:key="id"
+        bindtap="onProductTap"
+        data-id="{{item.id}}"
+      >
+        <image class="product-image" src="{{item.images && item.images.length > 0 ? item.images[0] : ''}}" mode="aspectFill" />
+        <view class="product-info">
+          <text class="product-name">{{item.name}}</text>
+          <view class="product-price">¥{{item.price}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="loading" wx:if="{{loading}}">加载中...</view>
+    
+    <!-- 错误状态 -->
+    <view class="error-state" wx:if="{{!loading && hasError && dataLoaded}}">
+      <text class="error-icon">⚠️</text>
+      <text class="error-text">{{error || '加载失败，请稍后重试'}}</text>
+      <button class="retry-btn" bindtap="loadProducts">重试</button>
+    </view>
+    
+    <!-- 空状态（数据加载完成但无数据） -->
+    <view class="empty" wx:if="{{!loading && !hasError && dataLoaded && products.length === 0}}">
+      <text class="empty-icon">📦</text>
+      <text class="empty-text">暂无商品</text>
+      <text class="empty-desc">该分类下暂无商品</text>
+    </view>
+    
+    <!-- 没有更多了 -->
+    <view class="no-more" wx:if="{{!loading && !hasMore && products.length > 0}}">没有更多了</view>
+    
+    <!-- 分类为空提示 -->
+    <view class="empty-category" wx:if="{{!loading && !hasError && dataLoaded && categories.length === 0}}">
+      <text class="empty-category-text">暂无分类</text>
+      <text class="empty-category-desc">分类正在准备中，敬请期待</text>
+    </view>
+  </scroll-view>
+</view>
+

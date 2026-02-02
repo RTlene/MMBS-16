@@ -1,0 +1,60 @@
+<!--pages/article/article.wxml-->
+<view class="article-page">
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loading}}">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 错误状态 -->
+  <view class="error-state" wx:if="{{error && !loading}}">
+    <text class="error-icon">⚠️</text>
+    <text class="error-text">{{error}}</text>
+    <button class="retry-btn" bindtap="loadArticle">重试</button>
+  </view>
+
+  <!-- 如果有外部链接，使用 web-view 加载 -->
+  <view class="article-webview-container" wx:if="{{article && !loading && article.externalUrl}}">
+    <web-view src="{{article.externalUrl}}" bindmessage="onWebViewMessage"></web-view>
+  </view>
+
+  <!-- 如果没有外部链接，显示本地内容 -->
+  <scroll-view class="article-content" scroll-y wx:elif="{{article && !loading && !article.externalUrl}}">
+    <!-- 封面图 -->
+    <view class="article-cover" wx:if="{{article.coverImage}}">
+      <image class="cover-image" src="{{article.coverImage}}" mode="widthFix" />
+    </view>
+
+    <!-- 文章标题和元信息 -->
+    <view class="article-header">
+      <text class="article-title">{{article.title}}</text>
+      <view class="article-meta">
+        <text class="meta-item">{{article.author || 'MMBS商城'}}</text>
+        <text class="meta-divider">•</text>
+        <text class="meta-item">{{article.publishTimeText}}</text>
+        <text class="meta-divider">•</text>
+        <text class="meta-item">{{article.readCount || 0}}阅读</text>
+      </view>
+    </view>
+
+    <!-- 文章正文 -->
+    <view class="article-body">
+      <!-- 如果有HTML内容，使用rich-text -->
+      <rich-text 
+        wx:if="{{article.htmlContent}}"
+        nodes="{{article.content}}"
+        class="article-text"
+      />
+      <!-- 否则显示纯文本 -->
+      <text wx:else class="article-text">{{article.content}}</text>
+    </view>
+
+    <!-- 文章底部信息 -->
+    <view class="article-footer">
+      <view class="footer-stats">
+        <text class="stat-item">阅读 {{article.readCount || 0}}</text>
+        <text class="stat-item">点赞 {{article.likeCount || 0}}</text>
+      </view>
+    </view>
+  </scroll-view>
+</view>
+

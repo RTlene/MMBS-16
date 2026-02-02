@@ -1,0 +1,54 @@
+<view class="staff-page">
+  <!-- 顶部信息栏 -->
+  <view class="staff-header">
+    <view class="staff-info">
+      <text class="staff-name">{{staffInfo.username || '员工'}}</text>
+      <text class="staff-role">{{staffInfo.role === 'admin' ? '管理员' : '员工'}}</text>
+    </view>
+    <text class="logout-btn" bindtap="onLogout">退出</text>
+  </view>
+
+  <!-- Tab切换 -->
+  <view class="tabs">
+    <view 
+      class="tab {{currentTab === 'inventory' ? 'active' : ''}}"
+      data-tab="inventory"
+      bindtap="onTabChange"
+    >
+      库存管理
+    </view>
+    <view 
+      class="tab {{currentTab === 'orders' ? 'active' : ''}}"
+      data-tab="orders"
+      bindtap="onTabChange"
+    >
+      订单发货
+    </view>
+    <view 
+      class="tab {{currentTab === 'verification' ? 'active' : ''}}"
+      data-tab="verification"
+      bindtap="onTabChange"
+    >
+      核销码
+    </view>
+  </view>
+
+  <!-- 内容区域 -->
+  <view class="content">
+    <!-- 库存管理 -->
+    <view class="tab-content" wx:if="{{currentTab === 'inventory'}}">
+      <staff-inventory />
+    </view>
+
+    <!-- 订单发货 -->
+    <view class="tab-content" wx:if="{{currentTab === 'orders'}}">
+      <staff-orders />
+    </view>
+
+    <!-- 核销码 -->
+    <view class="tab-content" wx:if="{{currentTab === 'verification'}}">
+      <staff-verification />
+    </view>
+  </view>
+</view>
+

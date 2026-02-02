@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "我的核销码",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 50,
+  "usingComponents": {}
+}
+

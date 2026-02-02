@@ -1,0 +1,17 @@
+# 微信支付证书（敏感文件，勿提交）
+cert/*.pem
+cert/*.key
+
+# 环境与密钥
+.env
+config/wechat-payment-config.json
+
+# 依赖
+node_modules/
+
+# 日志与临时
+*.log
+miniprogram-new.zip
+
+# 其他项目目录（不参与本仓库部署）
+润祥/

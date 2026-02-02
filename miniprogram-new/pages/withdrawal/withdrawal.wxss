@@ -1,0 +1,124 @@
+.withdrawal-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding-bottom: 100rpx;
+}
+
+.commission-info {
+  background: #fff;
+  padding: 40rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.commission-info .label {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.commission-info .amount {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #3481B8;
+}
+
+.form-section {
+  background: #fff;
+  padding: 0 30rpx;
+}
+
+.form-item {
+  padding: 30rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.form-item:last-child {
+  border-bottom: none;
+}
+
+.form-item .label {
+  display: block;
+  font-size: 28rpx;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+}
+
+.input-group .prefix {
+  font-size: 32rpx;
+  color: #333;
+  margin-right: 10rpx;
+}
+
+.input-group .input {
+  flex: 1;
+  font-size: 32rpx;
+  color: #333;
+}
+
+.input-group .link {
+  font-size: 28rpx;
+  color: #3481B8;
+  margin-left: 20rpx;
+}
+
+.input {
+  font-size: 32rpx;
+  color: #333;
+}
+
+.picker {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 32rpx;
+  color: #333;
+}
+
+.picker .arrow {
+  color: #999;
+  font-size: 24rpx;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120rpx;
+  font-size: 32rpx;
+  color: #333;
+  padding: 20rpx;
+  background: #f9f9f9;
+  border-radius: 8rpx;
+}
+
+.submit-section {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20rpx 30rpx;
+  background: #fff;
+  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.1);
+}
+
+.submit-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #3481B8;
+  color: #fff;
+  font-size: 32rpx;
+  border-radius: 8rpx;
+  border: none;
+}
+
+.submit-btn.disabled {
+  background: #ccc;
+  color: #999;
+}
+

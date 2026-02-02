@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>促销活动管理</title>
+    <style>
+        .promotion-management-container {
+            padding: 20px;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .page-description {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #1890ff;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #73d13d;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .btn-warning {
+            background: #fa8c16;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ffa940;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-draft {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .status-active {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .status-paused {
+            background: #fff2e8;
+            color: #fa8c16;
+        }
+
+        .status-ended {
+            background: #fff1f0;
+            color: #ff4d4f;
+        }
+
+        .type-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination button:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .pagination button.active {
+            background: #1890ff;
+            color: white;
+            border-color: #1890ff;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .rules-config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .rule-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .rule-item:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="promotion-management-container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <h1 class="page-title">促销活动管理</h1>
+            <p class="page-description">管理各种促销活动和营销策略</p>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalPromotions">0</div>
+                <div class="stat-label">活动总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activePromotions">0</div>
+                <div class="stat-label">进行中</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="draftPromotions">0</div>
+                <div class="stat-label">草稿</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="endedPromotions">0</div>
+                <div class="stat-label">已结束</div>
+            </div>
+        </div>
+
+        <!-- 筛选条件 -->
+        <div class="filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label class="filter-label">搜索</label>
+                    <input type="text" class="filter-input" id="searchInput" placeholder="活动名称">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">类型</label>
+                    <select class="filter-input" id="typeFilter">
+                        <option value="">全部类型</option>
+                        <option value="flash_sale">限时抢购</option>
+                        <option value="group_buy">团购</option>
+                        <option value="bundle">捆绑销售</option>
+                        <option value="free_shipping">包邮</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">状态</label>
+                    <select class="filter-input" id="statusFilter">
+                        <option value="">全部状态</option>
+                        <option value="draft">草稿</option>
+                        <option value="active">进行中</option>
+                        <option value="paused">已暂停</option>
+                        <option value="ended">已结束</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <button class="btn btn-primary" onclick="searchPromotions()">搜索</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 促销活动列表 -->
+        <div class="table-container">
+            <div class="table-header">
+                <h2 class="table-title">促销活动列表</h2>
+                <div class="table-actions">
+                    <button class="btn btn-success" onclick="showAddPromotionModal()">添加活动</button>
+                </div>
+            </div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>活动名称</th>
+                        <th>类型</th>
+                        <th>状态</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="promotionTableBody">
+                    <!-- 数据将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+            <div class="pagination" id="pagination">
+                <!-- 分页将通过JavaScript动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑促销活动模态框 -->
+    <div class="modal" id="promotionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="promotionModalTitle">添加促销活动</h3>
+                <button class="close-btn" onclick="closePromotionModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="promotionForm">
+                    <div class="form-group">
+                        <label class="form-label">活动名称</label>
+                        <input type="text" class="form-input" id="promotionName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">活动类型</label>
+                        <select class="form-input" id="promotionType" required onchange="updateRulesConfig()">
+                            <option value="flash_sale">限时抢购</option>
+                            <option value="group_buy">团购</option>
+                            <option value="bundle">捆绑销售</option>
+                            <option value="free_shipping">包邮</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">活动描述</label>
+                        <textarea class="form-input" id="promotionDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">开始时间</label>
+                            <input type="datetime-local" class="form-input" id="startTime" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">结束时间</label>
+                            <input type="datetime-local" class="form-input" id="endTime" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">活动规则配置</label>
+                        <div class="rules-config" id="rulesConfig">
+                            <!-- 规则配置将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="savePromotion()">保存</button>
+                <button class="btn" onclick="closePromotionModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/promotion-management.js"></script>
+</body>
+</html>

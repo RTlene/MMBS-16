@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "MMBS商城",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#F8F8F8",
+  "backgroundTextStyle": "dark",
+  "usingComponents": {}
+}
+

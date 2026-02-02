@@ -1,0 +1,95 @@
+<view class="customer-service-page">
+  <scroll-view class="content" scroll-y>
+    <!-- 微信客服入口 -->
+    <view class="wechat-service-section">
+      <button 
+        class="wechat-service-btn" 
+        open-type="contact"
+        bindcontact="onContact"
+      >
+        <view class="service-icon">💬</view>
+        <view class="service-info">
+          <text class="service-title">微信客服</text>
+          <text class="service-desc">点击进入微信客服会话</text>
+        </view>
+        <view class="service-arrow">›</view>
+      </button>
+    </view>
+
+    <!-- 联系方式 -->
+    <view class="contact-section">
+      <view class="section-title">联系方式</view>
+      <view class="contact-list">
+        <!-- 客服电话 -->
+        <view class="contact-item" bindtap="onCallPhone">
+          <view class="contact-icon">📞</view>
+          <view class="contact-info">
+            <text class="contact-label">客服电话</text>
+            <text class="contact-value">{{serviceConfig.phone}}</text>
+          </view>
+          <view class="contact-action">拨打</view>
+        </view>
+
+        <!-- 客服微信 -->
+        <view class="contact-item" bindtap="onCopyWechat">
+          <view class="contact-icon">💬</view>
+          <view class="contact-info">
+            <text class="contact-label">客服微信</text>
+            <text class="contact-value">{{serviceConfig.wechat}}</text>
+          </view>
+          <view class="contact-action">复制</view>
+        </view>
+
+        <!-- 客服邮箱 -->
+        <view class="contact-item" bindtap="onCopyEmail">
+          <view class="contact-icon">📧</view>
+          <view class="contact-info">
+            <text class="contact-label">客服邮箱</text>
+            <text class="contact-value">{{serviceConfig.email}}</text>
+          </view>
+          <view class="contact-action">复制</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 服务信息 -->
+    <view class="info-section">
+      <view class="section-title">服务信息</view>
+      <view class="info-card">
+        <view class="info-item">
+          <text class="info-label">服务时间</text>
+          <text class="info-value">{{serviceConfig.workTime}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">公司地址</text>
+          <text class="info-value">{{serviceConfig.address}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 常见问题 -->
+    <view class="faq-section">
+      <view class="section-title">常见问题</view>
+      <view class="faq-list">
+        <view 
+          class="faq-item {{expandedFaq === item.id ? 'expanded' : ''}}"
+          wx:for="{{faqs}}"
+          wx:key="id"
+        >
+          <view 
+            class="faq-question"
+            data-id="{{item.id}}"
+            bindtap="onToggleFaq"
+          >
+            <text class="faq-q-text">{{item.question}}</text>
+            <text class="faq-arrow">{{expandedFaq === item.id ? '▼' : '▶'}}</text>
+          </view>
+          <view class="faq-answer" wx:if="{{expandedFaq === item.id}}">
+            <text>{{item.answer}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>
+

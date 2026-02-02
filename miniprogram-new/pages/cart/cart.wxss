@@ -1,0 +1,251 @@
+/* pages/cart/cart.wxss */
+
+.cart-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #F8F8F8;
+}
+
+.cart-list {
+  flex: 1;
+  padding: 20rpx;
+  padding-bottom: 110rpx;
+}
+
+.cart-item {
+  display: flex;
+  align-items: center;
+  background-color: #FFFFFF;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.item-checkbox {
+  margin-right: 20rpx;
+}
+
+.checkbox-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40rpx;
+  height: 40rpx;
+  border: 2rpx solid rgba(212, 175, 55, 0.5);
+  border-radius: 50%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.checkbox-icon.checked {
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  border-color: #d4af37;
+}
+
+.checkmark {
+  display: block;
+  font-size: 22rpx;
+  color: #FFFFFF;
+  font-weight: bold;
+  line-height: 1;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-image {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 8rpx;
+  background-color: #F5F5F5;
+  margin-right: 20rpx;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 160rpx;
+}
+
+.item-name {
+  font-size: 28rpx;
+  color: #333333;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.item-sku {
+  font-size: 24rpx;
+  color: #999999;
+  margin-top: 8rpx;
+}
+
+.item-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.item-price {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #FA5151;
+}
+
+.item-quantity {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.quantity-btn {
+  width: 48rpx;
+  height: 48rpx;
+  background-color: #F5F5F5;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  color: #333333;
+}
+
+.quantity-value {
+  font-size: 28rpx;
+  color: #333333;
+  min-width: 48rpx;
+  text-align: center;
+}
+
+.item-delete {
+  margin-left: 20rpx;
+}
+
+.delete-icon {
+  font-size: 40rpx;
+}
+
+/* 空购物车 */
+.empty-cart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 200rpx;
+}
+
+.empty-icon {
+  font-size: 160rpx;
+  margin-bottom: 40rpx;
+  opacity: 0.3;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #999999;
+  margin-bottom: 60rpx;
+}
+
+.go-shopping-btn {
+  width: 200rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: linear-gradient(135deg, #FA5151, #E91E63);
+  color: #FFFFFF;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+}
+
+/* 底部结算栏 */
+.cart-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 80rpx;
+  padding: 10rpx 20rpx;
+  background-color: #FFFFFF;
+  border-top: 1rpx solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.08);
+  padding-bottom: calc(10rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(10rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.select-all {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  flex-shrink: 0;
+}
+
+.select-all-text {
+  font-size: 24rpx;
+  color: #333333;
+  white-space: nowrap;
+}
+
+.footer-total {
+  display: flex;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+  margin-left: 12rpx;
+  overflow: hidden;
+}
+
+.total-label {
+  font-size: 22rpx;
+  color: #666666;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.total-price {
+  font-size: 32rpx;
+  font-weight: bold;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-left: 6rpx;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.checkout-btn {
+  height: 60rpx;
+  line-height: 60rpx;
+  padding: 0 28rpx;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  color: #FFFFFF;
+  border-radius: 30rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: 0 4rpx 12rpx rgba(212, 175, 55, 0.3);
+  margin: 0;
+  min-width: 120rpx;
+  white-space: nowrap;
+}
+

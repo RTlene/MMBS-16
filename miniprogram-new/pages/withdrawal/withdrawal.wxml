@@ -1,0 +1,105 @@
+<view class="withdrawal-page">
+  <view class="commission-info">
+    <text class="label">可用佣金</text>
+    <text class="amount">¥{{availableCommission}}</text>
+  </view>
+
+  <view class="form-section">
+    <view class="form-item">
+      <text class="label">提现金额</text>
+      <view class="input-group">
+        <text class="prefix">¥</text>
+        <input 
+          class="input" 
+          type="digit" 
+          placeholder="请输入提现金额（最低¥10）"
+          value="{{form.amount}}"
+          bindinput="onAmountInput"
+        />
+        <text class="link" bindtap="onSelectAll">全部</text>
+      </view>
+    </view>
+
+    <view class="form-item">
+      <text class="label">账户类型</text>
+      <picker 
+        mode="selector" 
+        range="{{['微信', '支付宝', '银行卡']}}"
+        range-key=""
+        value="{{form.accountType === 'wechat' ? 0 : form.accountType === 'alipay' ? 1 : 2}}"
+        bindchange="onAccountTypeChange"
+      >
+        <view class="picker">
+          {{form.accountType === 'wechat' ? '微信' : form.accountType === 'alipay' ? '支付宝' : '银行卡'}}
+          <text class="arrow">></text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <text class="label">账户姓名</text>
+      <input 
+        class="input" 
+        type="text" 
+        placeholder="请输入账户姓名"
+        value="{{form.accountName}}"
+        bindinput="onAccountNameInput"
+      />
+    </view>
+
+    <view class="form-item">
+      <text class="label">账户号码</text>
+      <input 
+        class="input" 
+        type="text" 
+        placeholder="请输入账户号码"
+        value="{{form.accountNumber}}"
+        bindinput="onAccountNumberInput"
+      />
+    </view>
+
+    <view class="form-item" wx:if="{{form.accountType === 'bank'}}">
+      <text class="label">银行名称</text>
+      <input 
+        class="input" 
+        type="text" 
+        placeholder="请输入银行名称"
+        value="{{form.bankName}}"
+        bindinput="onBankNameInput"
+      />
+    </view>
+
+    <view class="form-item" wx:if="{{form.accountType === 'bank'}}">
+      <text class="label">开户行（选填）</text>
+      <input 
+        class="input" 
+        type="text" 
+        placeholder="请输入开户行"
+        value="{{form.bankBranch}}"
+        bindinput="onBankBranchInput"
+      />
+    </view>
+
+    <view class="form-item">
+      <text class="label">备注（选填）</text>
+      <textarea 
+        class="textarea" 
+        placeholder="请输入备注信息"
+        value="{{form.remark}}"
+        bindinput="onRemarkInput"
+        maxlength="200"
+      />
+    </view>
+  </view>
+
+  <view class="submit-section">
+    <button 
+      class="submit-btn {{loading ? 'disabled' : ''}}" 
+      bindtap="onSubmit"
+      disabled="{{loading}}"
+    >
+      {{loading ? '提交中...' : '提交提现申请'}}
+    </button>
+  </view>
+</view>
+

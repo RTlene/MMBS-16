@@ -1,0 +1,77 @@
+.staff-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.staff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.staff-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.staff-name {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.staff-role {
+  font-size: 24rpx;
+  opacity: 0.9;
+}
+
+.logout-btn {
+  font-size: 28rpx;
+  padding: 12rpx 24rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 8rpx;
+}
+
+.tabs {
+  display: flex;
+  background-color: #fff;
+  border-bottom: 1px solid #eee;
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 30rpx 0;
+  font-size: 28rpx;
+  color: #666;
+  position: relative;
+}
+
+.tab.active {
+  color: #667eea;
+  font-weight: bold;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  background-color: #667eea;
+  border-radius: 2rpx;
+}
+
+.content {
+  padding: 20rpx;
+}
+
+.tab-content {
+  min-height: 60vh;
+}
+

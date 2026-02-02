@@ -1,0 +1,174 @@
+<!--pages/daan-membership/daan-membership.wxml-->
+<view class="membership-page">
+  <!-- 顶部横幅 -->
+  <view class="header-banner">
+    <view class="logo-section">
+      <view class="logo-placeholder">
+        <text class="logo-text">达安生命</text>
+        <text class="logo-subtitle">DAAN SAFECELL</text>
+      </view>
+    </view>
+    <view class="certifications">
+      <text class="cert-text">CNAS认证实验室</text>
+      <text class="cert-text">中检院认证细胞产品</text>
+    </view>
+  </view>
+
+  <!-- 金色分割线 -->
+  <view class="divider-line"></view>
+
+  <!-- 公司介绍部分 -->
+  <view class="intro-section">
+    <view class="section-title">
+      <text class="title-text">关于达安生命</text>
+      <view class="title-line"></view>
+    </view>
+    
+    <view class="intro-content">
+      <text class="intro-text">达安生命（DAAN SAFECELL）是华南地区唯一国有细胞库，致力于为大众提供高品质的细胞存储与健康管理服务。我们与佛山连锁长寿门诊展开深度合作，为会员提供专业的健康管理解决方案。</text>
+    </view>
+
+    <!-- 图片展示区域 - 2个占位区 -->
+    <view class="image-gallery">
+      <view class="image-item">
+        <image 
+          wx:if="{{introImage1}}"
+          class="gallery-image" 
+          src="{{introImage1}}" 
+          mode="aspectFill"
+          binderror="onImageError1"
+        />
+        <view class="image-placeholder" wx:if="{{!introImage1}}">
+          <text class="placeholder-icon">📷</text>
+          <text class="placeholder-text">图片占位区1</text>
+        </view>
+      </view>
+      <view class="image-item">
+        <image 
+          wx:if="{{introImage2}}"
+          class="gallery-image" 
+          src="{{introImage2}}" 
+          mode="aspectFill"
+          binderror="onImageError2"
+        />
+        <view class="image-placeholder" wx:if="{{!introImage2}}">
+          <text class="placeholder-icon">📷</text>
+          <text class="placeholder-text">图片占位区2</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="highlight-box">
+      <text class="highlight-text">华南唯一国有细胞库</text>
+      <text class="highlight-subtitle">广佛连锁长寿门诊</text>
+    </view>
+  </view>
+
+  <!-- 金色分割线 -->
+  <view class="divider-line"></view>
+
+  <!-- 会员特权部分 -->
+  <view class="privilege-section">
+    <view class="section-title">
+      <text class="title-text">加入会员 享受特权</text>
+      <view class="title-line"></view>
+    </view>
+
+    <view class="privilege-list">
+      <!-- 特权1：内购权 -->
+      <view class="privilege-card vip-card">
+        <view class="privilege-icon">
+          <text class="icon-text">👑</text>
+        </view>
+        <view class="privilege-content">
+          <text class="privilege-title">VIP内购特权</text>
+          <text class="privilege-desc">章汇长寿系列产品线内购权</text>
+          <text class="privilege-detail">会员专享内购价格，优先购买长寿系列产品</text>
+        </view>
+      </view>
+
+      <!-- 特权2：门票优惠 -->
+      <view class="privilege-card ticket-card">
+        <view class="privilege-icon">
+          <text class="icon-text">🎫</text>
+        </view>
+        <view class="privilege-content">
+          <text class="privilege-title">年会门票优惠</text>
+          <text class="privilege-desc">达安答谢年会门票优惠</text>
+          <text class="privilege-detail">会员专享年会门票折扣，参与年度答谢活动</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 金色分割线 -->
+  <view class="divider-line"></view>
+
+  <!-- 联系信息部分 -->
+  <view class="contact-section">
+    <view class="section-title">
+      <text class="title-text">联系我们</text>
+      <view class="title-line"></view>
+    </view>
+
+    <view class="contact-content">
+      <!-- 二维码占位区 - 两个 -->
+      <view class="qr-code-list">
+        <view class="qr-code-wrapper">
+          <view class="qr-code-box">
+            <image 
+              wx:if="{{qrCodeImage1}}"
+              class="qr-code-image" 
+              src="{{qrCodeImage1}}" 
+              mode="aspectFit"
+              binderror="onQrCodeError1"
+            />
+            <view class="qr-placeholder" wx:if="{{!qrCodeImage1}}">
+              <text class="placeholder-icon">📱</text>
+              <text class="placeholder-text">二维码占位区1</text>
+            </view>
+          </view>
+          <text class="qr-tip">扫码加入会员</text>
+        </view>
+        <view class="qr-code-wrapper">
+          <view class="qr-code-box">
+            <image 
+              wx:if="{{qrCodeImage2}}"
+              class="qr-code-image" 
+              src="{{qrCodeImage2}}" 
+              mode="aspectFit"
+              binderror="onQrCodeError2"
+            />
+            <view class="qr-placeholder" wx:if="{{!qrCodeImage2}}">
+              <text class="placeholder-icon">📱</text>
+              <text class="placeholder-text">二维码占位区2</text>
+            </view>
+          </view>
+          <text class="qr-tip">扫码加入会员</text>
+        </view>
+      </view>
+
+      <!-- 联系信息 -->
+      <view class="contact-info">
+        <view class="info-item">
+          <text class="info-label">电话：</text>
+          <text class="info-value phone" bindtap="onPhoneTap">13202863949 王生</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">地址：</text>
+          <text class="info-value">佛山章汇城市会客厅</text>
+        </view>
+        <view class="info-item address-detail">
+          <text class="info-value">禅城区火炬园D栋9层208室</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">品牌：</text>
+          <text class="info-value">达安创谷 | DAAN INCUBATOR</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部安全区 -->
+  <view class="safe-area-bottom"></view>
+</view>

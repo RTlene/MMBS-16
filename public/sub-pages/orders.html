@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单管理</title>
+    <style>
+        .orders-container {
+            padding: 20px;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+
+        .page-description {
+            color: #666;
+            margin: 0;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .search-filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-input, .form-select {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 120px;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #73d13d;
+        }
+
+        .btn-warning {
+            background: #faad14;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ffc53d;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .btn-outline-primary {
+            background: transparent;
+            color: #1890ff;
+            border: 1px solid #1890ff;
+        }
+
+        .btn-outline-primary:hover {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .table-section {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        .table th {
+            background: #fafafa;
+            color: #333;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+            white-space: nowrap;
+        }
+
+        .table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+
+        .table tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+            min-width: 60px;
+            display: inline-block;
+        }
+
+        .status-pending {
+            background: #fff2e8;
+            color: #fa8c16;
+        }
+
+        .status-paid {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .status-shipped {
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+
+        .status-delivered {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .status-cancelled {
+            background: #fff2f0;
+            color: #ff4d4f;
+        }
+
+        .status-refunded {
+            background: #f9f0ff;
+            color: #722ed1;
+        }
+
+        .payment-method-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            padding: 20px;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        /* Bootstrap模态框居中样式 */
+        .modal.fade {
+            display: none;
+        }
+        
+        .modal.fade.show {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.fade .modal-dialog {
+            position: relative;
+            width: auto;
+            margin: 1.75rem auto;
+            max-width: 90%;
+            transform: translate(0, 0);
+        }
+        
+        .modal.fade.show .modal-dialog {
+            transform: translate(0, 0);
+        }
+        
+        /* 确保模态框内容居中 */
+        .modal-dialog {
+            margin: 1.75rem auto;
+            max-width: 90%;
+        }
+        
+        .modal-xl {
+            max-width: 95%;
+            width: 95%;
+        }
+        
+        .modal-lg {
+            max-width: 800px;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        /* 订单详情模态框内容区域 */
+        #orderDetailModal .modal-content {
+            max-width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #orderDetailModal .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        /* 发货模态框优化样式 */
+        #shipOrderModal .modal-body {
+            padding: 30px;
+        }
+
+        #shipOrderModal .form-label {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        #shipOrderModal .form-control {
+            padding: 10px 14px;
+            font-size: 14px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+
+        #shipOrderModal .form-control:focus {
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+            outline: none;
+        }
+
+        #shipOrderModal .mb-3 {
+            margin-bottom: 20px !important;
+        }
+
+        #shipOrderModal .row {
+            margin-left: -10px;
+            margin-right: -10px;
+        }
+
+        #shipOrderModal .row > [class*="col-"] {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        #shipOrderModal .text-danger {
+            color: #ff4d4f;
+            font-weight: 600;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-textarea {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            color: #333;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1890ff;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .search-filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="orders-container">
+        <!-- 页面标题 -->
+        <div class="page-header">
+            <h1 class="page-title">订单管理</h1>
+            <p class="page-description">管理系统中的所有订单，包括订单状态、支付信息等</p>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-grid" id="statsGrid">
+            <!-- 统计信息将在这里动态生成 -->
+        </div>
+
+        <!-- 订单列表 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="search-filters">
+                    <div class="form-group">
+                        <label>搜索</label>
+                        <input type="text" id="searchInput" class="form-input" placeholder="订单号、会员昵称">
+                    </div>
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select id="statusFilter" class="form-select">
+                            <option value="">全部状态</option>
+                            <option value="pending">待支付</option>
+                            <option value="paid">已支付</option>
+                            <option value="shipped">已发货</option>
+                            <option value="delivered">已送达</option>
+                            <option value="cancelled">已取消</option>
+                            <option value="refunded">已退款</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>支付方式</label>
+                        <select id="paymentMethodFilter" class="form-select">
+                            <option value="">全部方式</option>
+                            <option value="wechat">微信支付</option>
+                            <option value="alipay">支付宝</option>
+                            <option value="bank">银行卡</option>
+                            <option value="points">积分支付</option>
+                            <option value="commission">佣金支付</option>
+                            <option value="test">测试支付</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>日期范围</label>
+                        <input type="date" id="startDate" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label>至</label>
+                        <input type="date" id="endDate" class="form-input">
+                    </div>
+                    <button class="btn btn-primary" onclick="searchOrders()">搜索</button>
+                    <button class="btn btn-outline-primary" onclick="resetFilters()">重置</button>
+                </div>
+                <div>
+                    <button class="btn btn-success" onclick="showCreateOrderModal()">创建测试订单</button>
+                    <button class="btn btn-primary" onclick="exportOrders()">导出订单</button>
+                    <button class="btn btn-warning" onclick="triggerImportShipping()">导入发货</button>
+                    <button class="btn btn-outline-primary" onclick="downloadShippingTemplate()">下载发货模板</button>
+                    <input type="file" id="ordersShippingImportFile" accept=".csv" style="display:none;" />
+                </div>
+            </div>
+
+            <!-- 表格区域 -->
+            <div class="table-section">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll"></th>
+                            <th>订单号</th>
+                            <th>会员信息</th>
+                            <th>商品信息</th>
+                            <th>数量</th>
+                            <th>单价</th>
+                            <th>总金额</th>
+                            <th>状态</th>
+                            <th>支付方式</th>
+                            <th>支付时间</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orderTableBody">
+                        <!-- 订单列表将在这里动态生成 -->
+                    </tbody>
+                </table>
+                <div class="pagination" id="pagination">
+                    <!-- 分页按钮将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 订单详情模态框 -->
+
+    <!-- 创建测试订单模态框 -->
+    <div id="createOrderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">创建测试订单</h3>
+                <button class="modal-close" onclick="closeCreateOrderModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createOrderForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="createMemberId">选择会员 *</label>
+                            <select id="createMemberId" class="form-select" required>
+                                <option value="">请选择会员</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="createProductId">选择商品 *</label>
+                            <select id="createProductId" class="form-select" required>
+                                <option value="">请选择商品</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="createQuantity">购买数量 *</label>
+                            <input type="number" id="createQuantity" class="form-input" value="1" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="createUnitPrice">单价 *</label>
+                            <input type="number" id="createUnitPrice" class="form-input" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="createTotalAmount">总金额 *</label>
+                            <input type="number" id="createTotalAmount" class="form-input" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="createPaymentMethod">支付方式</label>
+                            <select id="createPaymentMethod" class="form-select">
+                                <option value="test">测试支付</option>
+                                <option value="wechat">微信支付</option>
+                                <option value="alipay">支付宝</option>
+                                <option value="points">积分支付</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="createShippingAddress">收货地址</label>
+                        <textarea id="createShippingAddress" class="form-textarea" placeholder="请输入收货地址"></textarea>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="createRemark">订单备注</label>
+                        <textarea id="createRemark" class="form-textarea" placeholder="请输入订单备注"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-primary" onclick="closeCreateOrderModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitCreateOrder()">创建订单</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 更新订单状态模态框 -->
+    <div id="updateStatusModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 class="modal-title">更新订单状态</h3>
+                <button class="modal-close" onclick="closeUpdateStatusModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newStatus">新状态</label>
+                    <select id="newStatus" class="form-select">
+                        <option value="pending">待支付</option>
+                        <option value="paid">已支付</option>
+                        <option value="shipped">已发货</option>
+                        <option value="delivered">已送达</option>
+                        <option value="cancelled">已取消</option>
+                        <option value="refunded">已退款</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="statusRemark">备注</label>
+                    <textarea id="statusRemark" class="form-textarea" placeholder="请输入状态更新备注"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-primary" onclick="closeUpdateStatusModal()">取消</button>
+                <button class="btn btn-primary" onclick="confirmUpdateStatus()">确认更新</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 订单操作按钮区域 -->
+    <div class="order-actions" style="margin-bottom: 20px;">
+        <button class="btn btn-primary" onclick="showAddOrderModal()">
+            <i class="fas fa-plus"></i> 创建订单
+        </button>
+        <button class="btn btn-info" onclick="refreshOrders()">
+            <i class="fas fa-sync"></i> 刷新
+        </button>
+        <div class="filter-controls" style="display: inline-block; margin-left: 20px;">
+            <select id="statusFilter" onchange="filterOrders()" class="form-control" style="display: inline-block; width: 150px;">
+                <option value="">全部状态</option>
+                <option value="pending">待支付</option>
+                <option value="paid">已支付</option>
+                <option value="shipped">已发货</option>
+                <option value="delivered">已收货</option>
+                <option value="cancelled">已取消</option>
+                <option value="returned">已退货</option>
+                <option value="refunded">已退款</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 注意：此表格已被移除，订单数据将渲染到上面的 orderTableBody 表格中 -->
+
+    <!-- 订单详情模态框 -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">订单详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="orderManagement.closeOrderDetail()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- 订单基本信息 -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>订单信息</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td style="width: 120px;"><strong>订单号：</strong></td>
+                                            <td id="detailOrderNo">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>订单状态：</strong></td>
+                                            <td><span id="detailOrderStatus" class="badge">-</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>订单类型：</strong></td>
+                                            <td>
+                                                <span id="detailOrderType">-</span>
+                                                <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="changeOrderTypeBtn" style="display: none;" onclick="if(window.orderManagement) window.orderManagement.showChangeOrderTypeModal();">变更类型</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>支付方式：</strong></td>
+                                            <td id="detailPaymentMethod">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>支付时间：</strong></td>
+                                            <td id="detailPaymentTime">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>创建时间：</strong></td>
+                                            <td id="detailCreatedAt">-</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 会员信息 -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>会员信息</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>会员昵称：</strong></td>
+                                            <td id="detailMemberName">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>联系电话：</strong></td>
+                                            <td id="detailMemberPhone">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>收货人：</strong></td>
+                                            <td id="detailReceiverName">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>收货电话：</strong></td>
+                                            <td id="detailReceiverPhone">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>收货地址：</strong></td>
+                                            <td id="detailShippingAddress">-</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 商品信息 -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>商品信息</h6>
+                                </div>
+                                <div class="card-body" id="detailProductList">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <img id="detailProductImage" src="" alt="商品图片" class="img-fluid" style="max-height: 150px;" onerror="this.src='/images/default-product.svg'; this.onerror=null;">
+                                        </div>
+                                        <div class="col-md-9">
+                                            <h6 id="detailProductName">-</h6>
+                                            <p><strong>单价：</strong><span id="detailUnitPrice">-</span> 元</p>
+                                            <p><strong>数量：</strong><span id="detailQuantity">-</span></p>
+                                            <p><strong>总金额：</strong><span id="detailTotalAmount">-</span> 元</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 金额计算流程 -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>金额计算明细</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>商品原价：</strong></td>
+                                            <td id="detailOriginalAmount" class="text-end">¥0.00</td>
+                                        </tr>
+                                        <tr id="detailCouponRow" style="display: none;">
+                                            <td><strong>优惠券抵扣：</strong></td>
+                                            <td id="detailCouponDiscount" class="text-end text-danger">-¥0.00</td>
+                                        </tr>
+                                        <tr id="detailPromotionRow" style="display: none;">
+                                            <td><strong>促销活动折扣：</strong></td>
+                                            <td id="detailPromotionDiscount" class="text-end text-danger">-¥0.00</td>
+                                        </tr>
+                                        <tr id="detailMemberDiscountRow" style="display: none;">
+                                            <td><strong>会员权益折扣：</strong></td>
+                                            <td id="detailMemberDiscount" class="text-end text-danger">-¥0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>优惠后金额：</strong></td>
+                                            <td id="detailAfterDiscount" class="text-end">¥0.00</td>
+                                        </tr>
+                                        <tr id="detailCommissionDeductionRow" style="display: none;">
+                                            <td><strong>佣金抵扣：</strong></td>
+                                            <td id="detailCommissionDeduction" class="text-end text-danger">-¥0.00</td>
+                                        </tr>
+                                        <tr id="detailPointsDeductionRow" style="display: none;">
+                                            <td><strong>积分抵扣：</strong></td>
+                                            <td id="detailPointsDeduction" class="text-end text-danger">-¥0.00</td>
+                                        </tr>
+                                        <tr class="table-primary">
+                                            <td><strong>实付金额：</strong></td>
+                                            <td id="detailFinalAmount" class="text-end fw-bold">¥0.00</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 佣金记录 -->
+                    <div class="row mt-3" id="commissionRecordsSection" style="display: none;">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>佣金记录</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>类型</th>
+                                                    <th>金额</th>
+                                                    <th>说明</th>
+                                                    <th>时间</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="detailCommissionRecords">
+                                                <tr><td colspan="4" class="text-center">暂无佣金记录</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 物流信息 -->
+                    <div class="row mt-3" id="shippingInfoSection" style="display: none;">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>物流信息</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>物流公司：</strong></td>
+                                            <td id="detailShippingCompany">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>物流单号：</strong></td>
+                                            <td id="detailTrackingNumber">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>发货时间：</strong></td>
+                                            <td id="detailShippedAt">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>收货时间：</strong></td>
+                                            <td id="detailDeliveredAt">-</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 退货退款信息 -->
+                    <div class="row mt-3" id="returnRefundSection" style="display: none;">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>退货信息</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>退货状态：</strong></td>
+                                            <td><span id="detailReturnStatus" class="badge">-</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>退货原因：</strong></td>
+                                            <td id="detailReturnReason">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>退货金额：</strong></td>
+                                            <td id="detailReturnAmount">-</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>退款信息</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>退款状态：</strong></td>
+                                            <td><span id="detailRefundStatus" class="badge">-</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>退款金额：</strong></td>
+                                            <td id="detailRefundAmount">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>退款方式：</strong></td>
+                                            <td id="detailRefundMethod">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>退款时间：</strong></td>
+                                            <td id="detailRefundedAt">-</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 操作日志 -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>操作日志</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="operationLogs" style="max-height: 300px; overflow-y: auto;">
+                                        <!-- 操作日志将通过JavaScript动态加载 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" id="verifyOrderBtn" style="display: none;" onclick="if(window.orderManagement) window.orderManagement.verifyOrderFromDetail();">
+                        <i class="fas fa-check-circle"></i> 核销订单
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="if(window.orderManagement) window.orderManagement.closeOrderDetail();">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 发货模态框 -->
+    <div class="modal fade" id="shipOrderModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-truck"></i> 订单发货</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="if(window.orderManagement) window.orderManagement.closeShipOrder();"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="shipOrderForm">
+                        <input type="hidden" id="shipOrderId">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="shippingCompany" class="form-label">物流公司 <span class="text-danger">*</span></label>
+                                <select class="form-control" id="shippingCompany" required>
+                                    <option value="">请选择物流公司</option>
+                                    <option value="顺丰速运">顺丰速运</option>
+                                    <option value="圆通速递">圆通速递</option>
+                                    <option value="中通快递">中通快递</option>
+                                    <option value="申通快递">申通快递</option>
+                                    <option value="韵达速递">韵达速递</option>
+                                    <option value="京东物流">京东物流</option>
+                                    <option value="德邦快递">德邦快递</option>
+                                    <option value="其他">其他</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="trackingNumber" class="form-label">物流单号 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="trackingNumber" placeholder="请输入物流单号" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="shippingMethod" class="form-label">配送方式</label>
+                                <select class="form-control" id="shippingMethod">
+                                    <option value="标准快递">标准快递</option>
+                                    <option value="次日达">次日达</option>
+                                    <option value="当日达">当日达</option>
+                                    <option value="自提">自提</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="shippingRemark" class="form-label">备注</label>
+                                <input type="text" class="form-control" id="shippingRemark" placeholder="可选，填写发货备注">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="if(window.orderManagement) window.orderManagement.closeShipOrder();">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="if(window.orderManagement) window.orderManagement.confirmShipOrder();">
+                        <i class="fas fa-paper-plane"></i> 确认发货
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 变更订单类型模态框 -->
+    <div class="modal fade" id="changeOrderTypeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> 变更订单类型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="if(window.orderManagement) window.orderManagement.closeChangeOrderTypeModal();"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changeOrderTypeForm">
+                        <input type="hidden" id="changeOrderTypeId">
+                        <div class="mb-3">
+                            <label for="newOrderType" class="form-label">订单类型 <span class="text-danger">*</span></label>
+                            <select class="form-control" id="newOrderType" required>
+                                <option value="physical">实物商品</option>
+                                <option value="service">服务商品</option>
+                            </select>
+                            <small class="form-text text-muted">选择订单类型：实物商品需要发货，服务商品需要核销</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="changeOrderTypeRemark" class="form-label">变更原因</label>
+                            <textarea class="form-control" id="changeOrderTypeRemark" rows="3" placeholder="请填写变更订单类型的原因（可选）"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="if(window.orderManagement) window.orderManagement.closeChangeOrderTypeModal();">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="if(window.orderManagement) window.orderManagement.confirmChangeOrderType();">
+                        <i class="fas fa-check"></i> 确认变更
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 退货处理模态框 -->
+    <div class="modal fade" id="processReturnModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">处理退货申请</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="processReturnForm">
+                        <input type="hidden" id="processReturnOrderId">
+                        <input type="hidden" id="processReturnAction">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">处理结果</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="returnAction" id="approveReturn" value="approve">
+                                <label class="form-check-label" for="approveReturn">
+                                    通过退货申请
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="returnAction" id="rejectReturn" value="reject">
+                                <label class="form-check-label" for="rejectReturn">
+                                    拒绝退货申请
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3" id="returnAmountSection" style="display: none;">
+                            <label for="returnAmount" class="form-label">退货金额</label>
+                            <input type="number" class="form-control" id="returnAmount" step="0.01" min="0">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="adminRemark" class="form-label">处理备注</label>
+                            <textarea class="form-control" id="adminRemark" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmProcessReturn()">确认处理</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 退款处理模态框 -->
+    <div class="modal fade" id="processRefundModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">处理退款申请</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="processRefundForm">
+                        <input type="hidden" id="processRefundOrderId">
+                        <input type="hidden" id="processRefundAction">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">处理结果</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="refundAction" id="approveRefund" value="approve">
+                                <label class="form-check-label" for="approveRefund">
+                                    通过退款申请
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="refundAction" id="rejectRefund" value="reject">
+                                <label class="form-check-label" for="rejectRefund">
+                                    拒绝退款申请
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="refundRemark" class="form-label">处理备注</label>
+                            <textarea class="form-control" id="refundRemark" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmProcessRefund()">确认处理</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 完成退款模态框 -->
+    <div class="modal fade" id="completeRefundModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">完成退款</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="completeRefundForm">
+                        <input type="hidden" id="completeRefundOrderId">
+                        
+                        <div class="mb-3">
+                            <label for="thirdPartyRefundNo" class="form-label">第三方退款单号</label>
+                            <input type="text" class="form-control" id="thirdPartyRefundNo">
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            确认退款已完成，此操作不可撤销。
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-success" onclick="confirmCompleteRefund()">确认完成退款</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="../js/order.js"></script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+<style>
+    /* 用户管理样式 */
+    .user-management {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e1e5e9;
+    }
+    
+    .header h2 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+    
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #1e7e34;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #c82333;
+    }
+    
+    .btn-warning {
+      background: #ffc107;
+      color: #212529;
+    }
+    
+    .btn-warning:hover {
+      background: #e0a800;
+    }
+    
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    
+    /* 表格样式 */
+    .user-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .user-table th,
+    .user-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e1e5e9;
+    }
+    
+    .user-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+    }
+    
+    .user-table tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .user-table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    /* 搜索框 */
+    .search-box {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .search-box input {
+      flex: 1;
+      padding: 10px 16px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .search-box input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+    }
+    
+    .search-box .btn {
+      white-space: nowrap;
+    }
+    
+    /* 分页 */
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e1e5e9;
+    }
+    
+    .pagination-info {
+      color: #6c757d;
+      font-size: 14px;
+    }
+    
+    .pagination-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .pagination-controls .btn {
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    
+    /* 状态标签 */
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .status-active {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .status-inactive {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    
+    .status-banned {
+      background: #fff3cd;
+      color: #856404;
+    }
+    
+    /* 角色标签 */
+    .role-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .role-admin {
+      background: #cce5ff;
+      color: #004085;
+    }
+    
+    .role-user {
+      background: #e2e3e5;
+      color: #383d41;
+    }
+    
+    /* 模态框样式 */
+    .modal {
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid #e1e5e9;
+    }
+    
+    .modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .close {
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+    }
+    
+    .close:hover {
+      color: #333;
+    }
+    
+    .modal-body {
+      padding: 20px;
+    }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 20px;
+      border-top: 1px solid #e1e5e9;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #333;
+    }
+    
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+    }
+</style>
+<div class="user-management">
+  <div class="header">
+    <h2>用户管理</h2>
+    <button class="btn btn-primary" onclick="openAddUserModal()">
+      <span>➕</span> 新增用户
+    </button>
+  </div>
+  
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="输入用户名搜索..." />
+    <button class="btn btn-primary" onclick="searchUsers()">搜索</button>
+  </div>
+  
+  <table class="user-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>用户名</th>
+        <th>邮箱</th>
+        <th>角色</th>
+        <th>状态</th>
+        <th>创建时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="userTableBody">
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 40px; color: #6c757d;">
+          暂无数据
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <div class="pagination">
+    <div class="pagination-info">
+      共 <span id="totalCount">0</span> 条
+    </div>
+    <div class="pagination-controls">
+      <button class="btn btn-sm" onclick="previoususerPage()" disabled>上一页</button>
+      <span class="btn btn-sm" style="background: #007bff; color: white;">1</span>
+      <button class="btn btn-sm" onclick="nextuserPage()" disabled>下一页</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新增用户模态框 -->
+<div id="addUserModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>新增用户</h3>
+      <span class="close" onclick="closeAddUserModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="addUserForm">
+        <div class="form-group">
+          <label for="username">用户名</label>
+          <input type="text" id="username" name="username" required />
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" required />
+        </div>
+        <div class="form-group">
+          <label for="email">邮箱</label>
+          <input type="email" id="email" name="email" />
+        </div>
+        <div class="form-group">
+          <label for="role">角色</label>
+          <select id="role" name="role">
+            <option value="user">普通用户</option>
+            <option value="admin">管理员</option>
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-warning" onclick="closeAddUserModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitAddUser()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 在新增用户模态框后面添加编辑用户模态框 -->
+<div id="editUserModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>编辑用户</h3>
+        <span class="close" onclick="closeEditUserModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="editUserForm">
+          <input type="hidden" id="editUserId" name="id" />
+          <div class="form-group">
+            <label for="editUsername">用户名</label>
+            <input type="text" id="editUsername" name="username" required />
+          </div>
+          <div class="form-group">
+            <label for="editPassword">密码（留空则不修改）</label>
+            <input type="password" id="editPassword" name="password" placeholder="留空则不修改密码" />
+          </div>
+          <div class="form-group">
+            <label for="editEmail">邮箱</label>
+            <input type="email" id="editEmail" name="email" />
+          </div>
+          <div class="form-group">
+            <label for="editRole">角色</label>
+            <select id="editRole" name="role">
+              <option value="user">普通用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editStatus">状态</label>
+            <select id="editStatus" name="status">
+              <option value="active">正常</option>
+              <option value="inactive">禁用</option>
+              <option value="banned">封禁</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="closeEditUserModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitEditUser()">确定</button>
+      </div>
+    </div>
+  </div>
+
+<style>
+/* 模态框样式 */
+.modal {
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close {
+  font-size: 24px;
+  cursor: pointer;
+  color: #6c757d;
+}
+
+.close:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #e1e5e9;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+}
+</style>

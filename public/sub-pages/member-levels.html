@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会员等级管理</title>
+    <style>
+        .member-levels-container {
+            padding: 20px;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+
+        .page-description {
+            color: #666;
+            margin: 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 600;
+            color: #1890ff;
+            margin: 0 0 5px 0;
+        }
+
+        .stat-label {
+            color: #666;
+            margin: 0;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            width: 200px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            background: white;
+            font-size: 14px;
+            min-width: 120px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .btn-warning {
+            background: #faad14;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ffc53d;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .btn-outline-primary {
+            background: transparent;
+            color: #1890ff;
+            border: 1px solid #1890ff;
+        }
+
+        .btn-outline-primary:hover {
+            background: #1890ff;
+            color: white;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        .level-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .level-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            color: white;
+            font-size: 12px;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+
+        .status-inactive {
+            background: #fff2e8;
+            color: #fa8c16;
+            border: 1px solid #ffd591;
+        }
+
+        .pagination {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .form-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .form-textarea {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .privilege-item {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #f0f0f0;
+            border-radius: 6px;
+        }
+
+        .privilege-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+        }
+
+        .privilege-value {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+        }
+
+        .privilege-remove {
+            background: #ff4d4f;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .privilege-add {
+            background: #52c41a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="member-levels-container">
+        <!-- 页面标题 -->
+        <div class="page-header">
+            <h1 class="page-title">会员等级管理</h1>
+            <p class="page-description">管理会员等级配置和特权设置</p>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-grid" id="statsGrid">
+            <!-- 统计信息将在这里动态生成 -->
+        </div>
+
+        <!-- 内容卡片 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="search-section">
+                    <input type="text" id="searchInput" class="search-input" placeholder="搜索等级名称...">
+                    <select id="statusFilter" class="filter-select">
+                        <option value="">全部状态</option>
+                        <option value="active">正常</option>
+                        <option value="inactive">停用</option>
+                    </select>
+                    <button id="searchBtn" class="btn btn-primary">搜索</button>
+                </div>
+                <div>
+                    <button id="addLevelBtn" class="btn btn-primary">添加等级</button>
+                </div>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>等级信息</th>
+                        <th>积分要求</th>
+                        <th>折扣率</th>
+                        <th>积分倍率</th>
+                        <th>特权数量</th>
+                        <th>状态</th>
+                        <th>排序</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="levelsTableBody">
+                    <!-- 等级列表将在这里动态生成 -->
+                </tbody>
+            </table>
+
+            <div class="pagination" id="pagination">
+                <!-- 分页按钮将在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑等级模态框 -->
+    <div id="levelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="levelModalTitle" class="modal-title">添加会员等级</h3>
+                <button class="modal-close" onclick="closeLevelModal()">&times;</button>
+            </div>
+            <form id="levelForm" class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">等级名称 *</label>
+                        <input type="text" id="levelName" name="levelName" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">等级数值 *</label>
+                        <input type="number" id="levelValue" name="levelValue" class="form-input" required min="1">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">最低积分要求 *</label>
+                        <input type="number" id="minPoints" name="minPoints" class="form-input" required min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">最高积分要求</label>
+                        <input type="number" id="maxPoints" name="maxPoints" class="form-input" min="0">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">折扣率 *</label>
+                        <input type="number" id="discountRate" name="discountRate" class="form-input" required min="0" max="1" step="0.01" value="1.00">
+                        <small style="color: #666;">1.00表示无折扣，0.90表示9折</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">积分倍率 *</label>
+                        <input type="number" id="pointsRate" name="pointsRate" class="form-input" required min="0" step="0.1" value="1.0">
+                        <small style="color: #666;">1.0表示正常倍率，2.0表示双倍积分</small>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">等级颜色</label>
+                        <input type="color" id="levelColor" name="levelColor" class="form-input" value="#1890ff">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">等级图标</label>
+                        <input type="text" id="levelIcon" name="levelIcon" class="form-input" placeholder="如: 👑">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">排序</label>
+                        <input type="number" id="sortOrder" name="sortOrder" class="form-input" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">状态</label>
+                        <select id="levelStatus" name="levelStatus" class="form-input">
+                            <option value="active">正常</option>
+                            <option value="inactive">停用</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label class="form-label">等级描述</label>
+                        <textarea id="levelDescription" name="levelDescription" class="form-textarea" placeholder="请输入等级描述"></textarea>
+                    </div>
+                </div>
+
+                <!-- 特权配置 -->
+                <div class="form-row">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label class="form-label">特权配置</label>
+                        <div id="privilegesContainer">
+                            <!-- 特权项将在这里动态生成 -->
+                        </div>
+                        <button type="button" class="privilege-add" onclick="addPrivilege()">添加特权</button>
+                    </div>
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" onclick="closeLevelModal()">取消</button>
+                <button type="submit" form="levelForm" class="btn btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面加载完成后自动初始化 -->
+    <script>
+        // 页面加载完成后自动初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，开始初始化会员等级管理');
+            if (typeof initMemberLevels === 'function') {
+                initMemberLevels();
+            } else {
+                console.error('initMemberLevels 函数未定义');
+            }
+        });
+    </script>
+</body>
+</html>

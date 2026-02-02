@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品管理</title>
+    <style>
+        /* 商品管理页面样式 */
+        .product-management {
+            padding: 20px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #1e7e34;
+        }
+        
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .product-table th,
+        .product-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .product-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .product-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-discontinued {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .hot-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .hot-badge.hot {
+            background-color: #ffe1e1;
+            color: #c62828;
+        }
+        
+        .hot-badge.normal {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+        
+        .sku-info {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        .pagination button:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .pagination button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 1% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 95%;
+            max-width: 1200px;
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .close {
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        /* SKU管理样式 */
+        .sku-section {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        .sku-section h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .sku-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        .sku-table th,
+        .sku-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+        }
+        
+        .sku-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        
+        .sku-table input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .sku-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        /* 属性管理样式 */
+        .attribute-section {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        .attribute-section h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .attribute-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .attribute-item input {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        .attribute-item select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        .attribute-options {
+            flex: 2;
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        
+        .attribute-options input {
+            flex: 1;
+            min-width: 100px;
+        }
+        
+        .attribute-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        /* 媒体上传样式 */
+        .media-upload {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            margin-bottom: 15px;
+        }
+        
+        .media-upload h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .media-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            min-height: 80px;
+            border: 2px dashed #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: white;
+        }
+        
+        .media-preview.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .media-item {
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .media-item img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .media-item video {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .media-item .remove-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: rgba(220, 53, 69, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .media-item .remove-btn:hover {
+            background: rgba(220, 53, 69, 1);
+        }
+        
+        .media-upload-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* 富文本编辑器样式 */
+        .editor-toolbar {
+            border-bottom: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+            display: flex;
+            gap: 5px;
+        }
+        
+        .editor-toolbar button {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .editor-toolbar button:hover {
+            background: #f8f9fa;
+        }
+        
+        #detailContentEditor {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 200px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        #detailContentEditor:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+    </style>
+</head>
+<body>
+    <div class="product-management">
+        <div class="page-header">
+            <h1 class="page-title">商品管理</h1>
+            <div>
+                <button class="btn btn-info" onclick="exportProducts()">导出报表</button>
+                <button class="btn btn-warning" onclick="triggerImportProducts()">导入报表</button>
+                <button class="btn btn-outline-primary" onclick="downloadProductsTemplate()">下载导入模板</button>
+                <input type="file" id="productsImportFile" accept=".csv" style="display:none;" />
+                <button class="btn btn-primary" onclick="openAddProductModal()">添加商品</button>
+            </div>
+        </div>
+        
+        <div class="search-bar">
+            <input type="text" id="searchInput" class="search-input" placeholder="搜索商品名称或描述...">
+            <select id="categoryFilter" class="filter-select">
+                <option value="">所有分类</option>
+            </select>
+            <select id="statusFilter" class="filter-select">
+                <option value="">所有状态</option>
+                <option value="active">启用</option>
+                <option value="inactive">禁用</option>
+                <option value="discontinued">停产</option>
+            </select>
+            <button class="btn btn-primary" onclick="searchProducts()">搜索</button>
+        </div>
+        
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>商品名称</th>
+                    <th>分类</th>
+                    <th>品牌</th>
+                    <th>SKU数量</th>
+                    <th>总库存</th>
+                    <th>价格区间</th>
+                    <th>热门</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="productTableBody">
+                <tr>
+                    <td colspan="10" class="loading">加载中...</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="pagination" id="pagination">
+            <!-- 分页按钮将通过JavaScript动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 添加/编辑商品模态框 -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">添加商品</h2>
+                <span class="close" onclick="closeProductModal()">&times;</span>
+            </div>
+            <form id="productForm">
+                <!-- 基本信息 -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productName">商品名称 *</label>
+                        <input type="text" id="productName" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="productBrand">品牌</label>
+                        <input type="text" id="productBrand" name="brand">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productCategory">分类 *</label>
+                        <select id="productCategory" name="categoryId" required>
+                            <option value="">请选择分类</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="productType">商品类型 *</label>
+                        <select id="productType" name="productType" required>
+                            <option value="physical">实物商品</option>
+                            <option value="service">服务商品（需核销码）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="productStatus">状态</label>
+                        <select id="productStatus" name="status">
+                            <option value="active">启用</option>
+                            <option value="inactive">禁用</option>
+                            <option value="discontinued">停产</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productIsHot">热门商品</label>
+                        <label style="display:flex;align-items:center;gap:8px;font-weight:400;color:#555;">
+                            <input type="checkbox" id="productIsHot" name="isHot" style="width:auto;">
+                            <span>设为热门</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="productDescription">商品简介</label>
+                    <textarea id="productDescription" name="description" placeholder="请输入商品简介..."></textarea>
+                </div>
+                
+                <!-- 多媒体管理 -->
+                <div class="media-upload">
+                    <h4>商品主图</h4>
+                    <div class="media-preview" id="mainImagesPreview">
+                        <!-- 主图预览区域 -->
+                    </div>
+                    <div class="media-upload-controls">
+                        <input type="file" id="mainImagesInput" multiple accept="image/*" style="display: none;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('mainImagesInput').click()">
+                            选择主图
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="clearMainImages()">清空</button>
+                    </div>
+                </div>
+                
+                <div class="media-upload">
+                    <h4>商品详情图</h4>
+                    <div class="media-preview" id="detailImagesPreview">
+                        <!-- 详情图预览区域 -->
+                    </div>
+                    <div class="media-upload-controls">
+                        <input type="file" id="detailImagesInput" multiple accept="image/*" style="display: none;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('detailImagesInput').click()">
+                            选择详情图
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="clearDetailImages()">清空</button>
+                    </div>
+                </div>
+                
+                <div class="media-upload">
+                    <h4>商品视频</h4>
+                    <div class="media-preview" id="videosPreview">
+                        <!-- 视频预览区域 -->
+                    </div>
+                    <div class="media-upload-controls">
+                        <input type="file" id="videosInput" multiple accept="video/*" style="display: none;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('videosInput').click()">
+                            选择视频
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="clearVideos()">清空</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>商品详情富文本</label>
+                    <div class="editor-toolbar">
+                        <button type="button" onclick="formatText('bold')">粗体</button>
+                        <button type="button" onclick="formatText('italic')">斜体</button>
+                        <button type="button" onclick="formatText('underline')">下划线</button>
+                        <button type="button" onclick="insertImage()">插入图片</button>
+                        <button type="button" onclick="insertLink()">插入链接</button>
+                    </div>
+                    <div id="detailContentEditor" contenteditable="true"></div>
+                    <textarea id="detailContent" name="detailContent" style="display: none;"></textarea>
+                </div>
+                
+                <!-- 属性管理 -->
+                <div class="attribute-section">
+                    <h3>商品属性</h3>
+                    <div id="attributesContainer">
+                        <!-- 属性项将通过JavaScript动态生成 -->
+                    </div>
+                    <button type="button" class="btn btn-success btn-sm" onclick="addAttribute()">添加属性</button>
+                </div>
+                
+                <!-- SKU管理 -->
+                <div class="sku-section">
+                    <h3>商品规格 (SKU)</h3>
+                    <div id="skusContainer">
+                        <!-- SKU项将通过JavaScript动态生成 -->
+                    </div>
+                    <button type="button" class="btn btn-success btn-sm" onclick="addSKU()">添加SKU</button>
+                </div>
+                
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn" onclick="closeProductModal()" style="margin-right: 10px;">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

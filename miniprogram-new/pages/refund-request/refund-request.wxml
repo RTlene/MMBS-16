@@ -1,0 +1,75 @@
+<view class="refund-request-page">
+  <scroll-view class="content" scroll-y>
+    <!-- 订单信息 -->
+    <view class="order-info" wx:if="{{order}}">
+      <view class="section-title">订单信息</view>
+      <view class="order-card">
+        <text class="order-no">订单号：{{order.orderNo}}</text>
+        <text class="order-amount">订单金额：¥{{formatAmount(order.totalAmount)}}</text>
+        <text class="return-amount" wx:if="{{order.returnAmount}}">可退金额：¥{{formatAmount(order.returnAmount)}}</text>
+      </view>
+    </view>
+
+    <!-- 退款金额 -->
+    <view class="amount-section">
+      <view class="section-title">退款金额 <text class="required">*</text></view>
+      <view class="amount-input-wrapper">
+        <text class="amount-symbol">¥</text>
+        <input
+          class="amount-input"
+          type="digit"
+          placeholder="请输入退款金额"
+          value="{{refundAmount}}"
+          bindinput="onInputAmount"
+        />
+        <text class="amount-max" wx:if="{{order}}" bindtap="onSetMaxAmount">
+          最大：¥{{formatAmount(order.returnAmount || order.totalAmount)}}
+        </text>
+      </view>
+    </view>
+
+    <!-- 退款方式 -->
+    <view class="method-section">
+      <view class="section-title">退款方式 <text class="required">*</text></view>
+      <view class="method-list">
+        <view 
+          class="method-item {{refundMethod === item.value ? 'active' : ''}}"
+          wx:for="{{methods}}"
+          wx:key="value"
+          data-method="{{item.value}}"
+          bindtap="onSelectMethod"
+        >
+          <text class="method-label">{{item.label}}</text>
+          <text class="method-check" wx:if="{{refundMethod === item.value}}">✓</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 退款原因 -->
+    <view class="reason-section">
+      <view class="section-title">退款原因 <text class="required">*</text></view>
+      <textarea
+        class="reason-input"
+        placeholder="请详细说明退款原因"
+        value="{{reason}}"
+        bindinput="onInputReason"
+        maxlength="500"
+        auto-height
+      />
+      <view class="char-count">{{reason.length}}/500</view>
+    </view>
+  </scroll-view>
+
+  <!-- 底部提交按钮 -->
+  <view class="bottom-bar">
+    <button
+      class="submit-btn"
+      bindtap="onSubmit"
+      loading="{{submitting}}"
+      disabled="{{submitting}}"
+    >
+      提交申请
+    </button>
+  </view>
+</view>
+

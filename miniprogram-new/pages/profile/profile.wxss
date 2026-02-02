@@ -1,0 +1,173 @@
+/* pages/profile/profile.wxss */
+
+.profile-page {
+  min-height: 100vh;
+  background-color: #F8F8F8;
+  padding-bottom: 40rpx;
+}
+
+/* 用户信息区 */
+.user-section {
+  background: linear-gradient(135deg, #3481B8, #5A9ED8);
+  padding: 80rpx 24rpx 60rpx;
+  color: #FFFFFF;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+}
+
+.login-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-avatar {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 60rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  margin-right: 24rpx;
+}
+
+.user-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.user-name {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.user-level {
+  font-size: 24rpx;
+  opacity: 0.8;
+}
+
+.login-btn {
+  padding: 16rpx 48rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 2rpx solid #FFFFFF;
+  border-radius: 48rpx;
+  color: #FFFFFF;
+  font-size: 28rpx;
+}
+
+/* 订单统计 */
+.order-section {
+  background-color: #FFFFFF;
+  margin: -40rpx 24rpx 20rpx;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333333;
+  margin-bottom: 24rpx;
+}
+
+.title-arrow {
+  font-size: 24rpx;
+  font-weight: normal;
+  color: #999999;
+}
+
+.order-stats {
+  display: flex;
+  justify-content: space-around;
+}
+
+.order-stat-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.stat-icon {
+  font-size: 48rpx;
+}
+
+.stat-label {
+  font-size: 24rpx;
+  color: #666666;
+}
+
+.stat-badge {
+  position: absolute;
+  top: -8rpx;
+  right: -16rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  background-color: #FA5151;
+  color: #FFFFFF;
+  font-size: 20rpx;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 功能菜单 */
+.menu-section {
+  background-color: #FFFFFF;
+  margin: 0 24rpx 20rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 24rpx;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-icon {
+  font-size: 40rpx;
+  margin-right: 24rpx;
+}
+
+.menu-label {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.menu-arrow {
+  font-size: 32rpx;
+  color: #CCCCCC;
+}
+
+/* 退出登录 */
+.logout-section {
+  padding: 0 24rpx;
+}
+
+.logout-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background-color: #FFFFFF;
+  border-radius: 16rpx;
+  color: #FA5151;
+  font-size: 28rpx;
+}
+

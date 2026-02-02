@@ -1,0 +1,66 @@
+<view class="container">
+  <!-- 标签栏 -->
+  <view class="tabs">
+    <view 
+      class="tab-item {{currentTab === item.key ? 'active' : ''}}"
+      wx:for="{{tabs}}" 
+      wx:key="key"
+      data-tab="{{item.key}}"
+      bindtap="onTabChange"
+    >
+      {{item.label}}
+    </view>
+  </view>
+
+  <!-- 优惠券列表 -->
+  <view class="coupon-list">
+    <view 
+      class="coupon-item {{item.status}}"
+      wx:for="{{coupons}}" 
+      wx:key="id"
+      data-coupon="{{item}}"
+      bindtap="onSelectCoupon"
+    >
+      <view class="coupon-left">
+        <view class="coupon-value">{{getCouponValue(item)}}</view>
+        <view class="coupon-type" wx:if="{{item.minOrderAmount}}">
+          满{{formatAmount(item.minOrderAmount)}}可用
+        </view>
+        <view class="coupon-type" wx:else>
+          无门槛
+        </view>
+      </view>
+      <view class="coupon-right">
+        <view class="coupon-name">{{item.name}}</view>
+        <view class="coupon-desc" wx:if="{{item.description}}">
+          {{item.description}}
+        </view>
+        <view class="coupon-time">
+          {{formatTime(item.validFrom)}} 至 {{formatTime(item.validTo)}}
+        </view>
+        <view class="coupon-status">
+          <text wx:if="{{item.status === 'available'}}" class="status-text available">可使用</text>
+          <text wx:elif="{{item.status === 'used'}}" class="status-text used">已使用</text>
+          <text wx:elif="{{item.status === 'expired'}}" class="status-text expired">已过期</text>
+          <text wx:else class="status-text unavailable">不可用</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty" wx:if="{{coupons.length === 0 && !loading}}">
+      <text>暂无优惠券</text>
+    </view>
+
+    <!-- 加载中 -->
+    <view class="loading" wx:if="{{loading}}">
+      <text>加载中...</text>
+    </view>
+
+    <!-- 没有更多 -->
+    <view class="no-more" wx:if="{{!hasMore && coupons.length > 0}}">
+      <text>没有更多了</text>
+    </view>
+  </view>
+</view>
+

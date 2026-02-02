@@ -1,0 +1,157 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.tabs {
+  display: flex;
+  background-color: #fff;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 30rpx 0;
+  font-size: 28rpx;
+  color: #666;
+  position: relative;
+}
+
+.tab.active {
+  color: #3481B8;
+  font-weight: bold;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  background-color: #3481B8;
+  border-radius: 2rpx;
+}
+
+.code-list {
+  padding: 20rpx;
+}
+
+.code-item {
+  background-color: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 20rpx;
+  padding: 30rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.code-info {
+  flex: 1;
+}
+
+.code-name {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8rpx;
+}
+
+.code-sku {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.code-status {
+  font-size: 24rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.status-unused {
+  background-color: #e8f5e9;
+  color: #4caf50;
+}
+
+.status-used {
+  background-color: #f3e5f5;
+  color: #9c27b0;
+}
+
+.status-expired {
+  background-color: #ffebee;
+  color: #f44336;
+}
+
+.status-cancelled {
+  background-color: #ececec;
+  color: #757575;
+}
+
+.code-body {
+  margin-top: 20rpx;
+}
+
+.code-number {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.code-label {
+  font-size: 28rpx;
+  color: #666;
+  margin-right: 8rpx;
+}
+
+.code-value {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #3481B8;
+  letter-spacing: 2rpx;
+  margin-right: 16rpx;
+}
+
+.copy-btn {
+  font-size: 24rpx;
+  color: #3481B8;
+  padding: 8rpx 16rpx;
+  border: 1px solid #3481B8;
+  border-radius: 8rpx;
+}
+
+.code-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  font-size: 24rpx;
+  color: #999;
+}
+
+.empty {
+  text-align: center;
+  padding: 100rpx 0;
+  color: #999;
+  font-size: 28rpx;
+}
+
+.load-more {
+  text-align: center;
+  padding: 30rpx 0;
+  color: #999;
+  font-size: 24rpx;
+}
+

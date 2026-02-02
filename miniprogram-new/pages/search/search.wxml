@@ -1,0 +1,90 @@
+<!--pages/search/search.wxml-->
+<view class="search-page">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <view class="search-input-wrapper">
+      <text class="search-icon">🔍</text>
+      <input 
+        class="search-input"
+        value="{{keyword}}"
+        placeholder="搜索商品、品牌"
+        confirm-type="search"
+        bindinput="onInput"
+        bindconfirm="onConfirm"
+      />
+      <button class="search-btn" bindtap="onSearchTap">搜索</button>
+    </view>
+  </view>
+
+  <!-- 搜索历史 -->
+  <view class="history-section" wx:if="{{showHistory && searchHistory.length > 0}}">
+    <view class="history-header">
+      <text class="history-title">搜索历史</text>
+      <text class="history-clear" bindtap="clearHistory">清空</text>
+    </view>
+    <view class="history-tags">
+      <view 
+        class="history-tag"
+        wx:for="{{searchHistory}}"
+        wx:key="*this"
+        bindtap="onHistoryTap"
+        data-keyword="{{item}}"
+      >
+        {{item}}
+      </view>
+    </view>
+  </view>
+
+  <!-- 结果列表 -->
+  <scroll-view 
+    class="result-section" 
+    scroll-y
+    bindscrolltolower="onReachBottom"
+  >
+    <view class="result-grid" wx:if="{{results.length > 0}}">
+      <view 
+        class="result-card"
+        wx:for="{{results}}"
+        wx:key="id"
+        bindtap="onProductTap"
+        data-id="{{item.id}}"
+      >
+        <image class="card-image" src="{{item.coverImage}}" mode="aspectFill" />
+        <view class="card-info">
+          <text class="card-name">{{item.name}}</text>
+          <text class="card-desc" wx:if="{{item.description}}">{{item.description}}</text>
+          <view class="card-bottom">
+            <text class="card-price">{{item.priceText}}</text>
+            <text class="card-sales" wx:if="{{item.salesText}}">已售 {{item.salesText}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{dataLoaded && results.length === 0 && !loading && !hasError}}">
+      <text class="empty-icon">🔍</text>
+      <text class="empty-text">未找到相关商品</text>
+      <text class="empty-desc">换个关键词试试吧</text>
+    </view>
+
+    <!-- 错误状态 -->
+    <view class="error-state" wx:if="{{hasError}}">
+      <text class="error-icon">⚠️</text>
+      <text class="error-text">{{error}}</text>
+      <button class="retry-btn" bindtap="onSearchTap">重试</button>
+    </view>
+
+    <!-- 加载中 -->
+    <view class="loading-state" wx:if="{{loading}}">
+      <text class="loading-text">{{page > 1 ? '加载中...' : '搜索中...'}}</text>
+    </view>
+
+    <!-- 没有更多了 -->
+    <view class="no-more" wx:if="{{dataLoaded && !hasMore && results.length > 0 && !loading}}">
+      <text class="no-more-text">没有更多了</text>
+    </view>
+  </scroll-view>
+</view>
+
+

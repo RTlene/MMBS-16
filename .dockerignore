@@ -1,0 +1,61 @@
+# Node.js
+node_modules
+npm-debug.log
+yarn-error.log
+
+# 环境变量（构建时通过云托管环境变量注入）
+.env
+.env.local
+.env.*.local
+
+# 小程序源码（不需要打包到后台镜像）
+润祥
+miniprogram-new
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 测试文件
+test
+tests
+*.test.js
+
+# 日志
+logs
+*.log
+
+# 临时文件
+tmp
+temp
+.tmp
+
+# 文档
+README.md
+LICENSE
+*.md
+
+# 上传的文件（生产环境应使用云存储）
+public/uploads/*
+!public/uploads/.gitkeep
+
+# 数据库备份
+*.sql
+*.dump
+
+# Docker
+# 保留 Dockerfile 以便本地构建
+# Dockerfile
+# .dockerignore
+# docker-compose.yml
+
+# 其他
+.DS_Store
+

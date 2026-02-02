@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>达安生命会员邀请海报</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .poster-container {
+            min-height: 100vh;
+            background: linear-gradient(180deg, #1a4d3a 0%, #0d2e1f 100%);
+            padding: 40px 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        }
+
+        /* 顶部横幅 */
+        .header-banner {
+            text-align: center;
+            padding: 60px 40px 40px;
+        }
+
+        .logo-section {
+            margin-bottom: 30px;
+        }
+
+        .logo-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: #d4af37;
+            margin-bottom: 8px;
+            letter-spacing: 4px;
+        }
+
+        .logo-subtitle {
+            font-size: 28px;
+            color: #a8d5ba;
+            letter-spacing: 2px;
+        }
+
+        .certifications {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .cert-text {
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.6;
+        }
+
+        /* 金色分割线 */
+        .divider-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent 0%, #d4af37 20%, #d4af37 80%, transparent 100%);
+            margin: 40px 60px;
+            opacity: 0.8;
+        }
+
+        /* 通用区块样式 */
+        .content-section {
+            margin: 0 24px;
+            padding: 40px 0;
+        }
+
+        .section-title {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .title-text {
+            font-size: 36px;
+            font-weight: bold;
+            color: #d4af37;
+            margin-bottom: 16px;
+        }
+
+        .title-line {
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, #d4af37 0%, #f4d03f 100%);
+            border-radius: 2px;
+        }
+
+        /* 公司介绍 */
+        .intro-content {
+            margin-bottom: 32px;
+        }
+
+        .intro-text {
+            font-size: 28px;
+            color: rgba(255, 255, 255, 0.95);
+            line-height: 1.8;
+            text-align: justify;
+        }
+
+        .image-gallery {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .image-item {
+            position: relative;
+            width: 100%;
+            padding-top: 75%;
+            border-radius: 16px;
+            overflow: hidden;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(212, 175, 55, 0.3);
+        }
+
+        .gallery-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .placeholder-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.6;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .placeholder-text {
+            font-size: 22px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(26, 77, 58, 0.8) 0%, rgba(13, 46, 31, 0.8) 100%);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            border: 2px solid #d4af37;
+        }
+
+        .highlight-text {
+            display: block;
+            font-size: 32px;
+            font-weight: bold;
+            color: #d4af37;
+            margin-bottom: 12px;
+        }
+
+        .highlight-subtitle {
+            display: block;
+            font-size: 26px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* 会员特权 */
+        .privilege-list {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .privilege-card {
+            display: flex;
+            align-items: flex-start;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 32px;
+            border: 2px solid rgba(212, 175, 55, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .privilege-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 24px;
+            flex-shrink: 0;
+            font-size: 40px;
+        }
+
+        .ticket-card .privilege-icon {
+            background: linear-gradient(135deg, #1a4d3a 0%, #2d6a4f 100%);
+        }
+
+        .privilege-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .privilege-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #d4af37;
+            margin-bottom: 12px;
+        }
+
+        .privilege-desc {
+            font-size: 26px;
+            color: #f4d03f;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .privilege-detail {
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.6;
+            margin-top: 8px;
+        }
+
+        /* 联系信息 */
+        .contact-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .qr-code-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 40px;
+        }
+
+        .qr-code-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .qr-code-box {
+            width: 260px;
+            height: 260px;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 20px;
+            border: 2px solid rgba(212, 175, 55, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .qr-code-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .qr-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(245, 245, 245, 0.8);
+        }
+
+        .qr-tip {
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .contact-info {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            font-size: 28px;
+            line-height: 1.6;
+        }
+
+        .info-label {
+            color: #d4af37;
+            font-weight: 600;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        .info-value {
+            color: rgba(255, 255, 255, 0.95);
+            flex: 1;
+        }
+
+        .phone {
+            color: #d4af37;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .phone:hover {
+            color: #f4d03f;
+        }
+
+        .address-detail {
+            padding-left: 80px;
+            margin-top: -8px;
+        }
+
+        .address-detail .info-value {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 26px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .poster-container {
+                padding: 20px 10px;
+            }
+
+            .logo-text {
+                font-size: 36px;
+            }
+
+            .logo-subtitle {
+                font-size: 22px;
+            }
+
+            .title-text {
+                font-size: 28px;
+            }
+
+            .intro-text {
+                font-size: 24px;
+            }
+
+            .qr-code-list {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .qr-code-box {
+                width: 220px;
+                height: 220px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="poster-container">
+        <!-- 顶部横幅 -->
+        <div class="header-banner">
+            <div class="logo-section">
+                <div class="logo-text">达安生命</div>
+                <div class="logo-subtitle">DAAN SAFECELL</div>
+            </div>
+            <div class="certifications">
+                <div class="cert-text">CNAS认证实验室</div>
+                <div class="cert-text">中检院认证细胞产品</div>
+            </div>
+        </div>
+
+        <!-- 金色分割线 -->
+        <div class="divider-line"></div>
+
+        <!-- 公司介绍部分 -->
+        <div class="content-section intro-section">
+            <div class="section-title">
+                <div class="title-text">关于达安生命</div>
+                <div class="title-line"></div>
+            </div>
+            
+            <div class="intro-content">
+                <div class="intro-text">达安生命（DAAN SAFECELL）是华南地区唯一国有细胞库，致力于为大众提供高品质的细胞存储与健康管理服务。我们与佛山连锁长寿门诊展开深度合作，为会员提供专业的健康管理解决方案。</div>
+            </div>
+
+            <!-- 图片展示区域 - 2个占位区 -->
+            <div class="image-gallery">
+                <div class="image-item" id="image1">
+                    <img class="gallery-image" id="introImage1" src="" alt="公司图片1" style="display: none;" />
+                    <div class="image-placeholder">
+                        <div class="placeholder-icon">📷</div>
+                        <div class="placeholder-text">图片占位区1</div>
+                    </div>
+                </div>
+                <div class="image-item" id="image2">
+                    <img class="gallery-image" id="introImage2" src="" alt="公司图片2" style="display: none;" />
+                    <div class="image-placeholder">
+                        <div class="placeholder-icon">📷</div>
+                        <div class="placeholder-text">图片占位区2</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <div class="highlight-text">华南唯一国有细胞库</div>
+                <div class="highlight-subtitle">广佛连锁长寿门诊</div>
+            </div>
+        </div>
+
+        <!-- 金色分割线 -->
+        <div class="divider-line"></div>
+
+        <!-- 会员特权部分 -->
+        <div class="content-section privilege-section">
+            <div class="section-title">
+                <div class="title-text">加入会员 享受特权</div>
+                <div class="title-line"></div>
+            </div>
+
+            <div class="privilege-list">
+                <!-- 特权1：内购权 -->
+                <div class="privilege-card vip-card">
+                    <div class="privilege-icon">👑</div>
+                    <div class="privilege-content">
+                        <div class="privilege-title">VIP内购特权</div>
+                        <div class="privilege-desc">章汇长寿系列产品线内购权</div>
+                        <div class="privilege-detail">会员专享内购价格，优先购买长寿系列产品</div>
+                    </div>
+                </div>
+
+                <!-- 特权2：门票优惠 -->
+                <div class="privilege-card ticket-card">
+                    <div class="privilege-icon">🎫</div>
+                    <div class="privilege-content">
+                        <div class="privilege-title">年会门票优惠</div>
+                        <div class="privilege-desc">达安答谢年会门票优惠</div>
+                        <div class="privilege-detail">会员专享年会门票折扣，参与年度答谢活动</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 金色分割线 -->
+        <div class="divider-line"></div>
+
+        <!-- 联系信息部分 -->
+        <div class="content-section contact-section">
+            <div class="section-title">
+                <div class="title-text">联系我们</div>
+                <div class="title-line"></div>
+            </div>
+
+            <div class="contact-content">
+                <!-- 二维码占位区 - 两个 -->
+                <div class="qr-code-list">
+                    <div class="qr-code-wrapper">
+                        <div class="qr-code-box">
+                            <img class="qr-code-image" id="qrCodeImage1" src="" alt="二维码1" style="display: none;" />
+                            <div class="qr-placeholder" id="qrPlaceholder1">
+                                <div class="placeholder-icon">📱</div>
+                                <div class="placeholder-text">二维码占位区1</div>
+                            </div>
+                        </div>
+                        <div class="qr-tip">扫码加入会员</div>
+                    </div>
+                    <div class="qr-code-wrapper">
+                        <div class="qr-code-box">
+                            <img class="qr-code-image" id="qrCodeImage2" src="" alt="二维码2" style="display: none;" />
+                            <div class="qr-placeholder" id="qrPlaceholder2">
+                                <div class="placeholder-icon">📱</div>
+                                <div class="placeholder-text">二维码占位区2</div>
+                            </div>
+                        </div>
+                        <div class="qr-tip">扫码加入会员</div>
+                    </div>
+                </div>
+
+                <!-- 联系信息 -->
+                <div class="contact-info">
+                    <div class="info-item">
+                        <span class="info-label">电话：</span>
+                        <span class="info-value phone" onclick="callPhone()">13202863949 王生</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">地址：</span>
+                        <span class="info-value">佛山章汇城市会客厅</span>
+                    </div>
+                    <div class="info-item address-detail">
+                        <span class="info-value">禅城区火炬园D栋9层208室</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">品牌：</span>
+                        <span class="info-value">达安创谷 | DAAN INCUBATOR</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 加载图片
+        function loadImage(imgId, placeholderId, imageUrl) {
+            const img = document.getElementById(imgId);
+            const placeholder = document.getElementById(placeholderId);
+            
+            if (imageUrl && imageUrl.trim()) {
+                img.src = imageUrl;
+                img.onload = function() {
+                    img.style.display = 'block';
+                    if (placeholder) placeholder.style.display = 'none';
+                };
+                img.onerror = function() {
+                    img.style.display = 'none';
+                    if (placeholder) placeholder.style.display = 'flex';
+                };
+            } else {
+                img.style.display = 'none';
+                if (placeholder) placeholder.style.display = 'flex';
+            }
+        }
+
+        // 初始化图片
+        function initImages() {
+            // 这里可以从API或配置中加载图片URL
+            // 示例：loadImage('introImage1', 'image1', '/uploads/daan/intro1.jpg');
+        }
+
+        // 拨打电话
+        function callPhone() {
+            const phone = '13202863949';
+            if (confirm(`是否拨打 ${phone}？`)) {
+                window.location.href = `tel:${phone}`;
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initImages();
+        });
+    </script>
+</body>
+</html>

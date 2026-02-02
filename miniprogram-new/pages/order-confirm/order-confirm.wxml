@@ -1,0 +1,223 @@
+<!--pages/order-confirm/order-confirm.wxml-->
+<view class="order-confirm-page">
+  <!-- 收货信息 -->
+  <view class="address-card">
+    <view class="field choose-address" bindtap="onChooseSavedAddress">
+      <text class="choose-text">{{selectedAddressId ? '更换已保存地址' : '选择已保存地址'}}</text>
+      <text class="choose-arrow">></text>
+    </view>
+    <view class="field">
+      <text class="field-label">收货人</text>
+      <input 
+        class="field-input"
+        placeholder="请输入收货人姓名"
+        value="{{receiverName}}"
+        data-field="receiverName"
+        bindinput="onInputChange"
+      />
+    </view>
+    <view class="field">
+      <text class="field-label">手机号</text>
+      <input 
+        class="field-input"
+        placeholder="请输入联系电话"
+        value="{{receiverPhone}}"
+        data-field="receiverPhone"
+        bindinput="onInputChange"
+        type="number"
+        maxlength="11"
+      />
+    </view>
+    <view class="field multi-line">
+      <text class="field-label">收货地址</text>
+      <textarea
+        class="field-textarea"
+        placeholder="请输入详细收货地址"
+        value="{{shippingAddress}}"
+        data-field="shippingAddress"
+        bindinput="onInputChange"
+        auto-height
+      />
+    </view>
+  </view>
+
+  <!-- 商品列表 -->
+  <view class="items-section">
+    <view class="section-title">商品信息</view>
+    <view 
+      class="item-card"
+      wx:for="{{items}}"
+      wx:key="skuId"
+    >
+      <image class="item-image" src="{{item.image}}" mode="aspectFill" />
+      <view class="item-info">
+        <text class="item-name">{{item.name}}</text>
+        <text class="item-sku" wx:if="{{item.skuName}}">{{item.skuName}}</text>
+        <view class="item-meta">
+          <text class="item-price">¥{{item.price}}</text>
+          <text class="item-qty">x{{item.quantity}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 价格明细 -->
+  <view class="summary-section">
+    <view class="summary-row">
+      <text class="summary-label">商品合计</text>
+      <text class="summary-value">¥{{originalAmount}}</text>
+    </view>
+    
+    <!-- 优惠券选择 -->
+    <view class="summary-row coupon-row" bindtap="onShowCouponPicker">
+      <view class="coupon-left">
+        <text class="summary-label">优惠券</text>
+        <text class="coupon-desc" wx:if="{{selectedCoupon}}">{{selectedCoupon.name}}</text>
+        <text class="coupon-desc placeholder" wx:else>选择优惠券</text>
+      </view>
+      <view class="coupon-right">
+        <text class="coupon-discount" wx:if="{{selectedCoupon && discountAmount > 0}}">-¥{{discountAmount}}</text>
+        <text class="coupon-arrow">></text>
+      </view>
+    </view>
+    
+    <!-- 佣金抵扣 -->
+    <view class="summary-row deduction-row">
+      <view class="deduction-left">
+        <text class="summary-label">佣金抵扣</text>
+        <text class="deduction-desc" wx:if="{{availableCommission > 0}}">可用：¥{{availableCommission}}</text>
+        <text class="deduction-desc placeholder" wx:else>暂无可用佣金</text>
+      </view>
+      <view class="deduction-right">
+        <switch 
+          checked="{{useCommission > 0}}" 
+          bindchange="onToggleCommission"
+          disabled="{{availableCommission <= 0 || totalAmount <= 0}}"
+          color="#ff6b35"
+        />
+        <text class="deduction-amount" wx:if="{{useCommission > 0}}">-¥{{commissionDeduction}}</text>
+      </view>
+    </view>
+    <view class="deduction-input-row" wx:if="{{useCommission > 0}}">
+      <text class="deduction-input-label">使用佣金：</text>
+      <input 
+        class="deduction-input"
+        type="digit"
+        placeholder="请输入使用金额"
+        value="{{useCommission}}"
+        bindinput="onCommissionInput"
+      />
+      <text class="deduction-input-unit">元</text>
+    </view>
+    
+    <!-- 积分抵扣 -->
+    <view class="summary-row deduction-row">
+      <view class="deduction-left">
+        <text class="summary-label">积分抵扣</text>
+        <text class="deduction-desc" wx:if="{{availablePoints > 0}}">可用：{{availablePoints}}积分</text>
+        <text class="deduction-desc placeholder" wx:else>暂无可用积分</text>
+      </view>
+      <view class="deduction-right">
+        <switch 
+          checked="{{usePoints > 0}}" 
+          bindchange="onTogglePoints"
+          disabled="{{availablePoints <= 0 || totalAmount <= 0}}"
+          color="#ff6b35"
+        />
+        <text class="deduction-amount" wx:if="{{usePoints > 0}}">-¥{{pointsDeduction}}</text>
+      </view>
+    </view>
+    <view class="deduction-input-row" wx:if="{{usePoints > 0}}">
+      <text class="deduction-input-label">使用积分：</text>
+      <input 
+        class="deduction-input"
+        type="number"
+        placeholder="请输入使用积分"
+        value="{{usePoints}}"
+        bindinput="onPointsInput"
+      />
+      <text class="deduction-input-unit">积分（100积分=1元）</text>
+    </view>
+    
+    <!-- 价格明细 -->
+    <view class="price-detail" wx:if="{{discountAmount > 0 || commissionDeduction > 0 || pointsDeduction > 0}}">
+      <view class="detail-row">
+        <text class="detail-label">原价</text>
+        <text class="detail-value">¥{{originalAmount}}</text>
+      </view>
+      <view class="detail-row discount-row" wx:if="{{discountAmount > 0}}">
+        <text class="detail-label">优惠券</text>
+        <text class="detail-value discount">-¥{{discountAmount}}</text>
+      </view>
+      <view class="detail-row discount-row" wx:if="{{commissionDeduction > 0}}">
+        <text class="detail-label">佣金抵扣</text>
+        <text class="detail-value discount">-¥{{commissionDeduction}}</text>
+      </view>
+      <view class="detail-row discount-row" wx:if="{{pointsDeduction > 0}}">
+        <text class="detail-label">积分抵扣</text>
+        <text class="detail-value discount">-¥{{pointsDeduction}}</text>
+      </view>
+    </view>
+    
+    <textarea
+      class="remark-input"
+      placeholder="给商家留言（选填）"
+      value="{{remark}}"
+      data-field="remark"
+      bindinput="onInputChange"
+    />
+  </view>
+
+  <!-- 优惠券选择弹窗 -->
+  <view class="coupon-picker-mask" wx:if="{{showCouponPicker}}" bindtap="onHideCouponPicker">
+    <view class="coupon-picker" catchtap="stopPropagation">
+      <view class="picker-header">
+        <text class="picker-title">选择优惠券</text>
+        <text class="picker-close" bindtap="onHideCouponPicker">×</text>
+      </view>
+      <scroll-view class="picker-content" scroll-y>
+        <view 
+          class="coupon-item {{selectedCoupon && selectedCoupon.id === item.id ? 'selected' : ''}}"
+          wx:for="{{availableCoupons}}"
+          wx:key="id"
+          bindtap="onSelectCoupon"
+          data-coupon="{{item}}"
+        >
+          <view class="coupon-info">
+            <text class="coupon-name">{{item.name}}</text>
+            <text class="coupon-desc">{{item.description || '无门槛'}}</text>
+          </view>
+          <view class="coupon-action">
+            <text class="coupon-discount-value">
+              {{item.discountType === 'fixed' ? '¥' : ''}}{{item.discountValue}}{{item.discountType === 'percent' ? '折' : ''}}
+            </text>
+          </view>
+        </view>
+        <view class="no-coupon" wx:if="{{availableCoupons.length === 0}}">
+          <text class="no-coupon-text">暂无可用的优惠券</text>
+        </view>
+      </scroll-view>
+      <view class="picker-footer" wx:if="{{selectedCoupon}}">
+        <button class="remove-coupon-btn" bindtap="onRemoveCoupon">不使用优惠券</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部操作栏 -->
+  <view class="bottom-bar">
+    <view class="total-info">
+      <text class="total-label">合计：</text>
+      <text class="total-amount">¥{{totalAmount}}</text>
+    </view>
+    <button
+      class="submit-btn"
+      bindtap="onSubmitOrder"
+      loading="{{submitting}}"
+      disabled="{{submitting}}"
+    >
+      提交订单
+    </button>
+  </view>
+</view>
+
+

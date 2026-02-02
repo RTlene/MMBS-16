@@ -1,0 +1,97 @@
+<view class="logistics-page">
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loading}}">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 物流信息 -->
+  <scroll-view class="content" scroll-y wx:if="{{!loading && order}}">
+    <!-- 订单信息 -->
+    <view class="order-section">
+      <view class="section-title">订单信息</view>
+      <view class="order-card">
+        <view class="order-row">
+          <text class="order-label">订单号</text>
+          <text class="order-value">{{order.orderNo}}</text>
+        </view>
+        <view class="order-row" wx:if="{{order.receiverName}}">
+          <text class="order-label">收货人</text>
+          <text class="order-value">{{order.receiverName}} {{order.receiverPhone}}</text>
+        </view>
+        <view class="order-row" wx:if="{{order.shippingAddress}}">
+          <text class="order-label">收货地址</text>
+          <text class="order-value">{{order.shippingAddress}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 物流状态 -->
+    <view class="status-section">
+      <view class="status-card">
+        <view class="status-icon" style="color: {{getLogisticsStatus().color}}">
+          <text>{{getLogisticsStatus().icon}}</text>
+        </view>
+        <text class="status-text">{{getLogisticsStatus().text}}</text>
+      </view>
+    </view>
+
+    <!-- 物流信息 -->
+    <view class="logistics-section" wx:if="{{logistics.trackingNumber || logistics.shippingCompany}}">
+      <view class="section-title">物流信息</view>
+      <view class="logistics-card">
+        <view class="logistics-row" wx:if="{{logistics.shippingCompany}}">
+          <text class="logistics-label">物流公司</text>
+          <text class="logistics-value">{{logistics.shippingCompany}}</text>
+        </view>
+        <view class="logistics-row" wx:if="{{logistics.trackingNumber}}">
+          <text class="logistics-label">物流单号</text>
+          <view class="logistics-value-wrapper">
+            <text class="logistics-value">{{logistics.trackingNumber}}</text>
+            <text class="copy-btn" bindtap="onCopyTrackingNumber">复制</text>
+          </view>
+        </view>
+        <view class="logistics-row" wx:if="{{logistics.shippingMethod}}">
+          <text class="logistics-label">配送方式</text>
+          <text class="logistics-value">{{logistics.shippingMethod}}</text>
+        </view>
+        <view class="logistics-row" wx:if="{{logistics.shippedAt}}">
+          <text class="logistics-label">发货时间</text>
+          <text class="logistics-value">{{formatTime(logistics.shippedAt)}}</text>
+        </view>
+        <view class="logistics-row" wx:if="{{logistics.deliveredAt}}">
+          <text class="logistics-label">送达时间</text>
+          <text class="logistics-value">{{formatTime(logistics.deliveredAt)}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 物流轨迹 -->
+    <view class="tracking-section" wx:if="{{trackingInfo && trackingInfo.traces && trackingInfo.traces.length > 0}}">
+      <view class="section-title">物流轨迹</view>
+      <view class="tracking-card">
+        <view 
+          class="tracking-item {{index === 0 ? 'active' : ''}}"
+          wx:for="{{trackingInfo.traces}}"
+          wx:key="index"
+          wx:for-index="index"
+        >
+          <view class="tracking-dot"></view>
+          <view class="tracking-line" wx:if="{{index < trackingInfo.traces.length - 1}}"></view>
+          <view class="tracking-content">
+            <text class="tracking-desc">{{item.desc}}</text>
+            <text class="tracking-location" wx:if="{{item.location}}">{{item.location}}</text>
+            <text class="tracking-time">{{formatTime(item.time)}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 暂无物流信息 -->
+    <view class="empty-section" wx:if="{{!logistics.trackingNumber && !logistics.shippingCompany}}">
+      <text class="empty-icon">📦</text>
+      <text class="empty-text">暂无物流信息</text>
+      <text class="empty-desc">订单尚未发货，请耐心等待</text>
+    </view>
+  </scroll-view>
+</view>
+

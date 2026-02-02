@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3f4f6"/>
+      <stop offset="1" stop-color="#e5e7eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="url(#bg)"/>
+  <rect x="120" y="90" width="400" height="260" rx="16" fill="#ffffff" stroke="#d1d5db"/>
+  <circle cx="240" cy="185" r="26" fill="#e5e7eb"/>
+  <path d="M190 310 L270 240 L330 290 L370 260 L450 310 L190 310 Z" fill="#e5e7eb"/>
+  <text x="320" y="205" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#6b7280">暂无商品图片</text>
+  <text x="320" y="235" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#9ca3af">default product</text>
+</svg>

@@ -1,0 +1,91 @@
+<!--pages/profile/profile.wxml-->
+<view class="profile-page">
+  
+  <!-- 用户信息区 -->
+  <view class="user-section">
+    <view class="user-info" wx:if="{{isLogin && memberInfo}}">
+      <image class="user-avatar" src="{{memberInfo.avatar || defaultAvatar}}" mode="aspectFill" />
+      <view class="user-details">
+        <text class="user-name">{{memberInfo.nickname || '会员'}}</text>
+        <text class="user-level">{{memberInfo.levelName || '普通会员'}}</text>
+      </view>
+    </view>
+    
+    <view class="login-prompt" wx:else>
+      <image class="user-avatar" src="{{defaultAvatar}}" mode="aspectFill" />
+      <button class="login-btn" bindtap="onLogin">点击登录</button>
+    </view>
+  </view>
+
+  <!-- 订单统计 -->
+  <view class="order-section" wx:if="{{isLogin}}">
+    <view class="section-title" bindtap="goToOrders">
+      <text>我的订单</text>
+      <text class="title-arrow">查看全部 ›</text>
+    </view>
+    <view class="order-stats">
+      <view class="order-stat-item" bindtap="goToOrders" data-status="pending">
+        <text class="stat-icon">💰</text>
+        <text class="stat-label">待付款</text>
+        <view class="stat-badge" wx:if="{{orderStats.pending > 0}}">{{orderStats.pending}}</view>
+      </view>
+      <view class="order-stat-item" bindtap="goToOrders" data-status="paid">
+        <text class="stat-icon">📦</text>
+        <text class="stat-label">待发货</text>
+        <view class="stat-badge" wx:if="{{orderStats.paid > 0}}">{{orderStats.paid}}</view>
+      </view>
+      <view class="order-stat-item" bindtap="goToOrders" data-status="shipped">
+        <text class="stat-icon">🚚</text>
+        <text class="stat-label">待收货</text>
+        <view class="stat-badge" wx:if="{{orderStats.shipped > 0}}">{{orderStats.shipped}}</view>
+      </view>
+      <view class="order-stat-item" bindtap="goToOrders" data-status="completed">
+        <text class="stat-icon">✅</text>
+        <text class="stat-label">已完成</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 功能菜单 -->
+  <view class="menu-section">
+    <view class="menu-item" bindtap="goToAddress">
+      <text class="menu-icon">📍</text>
+      <text class="menu-label">收货地址</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="goToTeam">
+      <text class="menu-icon">👥</text>
+      <text class="menu-label">我的团队</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="goToCoupons">
+      <text class="menu-icon">🎫</text>
+      <text class="menu-label">我的优惠券</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="goToVerification">
+      <text class="menu-icon">🎟️</text>
+      <text class="menu-label">我的核销码</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="onContact">
+      <text class="menu-icon">💬</text>
+      <text class="menu-label">联系客服</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="goToAbout">
+      <text class="menu-icon">ℹ️</text>
+      <text class="menu-label">关于我们</text>
+      <text class="menu-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 退出登录 -->
+  <view class="logout-section" wx:if="{{isLogin}}">
+    <button class="logout-btn" bindtap="onLogout">退出登录</button>
+  </view>
+
+  <!-- 底部安全区 -->
+  <view class="safe-area-bottom"></view>
+</view>
+

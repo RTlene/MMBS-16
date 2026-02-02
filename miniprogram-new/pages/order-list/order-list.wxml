@@ -1,0 +1,133 @@
+<!--pages/order-list/order-list.wxml-->
+<view class="order-list-page">
+  <!-- 状态筛选标签 -->
+  <view class="status-tabs">
+    <view 
+      class="status-tab {{currentStatus === item.key ? 'active' : ''}}"
+      wx:for="{{statusTabs}}"
+      wx:key="key"
+      bindtap="onStatusTabTap"
+      data-status="{{item.key}}"
+    >
+      <text class="tab-label">{{item.label}}</text>
+    </view>
+  </view>
+
+  <!-- 订单列表 -->
+  <scroll-view 
+    class="order-list" 
+    scroll-y
+    refresher-enabled
+    refresher-triggered="{{refreshing}}"
+    bindrefresherrefresh="onPullDownRefresh"
+    bindscrolltolower="onReachBottom"
+  >
+    <!-- 订单卡片 -->
+    <view 
+      class="order-item"
+      wx:for="{{orders}}"
+      wx:key="id"
+      bindtap="onOrderTap"
+      data-id="{{item.id}}"
+    >
+      <!-- 订单头部 -->
+      <view class="order-header">
+        <text class="order-no">订单号：{{item.orderNo}}</text>
+        <text class="order-status {{item.status}}">{{item.statusText}}</text>
+      </view>
+
+      <!-- 商品信息 -->
+      <view class="order-product">
+        <image 
+          class="product-image" 
+          src="{{item.product && item.product.image ? item.product.image : ''}}" 
+          mode="aspectFill"
+        />
+        <view class="product-info">
+          <text class="product-name">{{item.product && item.product.name ? item.product.name : '商品已下架'}}</text>
+          <text class="product-subtitle" wx:if="{{item.itemCount > 1}}">等{{item.itemCount}}件商品</text>
+          <view class="product-spec">
+            <text class="spec-text">数量：{{item.quantity}}</text>
+          </view>
+          <view class="product-price">
+            <text class="price-label">实付：</text>
+            <text class="price-value">{{item.totalAmountText}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 订单操作按钮 -->
+      <view class="order-actions" catchtap="stopPropagation">
+        <view 
+          class="action-btn secondary"
+          wx:if="{{item.status === 'pending'}}"
+          catchtap="onCancelOrder"
+          data-id="{{item.id}}"
+        >
+          取消订单
+        </view>
+        <view 
+          class="action-btn primary"
+          wx:if="{{item.status === 'pending'}}"
+          catchtap="onPayOrder"
+          data-id="{{item.id}}"
+        >
+          去支付
+        </view>
+        <view 
+          class="action-btn secondary"
+          wx:if="{{item.status === 'shipped'}}"
+          catchtap="onViewLogistics"
+          data-id="{{item.id}}"
+        >
+          查看物流
+        </view>
+        <view 
+          class="action-btn primary"
+          wx:if="{{item.status === 'shipped'}}"
+          catchtap="onConfirmReceive"
+          data-id="{{item.id}}"
+        >
+          确认收货
+        </view>
+        <view 
+          class="action-btn secondary"
+          wx:if="{{item.status === 'delivered' || item.status === 'completed'}}"
+          catchtap="onOrderTap"
+          data-id="{{item.id}}"
+        >
+          查看详情
+        </view>
+      </view>
+
+      <!-- 订单时间 -->
+      <view class="order-time">
+        <text class="time-text">{{item.createdAtText}}</text>
+      </view>
+    </view>
+
+    <!-- 加载中 -->
+    <view class="loading" wx:if="{{loading && orders.length > 0}}">
+      <text class="loading-text">加载中...</text>
+    </view>
+
+    <!-- 没有更多了 -->
+    <view class="no-more" wx:if="{{!hasMore && orders.length > 0}}">
+      <text class="no-more-text">没有更多了</text>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{empty && !loading}}">
+      <text class="empty-icon">📦</text>
+      <text class="empty-text">暂无订单</text>
+      <text class="empty-desc">快去选购心仪的商品吧</text>
+    </view>
+
+    <!-- 错误状态 -->
+    <view class="error-state" wx:if="{{error && !loading && orders.length === 0}}">
+      <text class="error-icon">⚠️</text>
+      <text class="error-text">{{error}}</text>
+      <button class="retry-btn" bindtap="refreshOrders">重试</button>
+    </view>
+  </scroll-view>
+</view>

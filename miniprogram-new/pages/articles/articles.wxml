@@ -1,0 +1,49 @@
+<!--pages/articles/articles.wxml-->
+<view class="articles-page">
+  <!-- 文章列表 -->
+  <view class="articles-list">
+    <view 
+      class="article-item"
+      wx:for="{{articles}}"
+      wx:key="id"
+      bindtap="onArticleTap"
+      data-article="{{item}}"
+    >
+      <!-- 封面图 -->
+      <view class="article-cover" wx:if="{{item.coverImage}}">
+        <image class="cover-image" src="{{item.coverImage}}" mode="aspectFill" />
+      </view>
+      <view class="article-cover placeholder" wx:else>
+        <text class="cover-icon">📄</text>
+      </view>
+
+      <!-- 文章信息 -->
+      <view class="article-info">
+        <view class="article-title">{{item.title}}</view>
+        <view class="article-summary" wx:if="{{item.summary}}">{{item.summary}}</view>
+        <view class="article-meta">
+          <text class="meta-item">{{item.author || 'MMBS商城'}}</text>
+          <text class="meta-divider">•</text>
+          <text class="meta-item">{{item.publishTimeText}}</text>
+          <text class="meta-divider">•</text>
+          <text class="meta-item">{{item.readCount || 0}}阅读</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{loading}}">
+      <text class="load-more-text">加载中...</text>
+    </view>
+    <view class="load-more" wx:elif="{{!hasMore && articles.length > 0}}">
+      <text class="load-more-text">没有更多了</text>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{!loading && articles.length === 0}}">
+      <text class="empty-icon">📰</text>
+      <text class="empty-text">暂无文章</text>
+    </view>
+  </view>
+</view>
+

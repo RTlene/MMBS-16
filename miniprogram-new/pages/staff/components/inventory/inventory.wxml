@@ -1,0 +1,101 @@
+<view class="inventory-container">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <input 
+      class="search-input" 
+      type="text" 
+      placeholder="搜索商品名称"
+      value="{{keyword}}"
+      bindinput="onKeywordInput"
+      confirm-type="search"
+      bindconfirm="onSearch"
+    />
+    <text class="search-btn" bindtap="onSearch">搜索</text>
+  </view>
+
+  <!-- 商品列表 -->
+  <view class="product-list">
+    <view 
+      class="product-item"
+      wx:for="{{products}}"
+      wx:key="id"
+    >
+      <view class="product-header">
+        <text class="product-name">{{item.name}}</text>
+        <text class="product-stock">总库存: {{item.totalStock}}</text>
+      </view>
+
+      <view class="sku-list">
+        <view 
+          class="sku-item"
+          wx:for="{{item.skus}}"
+          wx:key="id"
+          wx:for-item="sku"
+          data-sku="{{sku}}"
+          bindtap="onSkuTap"
+        >
+          <view class="sku-info">
+            <text class="sku-name">{{sku.name}}</text>
+            <text class="sku-code" wx:if="{{sku.sku}}">{{sku.sku}}</text>
+          </view>
+          <view class="sku-stock">
+            <text class="stock-label">库存:</text>
+            <text class="stock-value {{sku.stock <= 10 ? 'low-stock' : ''}}">{{sku.stock}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+  <view class="load-more" wx:if="{{!hasMore && products.length > 0}}">
+    <text>没有更多了</text>
+  </view>
+
+  <!-- 库存调整弹窗 -->
+  <view class="stock-modal" wx:if="{{showStockModal}}">
+    <view class="modal-mask" bindtap="onCloseStockModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">调整库存</text>
+        <text class="modal-close" bindtap="onCloseStockModal">×</text>
+      </view>
+      <view class="modal-body">
+        <view class="form-item">
+          <text class="form-label">SKU: {{selectedSku.name}}</text>
+        </view>
+        <view class="form-item">
+          <text class="form-label">操作方式</text>
+          <picker 
+            mode="selector" 
+            range="{{['设置为', '增加', '减少']}}"
+            value="{{stockOperation === 'set' ? 0 : stockOperation === 'add' ? 1 : 2}}"
+            bindchange="onStockOperationChange"
+          >
+            <view class="picker">
+              {{stockOperation === 'set' ? '设置为' : stockOperation === 'add' ? '增加' : '减少'}}
+            </view>
+          </picker>
+        </view>
+        <view class="form-item">
+          <text class="form-label">数量</text>
+          <input 
+            class="form-input" 
+            type="number" 
+            placeholder="请输入数量"
+            value="{{stockValue}}"
+            bindinput="onStockValueInput"
+          />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="btn-cancel" bindtap="onCloseStockModal">取消</button>
+        <button class="btn-confirm" bindtap="onUpdateStock">确定</button>
+      </view>
+    </view>
+  </view>
+</view>
+

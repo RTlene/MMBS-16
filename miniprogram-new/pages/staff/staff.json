@@ -1,0 +1,11 @@
+{
+  "navigationBarTitleText": "员工管理",
+  "navigationBarBackgroundColor": "#667eea",
+  "navigationBarTextStyle": "white",
+  "usingComponents": {
+    "staff-inventory": "./components/inventory/inventory",
+    "staff-orders": "./components/orders/orders",
+    "staff-verification": "./components/verification/verification"
+  }
+}
+

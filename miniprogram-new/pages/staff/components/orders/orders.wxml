@@ -1,0 +1,146 @@
+<view class="orders-container">
+  <!-- 状态筛选 -->
+  <view class="tabs">
+    <view 
+      class="tab {{status === 'paid' ? 'active' : ''}}"
+      data-status="paid"
+      bindtap="onStatusChange"
+    >
+      待发货
+    </view>
+    <view 
+      class="tab {{status === 'shipped' ? 'active' : ''}}"
+      data-status="shipped"
+      bindtap="onStatusChange"
+    >
+      已发货
+    </view>
+  </view>
+
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <input 
+      class="search-input" 
+      type="text" 
+      placeholder="搜索订单号/收货人"
+      value="{{keyword}}"
+      bindinput="onKeywordInput"
+      confirm-type="search"
+      bindconfirm="onSearch"
+    />
+    <text class="search-btn" bindtap="onSearch">搜索</text>
+  </view>
+
+  <!-- 订单列表 -->
+  <view class="order-list">
+    <view 
+      class="order-item"
+      wx:for="{{orders}}"
+      wx:key="id"
+      data-order="{{item}}"
+      bindtap="onOrderTap"
+    >
+      <view class="order-header">
+        <text class="order-no">订单号: {{item.orderNo}}</text>
+        <text class="order-status">{{item.statusText}}</text>
+      </view>
+      
+      <view class="order-info">
+        <view class="info-row">
+          <text class="info-label">收货人:</text>
+          <text class="info-value">{{item.receiverName}} {{item.receiverPhone}}</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">地址:</text>
+          <text class="info-value">{{item.shippingAddress}}</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">金额:</text>
+          <text class="info-value price">¥{{item.totalAmount}}</text>
+        </view>
+        <view class="info-row" wx:if="{{item.shippingCompany}}">
+          <text class="info-label">物流:</text>
+          <text class="info-value">{{item.shippingCompany}} {{item.trackingNumber}}</text>
+        </view>
+      </view>
+
+      <view class="order-items">
+        <text class="items-label">商品:</text>
+        <text 
+          class="item-name"
+          wx:for="{{item.items}}"
+          wx:key="id"
+          wx:for-item="orderItem"
+        >
+          {{orderItem.productName}} {{orderItem.skuName}} x{{orderItem.quantity}}
+        </text>
+      </view>
+
+      <view class="order-action" wx:if="{{item.status === 'paid'}}">
+        <text class="action-hint">点击填写物流信息</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+  <view class="load-more" wx:if="{{!hasMore && orders.length > 0}}">
+    <text>没有更多了</text>
+  </view>
+
+  <!-- 发货弹窗 -->
+  <view class="ship-modal" wx:if="{{showShipModal}}">
+    <view class="modal-mask" bindtap="onCloseShipModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">订单发货</text>
+        <text class="modal-close" bindtap="onCloseShipModal">×</text>
+      </view>
+      <view class="modal-body">
+        <view class="form-item">
+          <text class="form-label">订单号: {{selectedOrder.orderNo}}</text>
+        </view>
+        <view class="form-item">
+          <text class="form-label">物流公司</text>
+          <input 
+            class="form-input" 
+            type="text" 
+            placeholder="请输入物流公司"
+            value="{{shippingCompany}}"
+            bindinput="onShippingCompanyInput"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">物流单号</text>
+          <input 
+            class="form-input" 
+            type="text" 
+            placeholder="请输入物流单号"
+            value="{{trackingNumber}}"
+            bindinput="onTrackingNumberInput"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">配送方式</text>
+          <picker 
+            mode="selector" 
+            range="{{['快递', '平邮', 'EMS']}}"
+            value="{{shippingMethod === 'express' ? 0 : shippingMethod === 'standard' ? 1 : 2}}"
+            bindchange="onShippingMethodChange"
+          >
+            <view class="picker">
+              {{shippingMethod === 'express' ? '快递' : shippingMethod === 'standard' ? '平邮' : 'EMS'}}
+            </view>
+          </picker>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="btn-cancel" bindtap="onCloseShipModal">取消</button>
+        <button class="btn-confirm" bindtap="onShipOrder">确定发货</button>
+      </view>
+    </view>
+  </view>
+</view>
+

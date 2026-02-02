@@ -1,0 +1,41 @@
+<view class="login-page">
+  <view class="login-container">
+    <view class="login-header">
+      <text class="login-title">员工登录</text>
+      <text class="login-subtitle">请使用后台账号登录</text>
+    </view>
+
+    <view class="login-form">
+      <view class="form-item">
+        <text class="form-label">用户名</text>
+        <input 
+          class="form-input" 
+          type="text" 
+          placeholder="请输入用户名"
+          value="{{username}}"
+          bindinput="onUsernameInput"
+        />
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">密码</text>
+        <input 
+          class="form-input" 
+          type="password" 
+          placeholder="请输入密码"
+          value="{{password}}"
+          bindinput="onPasswordInput"
+        />
+      </view>
+
+      <button 
+        class="login-btn" 
+        bindtap="onLogin"
+        disabled="{{loading}}"
+      >
+        {{loading ? '登录中...' : '登录'}}
+      </button>
+    </view>
+  </view>
+</view>
+

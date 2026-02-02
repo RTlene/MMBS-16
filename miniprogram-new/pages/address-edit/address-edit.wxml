@@ -1,0 +1,27 @@
+<view class="address-edit-page">
+  <view class="form-item">
+    <text class="label">收货人</text>
+    <input placeholder="姓名" value="{{formData.name}}" data-field="name" bindinput="onInput" />
+  </view>
+  <view class="form-item">
+    <text class="label">手机号</text>
+    <input placeholder="手机号" type="number" value="{{formData.phone}}" data-field="phone" bindinput="onInput" />
+  </view>
+  <view class="form-item">
+    <text class="label">省市区</text>
+    <picker mode="region" bindchange="onRegionChange">
+      <view class="picker-text">{{formData.region || '请选择省市区'}}</view>
+    </picker>
+  </view>
+  <view class="form-item">
+    <text class="label">详细地址</text>
+    <input placeholder="街道楼栋门牌" value="{{formData.detail}}" data-field="detail" bindinput="onInput" />
+  </view>
+  <view class="form-item">
+    <text class="label">地图选址</text>
+    <button class="map-btn" size="mini" type="primary" bindtap="onChooseLocation">选择地点</button>
+  </view>
+
+  <button class="save-btn" type="primary" loading="{{saving}}" bindtap="onSave">保存</button>
+</view>
+

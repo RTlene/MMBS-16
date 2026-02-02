@@ -1,0 +1,217 @@
+<style>
+    .wxpay-page { --wx-green: #07c160; --wx-green-dark: #06ad56; --card-bg: #fff; --border: #e9ecef; --muted: #6c757d; }
+    .wxpay-page { font-size: 15px; line-height: 1.6; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 0 1rem 2rem; }
+    .wxpay-page .top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    .wxpay-page .top-bar h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #111; }
+    .wxpay-page .top-bar .actions { display: flex; align-items: center; gap: 0.75rem; }
+    .wxpay-page .status-pill { display: inline-flex; align-items: center; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.875rem; font-weight: 500; }
+    .wxpay-page .status-pill.ok { background: #d4edda; color: #155724; }
+    .wxpay-page .status-pill.no { background: #f8d7da; color: #721c24; }
+    .wxpay-page .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem 1.75rem; margin-bottom: 1.25rem; }
+    .wxpay-page .card-title { font-size: 1rem; font-weight: 600; color: #333; margin: 0 0 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .wxpay-page .card-title .icon { color: var(--wx-green); }
+    .wxpay-page .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .wxpay-page .form-row.single { grid-template-columns: 1fr; }
+    .wxpay-page .field { margin-bottom: 0; }
+    .wxpay-page .field label { display: block; font-weight: 500; color: #333; margin-bottom: 0.35rem; font-size: 0.9rem; }
+    .wxpay-page .field .hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .wxpay-page .field input[type="text"], .wxpay-page .field input[type="password"], .wxpay-page .field select { width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; }
+    .wxpay-page .field input:focus, .wxpay-page .field select:focus { border-color: var(--wx-green); outline: none; box-shadow: 0 0 0 2px rgba(7,193,96,0.2); }
+    .wxpay-page .field input[type="file"] { font-size: 0.85rem; padding: 0.35rem 0; }
+    .wxpay-page .btn { padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.9rem; font-weight: 500; border: none; cursor: pointer; }
+    .wxpay-page .btn-primary { background: var(--wx-green); color: #fff; }
+    .wxpay-page .btn-primary:hover { background: var(--wx-green-dark); }
+    .wxpay-page .btn-secondary { background: #f0f0f0; color: #333; }
+    .wxpay-page .btn-secondary:hover { background: #e0e0e0; }
+    .wxpay-page .btn-outline { background: transparent; border: 1px solid var(--border); color: #555; }
+    .wxpay-page .btn-outline:hover { background: #f8f9fa; }
+    .wxpay-page .card-actions { margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+    .wxpay-page .upload-zone { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .wxpay-page .upload-zone .field label { font-size: 0.85rem; color: var(--muted); }
+    .wxpay-page .upload-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .wxpay-page .upload-row .note { font-size: 0.8rem; color: var(--muted); }
+    .wxpay-page .divider { height: 1px; background: var(--border); margin: 1.25rem 0; }
+    .wxpay-page .paths-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .wxpay-page .help-box { background: #f8f9fa; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 1rem; font-size: 0.9rem; color: #555; }
+    .wxpay-page .help-box summary { cursor: pointer; font-weight: 500; }
+    .wxpay-page .help-box ol { margin: 0.5rem 0 0 1.25rem; padding: 0; }
+    .wxpay-page .help-box li { margin-bottom: 0.35rem; }
+    .wxpay-page .mono { font-family: ui-monospace, monospace; font-size: 0.9em; }
+    .wxpay-page .alert { padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; margin-bottom: 1rem; }
+    .wxpay-page .alert-warning { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+    .wxpay-page .alert-info { background: #e7f3ff; border: 1px solid #0dcaf0; color: #055160; }
+    @media (max-width: 640px) {
+        .wxpay-page .form-row, .wxpay-page .upload-zone, .wxpay-page .paths-row { grid-template-columns: 1fr; }
+    }
+</style>
+<div class="wxpay-page">
+    <div class="top-bar">
+        <h1><i class="bi bi-wallet2 me-2"></i>微信支付配置</h1>
+        <div class="actions">
+            <span id="configStatus" class="status-pill no">未配置</span>
+            <button type="button" class="btn btn-outline" onclick="loadConfig()"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+            <button type="button" class="btn btn-primary" onclick="testConnection()"><i class="bi bi-check-circle me-1"></i>测试连接</button>
+        </div>
+    </div>
+
+    <!-- 基础信息 -->
+    <div class="card">
+        <h2 class="card-title"><i class="bi bi-key-fill icon"></i>基础信息（必填）</h2>
+        <form id="paymentConfigForm">
+            <div class="form-row">
+                <div class="field">
+                    <label>小程序 AppID <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="wxAppId" placeholder="wx849e40856c0c2238">
+                    <div class="hint">用于 JSAPI 下单与小程序支付签名</div>
+                </div>
+                <div class="field">
+                    <label>商户号 (MCHID) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="wxMchId" placeholder="1234567890">
+                    <div class="hint">沙箱模式请填沙箱商户号</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="field">
+                    <label>API 密钥</label>
+                    <input type="password" class="form-control" id="wxPayKey" placeholder="留空表示不修改已保存的密钥">
+                    <div class="hint">首次配置必填；安全起见不回显</div>
+                </div>
+                <div class="field">
+                    <label>证书序列号（可选）</label>
+                    <input type="text" class="form-control" id="wxCertSerialNo" placeholder="用于验签/解密回调时填写">
+                </div>
+            </div>
+        </form>
+        <div class="card-actions">
+            <button type="button" class="btn btn-primary" id="btnSaveBasic" onclick="saveConfig('basic')"><i class="bi bi-save me-1"></i>保存</button>
+        </div>
+    </div>
+
+    <!-- 回调地址 -->
+    <div class="card">
+        <h2 class="card-title"><i class="bi bi-link-45deg icon"></i>回调地址（可选）</h2>
+        <div class="alert alert-warning">
+            <strong>无 HTTPS 时：</strong>可先不填回调，用“假回调”联调；正式上线需可访问的 HTTPS 地址。
+        </div>
+        <div class="form-row">
+            <div class="field">
+                <label>基础 URL</label>
+                <input type="text" class="form-control" id="baseUrl" placeholder="https://your-domain.com">
+                <div class="hint">推荐回调：<span class="mono" id="notifyPreview">（未生成）</span></div>
+            </div>
+            <div class="field">
+                <label>回调通知地址</label>
+                <input type="text" class="form-control" id="wxNotifyUrl" placeholder="https://your-domain.com/api/payment/wechat/notify">
+            </div>
+        </div>
+        <div class="card-actions">
+            <button type="button" class="btn btn-outline" onclick="applySuggestedNotifyUrl()"><i class="bi bi-magic me-1"></i>一键填充</button>
+            <button type="button" class="btn btn-primary" id="btnSaveCallback" onclick="saveConfig('callback')"><i class="bi bi-save me-1"></i>保存</button>
+        </div>
+    </div>
+
+    <!-- 环境与证书 -->
+    <div class="card">
+        <h2 class="card-title"><i class="bi bi-shield-lock icon"></i>环境与证书</h2>
+        <div class="form-row single">
+            <div class="field" style="max-width: 280px;">
+                <label>环境模式</label>
+                <select class="form-select" id="sandbox">
+                    <option value="false">生产环境</option>
+                    <option value="true">沙箱环境（测试）</option>
+                </select>
+                <div class="hint">沙箱不会产生真实资金流水</div>
+            </div>
+        </div>
+        <div class="card-actions">
+            <button type="button" class="btn btn-primary" id="btnSaveEnv" onclick="saveConfig('env')"><i class="bi bi-save me-1"></i>保存</button>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="card-title" style="font-size: 0.95rem;"><i class="bi bi-file-earmark-zip icon"></i>上传证书包（推荐）</h3>
+        <div class="upload-row">
+            <div class="field" style="flex: 1; min-width: 200px;">
+                <label>选择商户平台下载的 .zip 证书包</label>
+                <input type="file" id="certZipInput" accept=".zip">
+            </div>
+            <button type="button" class="btn btn-primary" id="btnUploadCertZip" onclick="uploadCertZip()" style="align-self: flex-end;"><i class="bi bi-file-earmark-zip me-1"></i>上传并解压</button>
+        </div>
+        <div class="upload-row">
+            <span class="note">上传后会自动解压并提取 apiclient_cert.pem、apiclient_key.pem；zip ≤ 2MB</span>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="card-title" style="font-size: 0.95rem;"><i class="bi bi-cloud-upload icon"></i>或分别上传证书文件</h3>
+        <div class="upload-zone">
+            <div class="field">
+                <label>商户证书 (apiclient_cert.pem)</label>
+                <input type="file" id="certFileInput" accept=".pem">
+            </div>
+            <div class="field">
+                <label>商户私钥 (apiclient_key.pem)</label>
+                <input type="file" id="keyFileInput" accept=".pem">
+            </div>
+        </div>
+        <div class="upload-row">
+            <button type="button" class="btn btn-primary" id="btnUploadCert" onclick="uploadCertFiles()"><i class="bi bi-cloud-upload me-1"></i>上传证书</button>
+            <span class="note">可只选一个或两个都选；仅 .pem，单文件 ≤ 512KB</span>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="card-title" style="font-size: 0.95rem;">证书路径（高级）</h3>
+        <div class="paths-row">
+            <div class="field">
+                <label>证书路径</label>
+                <input type="text" id="certPath" placeholder="/app/cert/apiclient_cert.pem">
+            </div>
+            <div class="field">
+                <label>私钥路径</label>
+                <input type="text" id="keyPath" placeholder="/app/cert/apiclient_key.pem">
+            </div>
+        </div>
+        <div class="help-box">
+            <small>上传后文件会保存到服务器 <code>cert/</code> 目录；若已通过其他方式放置证书，可在此修改路径并保存。</small>
+        </div>
+        <div class="card-actions">
+            <button type="button" class="btn btn-primary" id="btnSavePaths" onclick="saveConfig('paths')"><i class="bi bi-save me-1"></i>保存路径</button>
+        </div>
+    </div>
+
+    <!-- 底部操作 -->
+    <div class="card">
+        <div class="card-actions">
+            <button type="button" class="btn btn-secondary" onclick="resetForm()"><i class="bi bi-arrow-counterclockwise me-1"></i>重置表单</button>
+            <button type="button" class="btn btn-primary" id="btnSaveAll" onclick="saveConfig('all')"><i class="bi bi-save me-1"></i>保存全部</button>
+        </div>
+    </div>
+
+    <!-- 配置说明 -->
+    <div class="card">
+        <h2 class="card-title"><i class="bi bi-question-circle icon"></i>配置说明</h2>
+        <details class="help-box">
+            <summary>如何获取商户号和 API 密钥？</summary>
+            <ol>
+                <li>登录 <a href="https://pay.weixin.qq.com/" target="_blank">微信支付商户平台</a></li>
+                <li>账户中心 → API安全 → 设置 API 密钥（32 位）</li>
+                <li>账户中心 → 商户信息 中查看商户号</li>
+            </ol>
+        </details>
+        <details class="help-box">
+            <summary>如何下载和上传证书？</summary>
+            <ol>
+                <li>商户平台 → 账户中心 → API安全 → API证书，下载证书包（.zip）</li>
+                <li>本页选择该 .zip 文件后点击「上传并解压」，会自动提取证书与私钥（推荐）</li>
+                <li>或分别选择 apiclient_cert.pem、apiclient_key.pem 后点击「上传证书」</li>
+                <li>也可将文件放到服务器 <code>cert/</code> 目录后在此保存路径</li>
+            </ol>
+        </details>
+        <details class="help-box">
+            <summary>如何配置回调地址？</summary>
+            <ol>
+                <li>需公网可访问的 HTTPS 地址</li>
+                <li>在商户平台配置支付回调域名</li>
+                <li>回调路径：<code>/api/payment/wechat/notify</code>；本地测试可用 ngrok、frp 等</li>
+            </ol>
+        </details>
+    </div>
+</div>

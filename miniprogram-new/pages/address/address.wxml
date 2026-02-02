@@ -1,0 +1,24 @@
+<view class="address-page">
+  <view wx:if="{{!loading && addressList.length === 0}}" class="empty">
+    <text class="empty-text">暂无地址</text>
+  </view>
+
+  <block wx:for="{{addressList}}" wx:key="id">
+    <view class="card">
+      <view class="line">
+        <text class="name">{{item.name}}</text>
+        <text class="phone">{{item.phone}}</text>
+        <text wx:if="{{item.isDefault}}" class="tag">默认</text>
+      </view>
+      <view class="line small">{{item.region}} {{item.detail}}</view>
+      <view class="actions">
+        <button size="mini" bindtap="onEditAddress" data-id="{{item.id}}">编辑</button>
+        <button size="mini" type="warn" bindtap="onDeleteAddress" data-id="{{item.id}}">删除</button>
+        <button size="mini" type="primary" bindtap="onSetDefault" data-id="{{item.id}}">设为默认</button>
+      </view>
+    </view>
+  </block>
+
+  <button class="add-btn" type="primary" bindtap="onAddAddress">+ 新增地址</button>
+</view>
+

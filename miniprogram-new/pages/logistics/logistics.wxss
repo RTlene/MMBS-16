@@ -1,0 +1,252 @@
+.logistics-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 200rpx 0;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.content {
+  height: 100vh;
+}
+
+/* 区块标题 */
+.section-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+  padding: 0 30rpx;
+}
+
+/* 订单信息 */
+.order-section {
+  margin-top: 20rpx;
+}
+
+.order-card {
+  background-color: #ffffff;
+  padding: 30rpx;
+  margin: 0 20rpx 20rpx;
+  border-radius: 12rpx;
+}
+
+.order-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20rpx;
+}
+
+.order-row:last-child {
+  margin-bottom: 0;
+}
+
+.order-label {
+  font-size: 28rpx;
+  color: #999;
+  min-width: 120rpx;
+}
+
+.order-value {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+  text-align: right;
+  line-height: 1.6;
+}
+
+/* 物流状态 */
+.status-section {
+  margin-top: 20rpx;
+}
+
+.status-card {
+  background: linear-gradient(135deg, #3481B8 0%, #2a6fa5 100%);
+  padding: 60rpx 30rpx;
+  margin: 0 20rpx 20rpx;
+  border-radius: 12rpx;
+  text-align: center;
+  color: #ffffff;
+}
+
+.status-icon {
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+}
+
+.status-text {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+/* 物流信息 */
+.logistics-section {
+  margin-top: 20rpx;
+}
+
+.logistics-card {
+  background-color: #ffffff;
+  padding: 30rpx;
+  margin: 0 20rpx 20rpx;
+  border-radius: 12rpx;
+}
+
+.logistics-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 24rpx;
+  margin-bottom: 24rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.logistics-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.logistics-label {
+  font-size: 28rpx;
+  color: #999;
+  min-width: 120rpx;
+}
+
+.logistics-value-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20rpx;
+}
+
+.logistics-value {
+  font-size: 28rpx;
+  color: #333;
+  text-align: right;
+}
+
+.copy-btn {
+  font-size: 24rpx;
+  color: #3481B8;
+  padding: 8rpx 20rpx;
+  background-color: #f0f8ff;
+  border-radius: 8rpx;
+}
+
+/* 物流轨迹 */
+.tracking-section {
+  margin-top: 20rpx;
+  padding-bottom: 40rpx;
+}
+
+.tracking-card {
+  background-color: #ffffff;
+  padding: 30rpx;
+  margin: 0 20rpx 20rpx;
+  border-radius: 12rpx;
+  position: relative;
+}
+
+.tracking-item {
+  display: flex;
+  position: relative;
+  padding-left: 40rpx;
+  margin-bottom: 40rpx;
+}
+
+.tracking-item:last-child {
+  margin-bottom: 0;
+}
+
+.tracking-item.active .tracking-dot {
+  background-color: #3481B8;
+  border-color: #3481B8;
+}
+
+.tracking-dot {
+  position: absolute;
+  left: 0;
+  top: 8rpx;
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 4rpx solid #e0e0e0;
+  z-index: 2;
+}
+
+.tracking-line {
+  position: absolute;
+  left: 9rpx;
+  top: 28rpx;
+  width: 2rpx;
+  height: calc(100% + 20rpx);
+  background-color: #e0e0e0;
+  z-index: 1;
+}
+
+.tracking-item:last-child .tracking-line {
+  display: none;
+}
+
+.tracking-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.tracking-desc {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.tracking-location {
+  font-size: 26rpx;
+  color: #666;
+}
+
+.tracking-time {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 空状态 */
+.empty-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 40rpx;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 120rpx;
+  margin-bottom: 30rpx;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #666;
+  margin-bottom: 16rpx;
+}
+
+.empty-desc {
+  font-size: 26rpx;
+  color: #999;
+}
+

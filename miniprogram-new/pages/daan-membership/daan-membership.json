@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "达安生命会员",
+  "navigationBarBackgroundColor": "#1a4d3a",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#1a4d3a",
+  "backgroundTextStyle": "light",
+  "enablePullDownRefresh": false
+}

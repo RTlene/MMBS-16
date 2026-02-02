@@ -1,0 +1,81 @@
+<view class="verification-container">
+  <!-- 扫码区域 -->
+  <view class="scan-section">
+    <button class="scan-btn" bindtap="onScanCode">
+      <text class="scan-icon">📷</text>
+      <text class="scan-text">扫描核销码</text>
+    </button>
+  </view>
+
+  <!-- 手动输入 -->
+  <view class="input-section">
+    <view class="input-wrapper">
+      <input 
+        class="code-input" 
+        type="text" 
+        placeholder="或手动输入核销码"
+        value="{{code}}"
+        bindinput="onCodeInput"
+        confirm-type="search"
+        bindconfirm="onQueryCode"
+      />
+      <text class="query-btn" bindtap="onQueryCode">查询</text>
+    </view>
+  </view>
+
+  <!-- 查询结果 -->
+  <view class="result-section" wx:if="{{showResult && verificationCode}}">
+    <view class="result-card">
+      <view class="result-header">
+        <text class="result-title">核销码信息</text>
+        <text class="result-status status-{{verificationCode.status}}">
+          {{verificationCode.statusText}}
+        </text>
+      </view>
+
+      <view class="result-body">
+        <view class="result-item">
+          <text class="item-label">核销码:</text>
+          <text class="item-value code-value">{{verificationCode.code}}</text>
+        </view>
+        <view class="result-item">
+          <text class="item-label">订单号:</text>
+          <text class="item-value">{{verificationCode.orderNo}}</text>
+        </view>
+        <view class="result-item">
+          <text class="item-label">商品名称:</text>
+          <text class="item-value">{{verificationCode.productName}}</text>
+        </view>
+        <view class="result-item" wx:if="{{verificationCode.skuName}}">
+          <text class="item-label">规格:</text>
+          <text class="item-value">{{verificationCode.skuName}}</text>
+        </view>
+        <view class="result-item" wx:if="{{verificationCode.expiredAt}}">
+          <text class="item-label">有效期:</text>
+          <text class="item-value">{{verificationCode.expiredAt}}</text>
+        </view>
+        <view class="result-item" wx:if="{{verificationCode.usedAt}}">
+          <text class="item-label">使用时间:</text>
+          <text class="item-value">{{verificationCode.usedAt}}</text>
+        </view>
+      </view>
+
+      <view class="result-footer">
+        <button 
+          class="use-btn" 
+          bindtap="onUseCode"
+          disabled="{{verificationCode.status === 'used' || verificationCode.isExpired}}"
+        >
+          {{verificationCode.status === 'used' ? '已使用' : verificationCode.isExpired ? '已过期' : '核销'}}
+        </button>
+        <button class="reset-btn" bindtap="onReset">重新查询</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loading}}">
+    <text>查询中...</text>
+  </view>
+</view>
+

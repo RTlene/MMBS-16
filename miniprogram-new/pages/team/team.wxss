@@ -1,0 +1,148 @@
+.team-page {
+  background: #f7f8fa;
+  min-height: 100vh;
+  padding: 24rpx;
+  box-sizing: border-box;
+}
+
+.stats-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  box-shadow: 0 6rpx 20rpx rgba(0,0,0,0.04);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.stat-label {
+  color: #666;
+  font-size: 24rpx;
+}
+.stat-value {
+  font-size: 32rpx;
+  color: #111;
+  font-weight: 600;
+}
+.stat-value.highlight {
+  color: #e67e22;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+.filter-btn {
+  flex: 1;
+}
+.filter-btn.active {
+  background: #3481b8;
+  color: #fff;
+}
+
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+.member-item {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 16rpx;
+  display: flex;
+  gap: 16rpx;
+  box-shadow: 0 4rpx 14rpx rgba(0,0,0,0.04);
+}
+.avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: #eee;
+}
+.info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.name-line {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.phone {
+  color: #888;
+  font-size: 26rpx;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  color: #666;
+  font-size: 24rpx;
+}
+.meta.small {
+  font-size: 22rpx;
+  color: #888;
+}
+.badge {
+  background: #e6f2ff;
+  color: #2b7ed2;
+  padding: 4rpx 10rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+}
+.status {
+  color: #999;
+}
+.load-more {
+  text-align: center;
+  color: #888;
+  font-size: 26rpx;
+  padding: 16rpx 0;
+}
+
+.action-section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 14rpx rgba(0,0,0,0.04);
+  display: flex;
+  gap: 20rpx;
+}
+
+.action-btn {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  color: #fff;
+  font-size: 32rpx;
+  border-radius: 8rpx;
+  border: none;
+}
+
+.commission-btn {
+  background: #52c41a;
+}
+
+.withdraw-btn {
+  background: #3481B8;
+}
+
+.withdraw-btn.disabled {
+  background: #ccc;
+  color: #999;
+}
+

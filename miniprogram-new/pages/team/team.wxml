@@ -1,0 +1,72 @@
+<view class="team-page">
+  <view class="stats-card">
+    <view class="stat-item">
+      <text class="stat-label">直接粉丝</text>
+      <text class="stat-value">{{stats.directMembers}}</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">团队总粉丝</text>
+      <text class="stat-value">{{stats.totalMembers}}</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">可用佣金</text>
+      <text class="stat-value highlight">¥{{stats.availableCommission}}</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">累计佣金</text>
+      <text class="stat-value">¥{{stats.totalCommission}}</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">分销等级</text>
+      <text class="stat-value">{{stats.distributorLevelName || '普通'}}</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">会员等级</text>
+      <text class="stat-value">{{stats.memberLevelName || '普通会员'}}</text>
+    </view>
+  </view>
+
+  <view class="action-section">
+    <button 
+      class="action-btn commission-btn" 
+      bindtap="onViewCommission"
+    >
+      佣金明细
+    </button>
+    <button 
+      class="action-btn withdraw-btn {{stats.availableCommission <= 0 ? 'disabled' : ''}}" 
+      bindtap="onWithdraw"
+      disabled="{{stats.availableCommission <= 0}}"
+    >
+      佣金提现
+    </button>
+  </view>
+
+  <view class="filter-bar">
+    <button class="filter-btn {{level==='direct'?'active':''}}" data-level="direct" bindtap="onSwitchLevel">直接粉丝</button>
+    <button class="filter-btn {{level==='all'?'active':''}}" data-level="all" bindtap="onSwitchLevel">全部团队</button>
+  </view>
+
+  <view class="member-list">
+    <view wx:for="{{members}}" wx:key="id" class="member-item">
+      <image class="avatar" src="{{item.avatar || '/images/avatar-default.png'}}" mode="aspectFill" />
+      <view class="info">
+        <view class="name-line">
+          <text class="name">{{item.nickname}}</text>
+          <text class="phone" wx:if="{{item.phone}}">{{item.phone}}</text>
+        </view>
+        <view class="meta">
+          <text class="badge" wx:if="{{item.memberLevel && item.memberLevel.name}}">{{item.memberLevel.name}}</text>
+          <text class="status">{{item.statusText}}</text>
+        </view>
+        <view class="meta small" wx:if="{{item.registeredAt}}">
+          <text>注册：{{item.registeredAt}}</text>
+          <text>消费：¥{{item.totalSales || 0}}</text>
+        </view>
+      </view>
+    </view>
+    <view class="load-more" wx:if="{{loading}}">加载中...</view>
+    <view class="load-more" wx:elif="{{!hasMore}}">没有更多了</view>
+  </view>
+</view>
+

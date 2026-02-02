@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mmbs-app
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+      - PORT=80
+      - MYSQL_USERNAME=root
+      - MYSQL_PASSWORD=RTleneWjs19960726
+      - MYSQL_ADDRESS=host.docker.internal:3306
+      - JWT_SECRET=795c250b7e16f883a01ee3823ebf9e1e
+      - WX_APPID=wx849e40856c0c2238
+      - WX_APPSECRET=a01ee3823ebf9e1e795c250b7e16f883
+      # 微信支付：默认启用沙箱模式（本地联调推荐）
+      - WX_PAY_SANDBOX=true
+    restart: unless-stopped
+    network_mode: "bridge"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # 持久化：配置与证书在宿主机，重新部署后无需再配
+    volumes:
+      - ./cert:/app/cert
+      - ./config:/app/config

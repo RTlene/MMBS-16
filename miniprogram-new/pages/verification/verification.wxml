@@ -1,0 +1,80 @@
+<view class="container">
+  <!-- 状态筛选 -->
+  <view class="tabs">
+    <view 
+      class="tab {{status === 'all' ? 'active' : ''}}"
+      data-status="all"
+      bindtap="onStatusChange"
+    >
+      全部
+    </view>
+    <view 
+      class="tab {{status === 'unused' ? 'active' : ''}}"
+      data-status="unused"
+      bindtap="onStatusChange"
+    >
+      未使用
+    </view>
+    <view 
+      class="tab {{status === 'used' ? 'active' : ''}}"
+      data-status="used"
+      bindtap="onStatusChange"
+    >
+      已使用
+    </view>
+    <view 
+      class="tab {{status === 'expired' ? 'active' : ''}}"
+      data-status="expired"
+      bindtap="onStatusChange"
+    >
+      已过期
+    </view>
+  </view>
+
+  <!-- 核销码列表 -->
+  <view class="code-list">
+    <view 
+      class="code-item"
+      wx:for="{{codes}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="onCodeTap"
+    >
+      <view class="code-header">
+        <view class="code-info">
+          <view class="code-name">{{item.productName}}</view>
+          <view class="code-sku" wx:if="{{item.skuName}}">{{item.skuName}}</view>
+        </view>
+        <view class="code-status status-{{item.status}}">
+          {{item.statusText}}
+        </view>
+      </view>
+      
+      <view class="code-body">
+        <view class="code-number">
+          <text class="code-label">核销码：</text>
+          <text class="code-value">{{item.code}}</text>
+          <text class="copy-btn" data-code="{{item.code}}" catchtap="onCopyCode">复制</text>
+        </view>
+        <view class="code-meta">
+          <text>订单号：{{item.orderNo}}</text>
+          <text wx:if="{{item.expiredAt}}">有效期至：{{item.expiredAt}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty" wx:if="{{empty && !loading}}">
+    <text>暂无核销码</text>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+  <view class="load-more" wx:if="{{!hasMore && codes.length > 0}}">
+    <text>没有更多了</text>
+  </view>
+</view>
+

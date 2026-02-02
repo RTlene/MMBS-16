@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分销等级管理</title>
+    <style>
+        .distributor-levels-container {
+            padding: 20px;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+
+        .page-description {
+            color: #666;
+            margin: 0;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            width: 200px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            background: white;
+            font-size: 14px;
+            min-width: 120px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .btn-warning {
+            background: #faad14;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ffc53d;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .btn-outline-primary {
+            background: transparent;
+            color: #1890ff;
+            border: 1px solid #1890ff;
+        }
+
+        .btn-outline-primary:hover {
+            background: #1890ff;
+            color: white;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+
+        .status-inactive {
+            background: #fff2e8;
+            color: #fa8c16;
+            border: 1px solid #ffd591;
+        }
+
+        .pagination {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .form-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .form-textarea {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .mode-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .mode-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .mode-tab.active {
+            color: #1890ff;
+            border-bottom-color: #1890ff;
+        }
+
+        .mode-content {
+            display: none;
+        }
+
+        .mode-content.active {
+            display: block;
+        }
+
+        .commission-explanation {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .privilege-item {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #f0f0f0;
+            border-radius: 6px;
+        }
+
+        .privilege-key {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+        }
+
+        .privilege-value {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+        }
+
+        .privilege-remove {
+            background: #ff4d4f;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .privilege-add {
+            background: #52c41a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .level-type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .level-type-distributor {
+            background-color: #e6f7ff;
+            color: #1890ff;
+            border: 1px solid #91d5ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="distributor-levels-container">
+        <!-- 页面标题 -->
+        <div class="page-header">
+            <h1 class="page-title">分销等级管理</h1>
+            <p class="page-description">管理分销商和分享者的等级配置</p>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-grid" id="statsGrid">
+            <!-- 统计信息将在这里动态生成 -->
+        </div>
+
+        <!-- 内容卡片 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="search-section">
+                    <input type="text" id="searchInput" class="search-input" placeholder="搜索等级名称...">
+                    <select id="statusFilter" class="filter-select">
+                        <option value="">全部状态</option>
+                        <option value="active">正常</option>
+                        <option value="inactive">停用</option>
+                    </select>
+                    <button id="searchBtn" class="btn btn-primary">搜索</button>
+                </div>
+                <div>
+                    <button id="addLevelBtn" class="btn btn-primary">添加等级</button>
+                </div>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>等级名称</th>
+                        <th>等级数值</th>
+                        <th>等级类型</th>  <!-- 添加这一行 -->
+                        <th>销售额要求</th>
+                        <th>粉丝数要求</th>
+                        <th>采购成本</th>
+                        <th>分享佣金</th>
+                        <th>状态</th>
+                        <th>排序</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="levelTableBody">
+                    <!-- 等级列表将在这里动态生成 -->
+                </tbody>
+            </table>
+
+            <div class="pagination" id="pagination">
+                <!-- 分页按钮将在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑等级模态框 -->
+    <div id="levelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="levelModalTitle" class="modal-title">添加分销等级</h3>
+                <button class="modal-close" onclick="closeLevelModal()">&times;</button>
+            </div>
+            <form id="levelForm" class="modal-body">
+                <!-- 模式切换标签 -->
+                <div class="mode-tabs">
+                    <div class="mode-tab active" data-mode="distributor">分销商模式</div>
+                    <div class="mode-tab" data-mode="sharer">分享赚钱模式</div>
+                </div>
+
+                <!-- 基本信息 -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">等级名称 *</label>
+                        <input type="text" id="name" name="name" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">等级数值 *</label>
+                        <input type="number" id="level" name="level" class="form-input" required min="1">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">最低销售额要求</label>
+                        <input type="number" id="minSales" name="minSales" class="form-input" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">最高销售额要求</label>
+                        <input type="number" id="maxSales" name="maxSales" class="form-input" min="0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">最低粉丝数要求</label>
+                        <input type="number" id="minFans" name="minFans" class="form-input" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">最高粉丝数要求</label>
+                        <input type="number" id="maxFans" name="maxFans" class="form-input" min="0">
+                    </div>
+                </div>
+
+                <!-- 分销商模式内容 -->
+                <div id="distributorMode" class="mode-content active">
+                    <div class="commission-explanation">
+                        <strong>分销商模式说明：</strong>分销商以采购成本价格购买商品，通过销售差价获得利润。采购成本比例越低，分销商利润越高。
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">采购成本比例 *</label>
+                            <input type="number" id="procurementCost" name="procurementCost" class="form-input" required min="0" max="1" step="0.0001" placeholder="0.5000">
+                            <small style="color: #666;">采购成本比例，如0.5表示采购价为售价的50%</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分享赚钱模式内容 -->
+                <div id="sharerMode" class="mode-content">
+                    <div class="commission-explanation">
+                        <strong>分享赚钱模式说明：</strong>分享者通过分享商品链接获得佣金。直接佣金是分享者直接推广的订单佣金，间接佣金是下级分享者推广的订单佣金。
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">分享者直接佣金比例 *</label>
+                            <input type="number" id="sharerDirectCommissionRate" name="sharerDirectCommissionRate" class="form-input" required min="0" max="1" step="0.0001" placeholder="0.0500">
+                            <small style="color: #666;">分享者直接推广订单的佣金比例</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">分享者间接佣金比例 *</label>
+                            <input type="number" id="sharerIndirectCommissionRate" name="sharerIndirectCommissionRate" class="form-input" required min="0" max="1" step="0.0001" placeholder="0.0200">
+                            <small style="color: #666;">分享者下级推广订单的佣金比例</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 通用设置 -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">等级颜色</label>
+                        <input type="color" id="color" name="color" class="form-input" value="#1890ff">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">等级图标</label>
+                        <input type="text" id="icon" name="icon" class="form-input" placeholder="如: 👑">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">排序</label>
+                        <input type="number" id="sortOrder" name="sortOrder" class="form-input" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">状态</label>
+                        <select id="status" name="status" class="form-input">
+                            <option value="active">正常</option>
+                            <option value="inactive">停用</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label class="form-label">等级描述</label>
+                        <textarea id="description" name="description" class="form-textarea" placeholder="请输入等级描述"></textarea>
+                    </div>
+                </div>
+
+                <!-- 特权配置 -->
+                <div class="form-row">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label class="form-label">特权配置</label>
+                        <div id="privilegesContainer">
+                            <!-- 特权项将在这里动态生成 -->
+                        </div>
+                        <button type="button" class="privilege-add" onclick="addPrivilege()">添加特权</button>
+                    </div>
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" onclick="closeLevelModal()">取消</button>
+                <button type="submit" form="levelForm" class="btn btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

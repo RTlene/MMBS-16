@@ -1,0 +1,204 @@
+<!--pages/product/product.wxml-->
+<view class="product-page">
+  
+  <!-- 商品图片轮播 -->
+  <swiper 
+    class="product-swiper"
+    indicator-dots="{{true}}"
+    indicator-color="rgba(0, 0, 0, 0.3)"
+    indicator-active-color="#FFFFFF"
+    bindchange="onImageChange"
+    wx:if="{{carouselImages.length}}"
+  >
+    <swiper-item wx:for="{{carouselImages}}" wx:key="index" bindtap="onImageTap">
+      <image class="product-image" src="{{item}}" mode="aspectFill" />
+    </swiper-item>
+  </swiper>
+  <view class="empty-gallery" wx:elif="{{productBasic}}">
+    暂无主图
+  </view>
+
+  <scroll-view class="product-content" scroll-y>
+    <!-- 价格和标题 -->
+    <view class="product-header" wx:if="{{productBasic}}">
+      <view class="price-section">
+        <view class="current-price">
+          <text class="price-symbol">¥</text>
+          <text class="price-value">{{finalPrice}}</text>
+        </view>
+        <view class="original-price" wx:if="{{productBasic.originalPrice > finalPrice}}">
+          ¥{{productBasic.originalPrice}}
+        </view>
+      </view>
+      
+      <view class="product-title">{{productBasic.name}}</view>
+      <view class="product-subtitle" wx:if="{{productBasic.description}}">
+        {{productBasic.description}}
+      </view>
+      
+      <!-- 优惠信息 -->
+      <view class="discount-info" wx:if="{{discountInfo}}">
+        <text class="discount-tag">优惠</text>
+        <text class="discount-text">{{discountInfo.description}}</text>
+      </view>
+    </view>
+
+    <!-- 促销活动 -->
+    <view class="promotion-section" wx:if="{{promotions.length > 0}}">
+      <view class="section-title">促销活动</view>
+      <view class="promotion-list">
+        <view class="promotion-item" wx:for="{{promotions}}" wx:key="id">
+          <text class="promotion-tag">{{item.type}}</text>
+          <text class="promotion-desc">{{item.description}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 优惠券 -->
+    <view class="coupon-section" wx:if="{{coupons.length > 0}}" bindtap="onViewCoupons">
+      <view class="section-title">优惠券</view>
+      <view class="coupon-list">
+        <view class="coupon-item" wx:for="{{coupons}}" wx:key="id">
+          <text class="coupon-value">¥{{item.value}}</text>
+          <text class="coupon-name">{{item.name}}</text>
+        </view>
+        <text class="coupon-more">›</text>
+      </view>
+    </view>
+
+    <!-- 规格选择 -->
+    <view class="sku-section" wx:if="{{productBasic}}" bindtap="showSkuSelector">
+      <view class="section-title">选择规格</view>
+      <view class="sku-selected">
+        <text class="sku-text">{{selectedSku ? selectedSku.name : '请选择规格'}}</text>
+        <text class="sku-arrow">›</text>
+      </view>
+    </view>
+
+    <!-- 商品详情 -->
+    <view class="detail-section" wx:if="{{productBasic}}">
+      <view class="section-title">商品详情</view>
+      <view class="detail-content">
+        <image 
+          wx:for="{{detailImages}}" 
+          wx:key="index"
+          class="detail-image" 
+          src="{{item}}" 
+          lazy-load="true"
+          mode="widthFix"
+        />
+        <view class="detail-text" wx:if="{{detailImages.length === 0}}">
+          {{productBasic.description || '暂无详情'}}
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 实体商品底部操作栏 -->
+  <view class="bottom-bar" wx:if="{{productBasic && productBasic.productType !== 'service'}}">
+    <view class="bar-left">
+      <view class="bar-btn" bindtap="onGoHome">
+        <text class="bar-icon">🏠</text>
+        <text class="bar-text">首页</text>
+      </view>
+      <view class="bar-btn" bindtap="onGoCart">
+        <text class="bar-icon">🛒</text>
+        <text class="bar-text">购物车</text>
+        <view class="cart-badge" wx:if="{{cartCount > 0}}">{{cartCount}}</view>
+      </view>
+      <view class="bar-btn" bindtap="onContact">
+        <text class="bar-icon">💬</text>
+        <text class="bar-text">客服</text>
+      </view>
+    </view>
+    <view class="bar-right">
+      <button class="add-cart-btn" bindtap="showSkuSelector" data-action="cart">加入购物车</button>
+      <button class="buy-now-btn" bindtap="showSkuSelector" data-action="buy">立即购买</button>
+    </view>
+  </view>
+
+  <!-- 服务商品底部操作栏 -->
+  <view class="bottom-bar" wx:if="{{productBasic && productBasic.productType === 'service'}}">
+    <view class="bar-left">
+      <view class="bar-btn" bindtap="onGoHome">
+        <text class="bar-icon">🏠</text>
+        <text class="bar-text">首页</text>
+      </view>
+      <view class="bar-btn" bindtap="onContact">
+        <text class="bar-icon">💬</text>
+        <text class="bar-text">客服</text>
+      </view>
+    </view>
+    <view class="bar-right">
+      <button class="buy-now-btn service-buy-btn" bindtap="showSkuSelector" data-action="buy">立即购买</button>
+    </view>
+  </view>
+
+  <!-- SKU选择弹窗 -->
+  <view class="sku-popup {{showSkuPopup ? 'show' : ''}}" wx:if="{{productBasic}}">
+    <view class="popup-mask" bindtap="hideSkuSelector"></view>
+    <view class="popup-content">
+      <!-- 商品信息 -->
+      <view class="popup-header">
+        <image class="popup-image" src="{{carouselImages[0] || ''}}" mode="aspectFill" />
+        <view class="popup-info">
+          <view class="popup-price">¥{{finalPrice}}</view>
+          <view class="popup-stock">库存：{{selectedSku ? selectedSku.stock : productBasic.stock}}</view>
+        </view>
+        <text class="popup-close" bindtap="hideSkuSelector">✕</text>
+      </view>
+
+      <!-- SKU选择 -->
+      <view class="sku-list">
+        <view class="sku-title">选择规格</view>
+        <view class="sku-options">
+          <view 
+            class="sku-option {{selectedSku && selectedSku.id === item.id ? 'selected' : ''}}"
+            wx:for="{{skus}}"
+            wx:key="id"
+            bindtap="onSkuSelect"
+            data-index="{{index}}"
+          >
+            {{item.name}}
+          </view>
+        </view>
+      </view>
+
+      <!-- 数量选择 -->
+      <view class="quantity-selector">
+        <text class="quantity-title">数量</text>
+        <view class="quantity-controls">
+          <view class="quantity-btn" bindtap="onQuantityDecrease">-</view>
+          <input 
+            class="quantity-input" 
+            type="number" 
+            value="{{quantity}}"
+            bindinput="onQuantityInput"
+          />
+          <view class="quantity-btn" bindtap="onQuantityIncrease">+</view>
+        </view>
+      </view>
+
+      <!-- 确认按钮 -->
+      <view class="popup-footer">
+        <button
+          class="confirm-btn {{(productBasic.productType === 'service' || skuAction === 'buy') ? 'buy-btn' : 'cart-btn'}}"
+          bindtap="{{(productBasic.productType === 'service' || skuAction === 'buy') ? 'onBuyNow' : 'onAddToCart'}}"
+        >
+          <text class="btn-text">{{(productBasic.productType === 'service' || skuAction === 'buy') ? '立即购买' : '加入购物车'}}</text>
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading-mask" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 浮动分享按钮（小圆形） -->
+  <button class="share-button" open-type="share" hover-class="share-button-hover">
+    <text class="share-icon">📤</text>
+  </button>
+</view>
+

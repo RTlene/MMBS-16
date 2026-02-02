@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>积分商城管理</title>
+    <style>
+        .point-mall-container {
+            padding: 20px;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .page-description {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #1890ff;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #73d13d;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .btn-warning {
+            background: #fa8c16;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ffa940;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e8e8e8;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            color: #1890ff;
+            border-bottom-color: #1890ff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .table tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .status-inactive {
+            background: #fff2e8;
+            color: #fa8c16;
+        }
+
+        .status-sold-out {
+            background: #fff1f0;
+            color: #ff4d4f;
+        }
+
+        .status-pending {
+            background: #f0f5ff;
+            color: #1890ff;
+        }
+
+        .status-shipped {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .status-delivered {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+
+        .status-cancelled {
+            background: #fff1f0;
+            color: #ff4d4f;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination button:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .pagination button.active {
+            background: #1890ff;
+            color: white;
+            border-color: #1890ff;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .product-image {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .product-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .product-details h4 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .product-details p {
+            margin: 0;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="point-mall-container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <h1 class="page-title">积分商城管理</h1>
+            <p class="page-description">管理积分商城商品和兑换记录</p>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalProducts">0</div>
+                <div class="stat-label">商品总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalExchanges">0</div>
+                <div class="stat-label">兑换总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pendingExchanges">0</div>
+                <div class="stat-label">待处理</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalPoints">0</div>
+                <div class="stat-label">消耗积分</div>
+            </div>
+        </div>
+
+        <!-- 标签页 -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('products')">商品管理</button>
+            <button class="tab-btn" onclick="switchTab('exchanges')">兑换记录</button>
+        </div>
+
+        <!-- 商品管理标签页 -->
+        <div id="products-tab" class="tab-content active">
+            <!-- 筛选条件 -->
+            <div class="filters">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label class="filter-label">搜索</label>
+                        <input type="text" class="filter-input" id="productSearchInput" placeholder="商品名称">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">分类</label>
+                        <select class="filter-input" id="categoryFilter">
+                            <option value="">全部分类</option>
+                            <option value="digital">数码产品</option>
+                            <option value="lifestyle">生活用品</option>
+                            <option value="gift">礼品</option>
+                            <option value="coupon">优惠券</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">状态</label>
+                        <select class="filter-input" id="productStatusFilter">
+                            <option value="">全部状态</option>
+                            <option value="active">上架</option>
+                            <option value="inactive">下架</option>
+                            <option value="sold_out">售罄</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <button class="btn btn-primary" onclick="searchProducts()">搜索</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 商品列表 -->
+            <div class="table-container">
+                <div class="table-header">
+                    <h2 class="table-title">商品列表</h2>
+                    <div class="table-actions">
+                        <button class="btn btn-success" onclick="showAddProductModal()">添加商品</button>
+                    </div>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>商品信息</th>
+                            <th>所需积分</th>
+                            <th>库存</th>
+                            <th>已售</th>
+                            <th>分类</th>
+                            <th>状态</th>
+                            <th>排序</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <!-- 数据将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+                <div class="pagination" id="productPagination">
+                    <!-- 分页将通过JavaScript动态生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 兑换记录标签页 -->
+        <div id="exchanges-tab" class="tab-content">
+            <!-- 筛选条件 -->
+            <div class="filters">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label class="filter-label">搜索</label>
+                        <input type="text" class="filter-input" id="exchangeSearchInput" placeholder="会员ID或商品名称">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">状态</label>
+                        <select class="filter-input" id="exchangeStatusFilter">
+                            <option value="">全部状态</option>
+                            <option value="pending">待处理</option>
+                            <option value="shipped">已发货</option>
+                            <option value="delivered">已收货</option>
+                            <option value="cancelled">已取消</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <button class="btn btn-primary" onclick="searchExchanges()">搜索</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 兑换记录列表 -->
+            <div class="table-container">
+                <div class="table-header">
+                    <h2 class="table-title">兑换记录</h2>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>会员ID</th>
+                            <th>商品信息</th>
+                            <th>兑换数量</th>
+                            <th>消耗积分</th>
+                            <th>状态</th>
+                            <th>收货地址</th>
+                            <th>物流单号</th>
+                            <th>兑换时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exchangeTableBody">
+                        <!-- 数据将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+                <div class="pagination" id="exchangePagination">
+                    <!-- 分页将通过JavaScript动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑商品模态框 -->
+    <div class="modal" id="productModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="productModalTitle">添加商品</h3>
+                <button class="close-btn" onclick="closeProductModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="productForm">
+                    <div class="form-group">
+                        <label class="form-label">商品名称</label>
+                        <input type="text" class="form-input" id="productName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">商品描述</label>
+                        <textarea class="form-input" id="productDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">商品图片URL</label>
+                        <input type="url" class="form-input" id="productImageUrl">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">所需积分</label>
+                            <input type="number" class="form-input" id="productPoints" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">库存数量</label>
+                            <input type="number" class="form-input" id="productStock" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">商品分类</label>
+                            <select class="form-input" id="productCategory">
+                                <option value="digital">数码产品</option>
+                                <option value="lifestyle">生活用品</option>
+                                <option value="gift">礼品</option>
+                                <option value="coupon">优惠券</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">排序权重</label>
+                            <input type="number" class="form-input" id="productSortOrder" value="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">状态</label>
+                        <select class="form-input" id="productStatus">
+                            <option value="active">上架</option>
+                            <option value="inactive">下架</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveProduct()">保存</button>
+                <button class="btn" onclick="closeProductModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 处理兑换模态框 -->
+    <div class="modal" id="exchangeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">处理兑换</h3>
+                <button class="close-btn" onclick="closeExchangeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="exchangeForm">
+                    <div class="form-group">
+                        <label class="form-label">兑换状态</label>
+                        <select class="form-input" id="exchangeStatus">
+                            <option value="pending">待处理</option>
+                            <option value="shipped">已发货</option>
+                            <option value="delivered">已收货</option>
+                            <option value="cancelled">已取消</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">物流单号</label>
+                        <input type="text" class="form-input" id="trackingNumber">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">收货地址</label>
+                        <textarea class="form-input" id="shippingAddress" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveExchange()">保存</button>
+                <button class="btn" onclick="closeExchangeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/point-mall-management.js"></script>
+</body>
+</html>
