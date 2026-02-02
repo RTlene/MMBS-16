@@ -48,7 +48,7 @@ router.post('/login', async (req, res) => {
         username: user.username, 
         role: user.role 
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET || 'your-secret-key-change-this',
       { expiresIn: '24h' }
     );
 

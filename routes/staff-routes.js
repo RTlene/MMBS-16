@@ -49,7 +49,7 @@ router.post('/staff/login', async (req, res) => {
                 role: user.role,
                 type: 'staff' // 标记为员工token
             },
-            process.env.JWT_SECRET || 'your-secret-key',
+            process.env.JWT_SECRET || 'your-secret-key-change-this',
             { expiresIn: '7d' } // 7天有效期
         );
 

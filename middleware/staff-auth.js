@@ -20,7 +20,7 @@ async function authenticateStaff(req, res, next) {
         // 验证JWT token
         let decoded;
         try {
-            decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+            decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-this');
         } catch (err) {
             return res.status(403).json({
                 code: 1,
