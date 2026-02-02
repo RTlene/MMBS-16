@@ -194,11 +194,13 @@ function loadPaymentConfigIntoEnv() {
 
 async function bootstrap() {
   loadPaymentConfigIntoEnv();
-  await initDB();
+  // 先启动 HTTP 服务（保证云托管存活/就绪探针通过），再在后台初始化数据库
   app.listen(port, () => {
     console.log("启动成功", port);
   });
+  initDB().catch((err) => {
+    console.error("[DB] 初始化失败，服务已启动但数据库暂不可用:", err.message);
+  });
 }
-
 
 bootstrap();
