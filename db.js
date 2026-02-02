@@ -10,11 +10,11 @@ const bcrypt = require('bcryptjs');
  */
 
 // Read database configuration from environment variables
-const { MYSQL_USERNAME, MYSQL_PASSWORD, MYSQL_ADDRESS = "" } = process.env;
+const { MYSQL_USERNAME, MYSQL_PASSWORD, MYSQL_ADDRESS = "", MYSQL_DATABASE = "mall_admin" } = process.env;
 
 const [host, port] = MYSQL_ADDRESS.split(":");
 
-const sequelize = new Sequelize("mall_admin", MYSQL_USERNAME, MYSQL_PASSWORD, {
+const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USERNAME, MYSQL_PASSWORD, {
   host,
   port,
   dialect: "mysql",
