@@ -28,6 +28,7 @@ const bannerRoutes = require('./routes/banner-routes');
 const popupRoutes = require('./routes/popup-routes');
 const pointSettingsRoutes = require('./routes/point-settings-routes');
 const compressRoutes = require('./routes/compress-routes');
+const dashboardRoutes = require('./routes/dashboard-routes');
 // 引入小程序认证中间件
 const { miniappLogin, authenticateMiniappUser, optionalAuthenticate } = require('./middleware/miniapp-auth');
 // 引入小程序路由
@@ -66,6 +67,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Add authentication routes
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', require('./middleware/auth').authenticateToken, dashboardRoutes);
 
 // Protect user management API with authentication middleware
 app.use('/api/users', require('./middleware/auth').authenticateToken, userRoutes);

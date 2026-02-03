@@ -76,6 +76,18 @@ const pageInitFunctions = {
 };
 
 /**
+ * 从 URL hash 读取当前模块，刷新后保持在同一模块
+ */
+function getInitialPage() {
+    const hash = (location.hash || '').replace(/^#/, '').trim();
+    if (hash) {
+        const hasNav = document.querySelector('.nav-item[data-page="' + hash + '"]');
+        if (hasNav) return hash;
+    }
+    return 'dashboard';
+}
+
+/**
  * 初始化页面加载器
  */
 function initPageLoader() {
@@ -90,9 +102,11 @@ function initPageLoader() {
             }
         });
     });
-    
-    // 默认加载用户管理页面
-    loadSubPage(currentPage);
+
+    // 优先从 hash 恢复上次打开的模块，否则加载仪表盘
+    currentActivePage = getInitialPage();
+    loadSubPage(currentActivePage);
+    updateActiveNavByPage(currentActivePage);
 }
 
 /**
@@ -115,8 +129,9 @@ async function loadSubPage(pageName) {
         // 插入页面内容
         container.innerHTML = html;
         
-        // 更新当前页面
-        currentPage = pageName;
+        // 更新当前页面并写入 URL hash，刷新后可停留在同一模块
+        currentActivePage = pageName;
+        location.hash = pageName;
         
         // 加载对应的JavaScript模块
         loadPageScript(pageName);
@@ -177,16 +192,21 @@ function loadPageScript(pageName) {
 }
 
 /**
- * 更新激活的导航项
+ * 更新激活的导航项（传入 DOM 元素）
  */
 function updateActiveNav(activeItem) {
-    // 移除所有激活状态
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
-    
-    // 添加激活状态到当前项
-    activeItem.classList.add('active');
+    if (activeItem) activeItem.classList.add('active');
+}
+
+/**
+ * 根据页面名更新激活的导航项（用于刷新后恢复）
+ */
+function updateActiveNavByPage(pageName) {
+    const item = document.querySelector('.nav-item[data-page="' + pageName + '"]');
+    updateActiveNav(item);
 }
 
 /**
@@ -213,7 +233,7 @@ window.PageLoader = {
     loadSubPage,
     showLoading,
     showError,
-    getCurrentPage: () => currentPage,
+    getCurrentPage: () => currentActivePage,
     // 添加页面初始化函数注册方法
     registerPageInit: (pageName, initFunction) => {
         pageInitFunctions[pageName] = initFunction;
