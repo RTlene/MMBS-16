@@ -109,6 +109,9 @@ app.use('/api/email-templates', require('./middleware/auth').authenticateToken, 
 app.use('/api/banners', bannerRoutes);
 // 添加弹窗管理路由
 app.use('/api/popups', require('./middleware/auth').authenticateToken, popupRoutes);
+// 添加资讯/文章管理路由（后台）
+const articleRoutes = require('./routes/article-routes');
+app.use('/api/articles', require('./middleware/auth').authenticateToken, articleRoutes);
 // 添加积分设置管理路由
 app.use('/api/point-settings', require('./middleware/auth').authenticateToken, pointSettingsRoutes);
 // 添加微信支付配置路由
@@ -152,8 +155,24 @@ app.get('/health', (req, res) => {
   });
 });
 
+// 就绪检查：数据库初始化完成后返回 200；否则返回 503（不建议作为存活探针）
+app.get('/ready', (req, res) => {
+  if (dbReady) {
+    return res.json({
+      status: 'ready',
+      timestamp: new Date().toISOString()
+    });
+  }
+  return res.status(503).json({
+    status: 'not_ready',
+    timestamp: new Date().toISOString(),
+    dbError: dbInitError ? dbInitError.message : null
+  });
+});
+
 console.log('小程序登录路由已注册: POST /api/auth/miniapp-login');
 console.log('健康检查路由已注册: GET /health');
+console.log('就绪检查路由已注册: GET /ready');
 
 // Homepage
 app.get("/", async (req, res) => {
@@ -163,6 +182,9 @@ app.get("/", async (req, res) => {
 // 云托管默认探针检查 80 端口，未设置 PORT 时使用 80；本地开发可在 .env 中设置 PORT=3000
 const port = process.env.PORT || 80;
 const fs = require('fs');
+const startupAt = Date.now();
+let dbReady = false;
+let dbInitError = null;
 
 /** 启动时从配置文件恢复微信支付相关环境变量，避免每次部署后需重新在后台配置 */
 function loadPaymentConfigIntoEnv() {
@@ -199,9 +221,14 @@ async function bootstrap() {
   loadPaymentConfigIntoEnv();
   // 先启动 HTTP 服务（保证云托管存活/就绪探针通过），再在后台初始化数据库
   app.listen(port, () => {
-    console.log("启动成功", port);
+    console.log(`[Startup] HTTP 已监听端口 ${port}，耗时 ${Date.now() - startupAt}ms`);
   });
-  initDB().catch((err) => {
+  const dbStartAt = Date.now();
+  initDB().then(() => {
+    dbReady = true;
+    console.log(`[DB] 初始化完成，耗时 ${Date.now() - dbStartAt}ms`);
+  }).catch((err) => {
+    dbInitError = err;
     console.error("[DB] 初始化失败，服务已启动但数据库暂不可用:", err.message);
   });
 }

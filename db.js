@@ -18,7 +18,18 @@ const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USERNAME, MYSQL_PASSWORD, 
   host,
   port,
   dialect: "mysql",
-  timezone: '+08:00'
+  timezone: '+08:00',
+  // 连接池配置：避免冷启动时频繁建连导致更慢
+  pool: {
+    max: Number(process.env.DB_POOL_MAX || 10),
+    min: Number(process.env.DB_POOL_MIN || 0),
+    acquire: Number(process.env.DB_POOL_ACQUIRE_MS || 20000),
+    idle: Number(process.env.DB_POOL_IDLE_MS || 10000),
+  },
+  dialectOptions: {
+    connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+  },
+  logging: process.env.DB_LOG_SQL === 'true' ? console.log : false
 });
 
 // User Model
@@ -3066,6 +3077,18 @@ async function syncTable(name, model) {
 // Database initialization method
 async function init() {
   try {
+    // 先快速验证连接（比 sync 快很多），让服务尽快可用
+    await sequelize.authenticate();
+    console.log('[DB] 连接成功');
+
+    // 默认不在启动时做 alter 同步（云托管缩容后冷启动会非常慢）
+    // 需要同步时显式设置：DB_SYNC=true（可选：DB_SYNC_ALTER=true 走 alter）
+    const shouldSync = process.env.DB_SYNC === 'true';
+    if (!shouldSync) {
+      return;
+    }
+
+    const useAlter = process.env.DB_SYNC_ALTER === 'true';
     const tables = [
       ['Users', User],
       ['Categories', Category],
@@ -3105,7 +3128,16 @@ async function init() {
 
     const failed = [];
     for (const [name, model] of tables) {
-      const result = await syncTable(name, model);
+      // sync({ alter: true }) 非常慢；默认仅 sync()，需要时再开启 alter
+      const result = useAlter ? await syncTable(name, model) : await (async () => {
+        try {
+          await model.sync();
+          return null;
+        } catch (err) {
+          console.error(`[DB] 表 ${name} 同步失败:`, err.message);
+          return { name, error: err };
+        }
+      })();
       if (result) failed.push(result);
     }
 
@@ -3115,22 +3147,26 @@ async function init() {
       throw new Error(`数据库表同步失败: ${msg}`);
     }
 
-    console.log('数据库同步成功');
+    console.log('[DB] 数据库同步成功');
 
     // Check if admin user already exists, if not, create it
-    const adminExists = await User.findOne({ where: { username: 'admin' } });
-    if (!adminExists) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      await User.create({
-        username: 'admin',
-        password: hashedPassword,
-        email: 'admin@example.com',
-        role: 'admin',
-        status: 'active'
-      });
-      console.log('默认管理员账户已创建: admin/admin123');
-    } else {
-      console.log('管理员账户已存在');
+    // 默认只在同步时执行；如需在生产强制播种，设置 DB_SEED_ADMIN=true
+    const shouldSeedAdmin = process.env.DB_SEED_ADMIN === 'true';
+    if (shouldSeedAdmin || shouldSync) {
+      const adminExists = await User.findOne({ where: { username: 'admin' } });
+      if (!adminExists) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await User.create({
+          username: 'admin',
+          password: hashedPassword,
+          email: 'admin@example.com',
+          role: 'admin',
+          status: 'active'
+        });
+        console.log('[DB] 默认管理员账户已创建: admin/admin123');
+      } else {
+        console.log('[DB] 管理员账户已存在');
+      }
     }
   } catch (error) {
     console.error('数据库初始化失败:', error);
