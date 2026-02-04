@@ -1,4 +1,4 @@
-<!--pages/index/index.wxml-->
+<!--pages/index/index.wxml - 首页重排版：首图轮播、活动横幅、热门商品、资讯列表、精选推荐，均可在后台管理-->
 <view class="index-page">
   <!-- 浮动搜索栏 -->
   <view class="search-bar" style="opacity: {{searchOpacity}};">
@@ -8,12 +8,12 @@
     </view>
   </view>
 
-  <!-- 轮播图 -->
+  <!-- 1. 首图轮播（后台：轮播图管理 - 位置选「首页首图」） -->
   <view class="banner-section" wx:if="{{banners.length > 0}}">
-    <swiper 
-      class="banner-swiper" 
+    <swiper
+      class="banner-swiper"
       indicator-dots="{{true}}"
-      indicator-color="rgba(255, 255, 255, 0.5)"
+      indicator-color="rgba(255,255,255,0.5)"
       indicator-active-color="#FFFFFF"
       autoplay="{{true}}"
       interval="{{3000}}"
@@ -21,23 +21,9 @@
       circular="{{true}}"
       bindchange="onBannerChange"
     >
-      <swiper-item 
-        wx:for="{{banners}}" 
-        wx:key="id"
-        bindtap="onBannerTap"
-        data-index="{{index}}"
-      >
+      <swiper-item wx:for="{{banners}}" wx:key="id" bindtap="onBannerTap" data-index="{{index}}">
         <view class="banner-slide">
-          <image 
-            class="banner-image" 
-            src="{{item.imageUrl}}" 
-            mode="aspectFill"
-            binderror="onBannerImageError"
-            data-index="{{index}}"
-            show-menu-by-longpress="{{false}}"
-            loading="eager"
-          />
-          <!-- 图片加载失败时的占位图 -->
+          <image class="banner-image" src="{{item.imageUrl}}" mode="aspectFill" binderror="onBannerImageError" data-index="{{index}}" show-menu-by-longpress="{{false}}" loading="eager" />
           <view class="banner-placeholder" wx:if="{{item.loadError}}">
             <text class="placeholder-icon">📷</text>
             <text class="placeholder-text">图片加载失败</text>
@@ -46,82 +32,41 @@
       </swiper-item>
     </swiper>
   </view>
-  
-  <!-- 轮播图为空时的提示 -->
   <view class="banner-empty" wx:if="{{!loading && dataLoaded && banners.length === 0}}">
     <text class="empty-icon">🖼️</text>
     <text class="empty-text">暂无轮播图</text>
   </view>
 
-  <!-- 占位内容：用于测试滑动效果 -->
-  <view class="placeholder-section">
-    <text class="placeholder-title">占位区块 A</text>
-  </view>
-  <view class="placeholder-section">
-    <text class="placeholder-title">占位区块 B</text>
-  </view>
-  <view class="placeholder-section">
-    <text class="placeholder-title">占位区块 C</text>
+  <!-- 2. 活动横幅轮播（后台：轮播图管理 - 位置选「活动横幅」） -->
+  <view class="activity-banner-section" wx:if="{{activityBanners.length > 0}}">
+    <swiper
+      class="activity-swiper"
+      indicator-dots="{{true}}"
+      indicator-color="rgba(0,0,0,0.2)"
+      indicator-active-color="#3481B8"
+      autoplay="{{true}}"
+      interval="{{4000}}"
+      duration="{{400}}"
+      circular="{{true}}"
+      bindchange="onActivityBannerChange"
+    >
+      <swiper-item wx:for="{{activityBanners}}" wx:key="id" bindtap="onActivityBannerTap" data-index="{{index}}">
+        <image class="activity-banner-image" src="{{item.imageUrl}}" mode="aspectFill" />
+      </swiper-item>
+    </swiper>
   </view>
 
-  <!-- 分类导航 -->
+  <!-- 3. 分类导航（后台：商品分类管理） -->
   <view class="category-section" wx:if="{{categories.length > 0}}">
     <view class="category-grid">
-      <view 
-        class="category-item" 
-        wx:for="{{categories}}" 
-        wx:key="id"
-        bindtap="onCategoryTap"
-        data-id="{{item.id}}"
-      >
+      <view class="category-item" wx:for="{{categories}}" wx:key="id" bindtap="onCategoryTap" data-id="{{item.id}}">
         <image class="category-icon" src="{{item.icon || '../../images/category-default.png'}}" mode="aspectFit" />
         <text class="category-name">{{item.name}}</text>
       </view>
     </view>
   </view>
 
-  <!-- 推荐商品 -->
-  <view class="product-section" wx:if="{{recommendProducts.length > 0}}">
-    <view class="section-header">
-      <view class="section-title">
-        <text class="title-icon">⭐</text>
-        <text class="title-text">精选推荐</text>
-      </view>
-      <view class="section-more" bindtap="onMoreRecommendTap">
-        <text class="more-text">更多</text>
-        <text class="more-arrow">›</text>
-      </view>
-    </view>
-    
-    <view class="product-grid">
-      <view 
-        class="product-item" 
-        wx:for="{{recommendProducts}}" 
-        wx:key="id"
-        bindtap="onProductTap"
-        data-id="{{item.id}}"
-      >
-        <view class="product-image-wrapper">
-          <image class="product-image" src="{{item.images[0]}}" mode="aspectFill" />
-          <view class="product-tag" wx:if="{{item.tags && item.tags.length > 0}}">
-            {{item.tags[0]}}
-          </view>
-        </view>
-        <view class="product-info">
-          <text class="product-name">{{item.name}}</text>
-          <view class="product-bottom">
-            <view class="product-price">
-              <text class="price-symbol">¥</text>
-              <text class="price-value">{{item.price}}</text>
-            </view>
-            <text class="product-sales">已售{{item.sales || 0}}</text>
-          </view>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <!-- 热门商品 -->
+  <!-- 4. 热门商品（后台：商品管理 - 勾选「热门」） -->
   <view class="product-section" wx:if="{{hotProducts.length > 0}}">
     <view class="section-header">
       <view class="section-title">
@@ -133,15 +78,8 @@
         <text class="more-arrow">›</text>
       </view>
     </view>
-    
     <view class="product-grid">
-      <view 
-        class="product-item" 
-        wx:for="{{hotProducts}}" 
-        wx:key="id"
-        bindtap="onProductTap"
-        data-id="{{item.id}}"
-      >
+      <view class="product-item" wx:for="{{hotProducts}}" wx:key="id" bindtap="onProductTap" data-id="{{item.id}}">
         <view class="product-image-wrapper">
           <image class="product-image" src="{{item.images[0]}}" mode="aspectFill" />
           <view class="product-hot-tag">热</view>
@@ -160,10 +98,66 @@
     </view>
   </view>
 
-  <!-- 加载中 -->
-  <view class="loading" wx:if="{{loading}}">
-    <text>加载中...</text>
+  <!-- 5. 资讯列表（后台：文章/资讯管理，首页展示最多 5 条） -->
+  <view class="article-section" wx:if="{{homeArticles.length > 0}}">
+    <view class="section-header">
+      <view class="section-title">
+        <text class="title-icon">📰</text>
+        <text class="title-text">资讯</text>
+      </view>
+      <view class="section-more" bindtap="onMoreArticlesTap">
+        <text class="more-text">更多</text>
+        <text class="more-arrow">›</text>
+      </view>
+    </view>
+    <view class="article-list">
+      <view class="article-item" wx:for="{{homeArticles}}" wx:key="id" bindtap="onArticleTap" data-id="{{item.id}}">
+        <image class="article-cover" src="{{item.coverImage}}" mode="aspectFill" wx:if="{{item.coverImage}}" />
+        <view class="article-cover placeholder" wx:else><text class="article-placeholder-text">图</text></view>
+        <view class="article-info">
+          <text class="article-title">{{item.title}}</text>
+          <text class="article-summary" wx:if="{{item.summary}}">{{item.summary}}</text>
+          <text class="article-time">{{item.publishTime}}</text>
+        </view>
+        <text class="article-arrow">›</text>
+      </view>
+    </view>
   </view>
+
+  <!-- 6. 精选推荐（后台：商品管理 - 勾选「推荐」） -->
+  <view class="product-section" wx:if="{{recommendProducts.length > 0}}">
+    <view class="section-header">
+      <view class="section-title">
+        <text class="title-icon">⭐</text>
+        <text class="title-text">精选推荐</text>
+      </view>
+      <view class="section-more" bindtap="onMoreRecommendTap">
+        <text class="more-text">更多</text>
+        <text class="more-arrow">›</text>
+      </view>
+    </view>
+    <view class="product-grid">
+      <view class="product-item" wx:for="{{recommendProducts}}" wx:key="id" bindtap="onProductTap" data-id="{{item.id}}">
+        <view class="product-image-wrapper">
+          <image class="product-image" src="{{item.images[0]}}" mode="aspectFill" />
+          <view class="product-tag" wx:if="{{item.tags && item.tags.length > 0}}">{{item.tags[0]}}</view>
+        </view>
+        <view class="product-info">
+          <text class="product-name">{{item.name}}</text>
+          <view class="product-bottom">
+            <view class="product-price">
+              <text class="price-symbol">¥</text>
+              <text class="price-value">{{item.price}}</text>
+            </view>
+            <text class="product-sales">已售{{item.sales || 0}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loading}}"><text>加载中...</text></view>
 
   <!-- 错误状态 -->
   <view class="error-state" wx:if="{{!loading && hasError && dataLoaded}}">
@@ -172,19 +166,16 @@
     <button class="retry-btn" bindtap="loadPageData">重试</button>
   </view>
 
-  <!-- 空状态（数据加载完成但无数据） -->
+  <!-- 空状态 -->
   <view class="empty" wx:if="{{!loading && !hasError && dataLoaded && recommendProducts.length === 0 && hotProducts.length === 0}}">
     <text class="empty-icon">📦</text>
     <text class="empty-text">暂无商品</text>
     <text class="empty-desc">商品正在准备中，敬请期待</text>
   </view>
 
-  <!-- 分类为空提示 -->
   <view class="empty-category" wx:if="{{!loading && !hasError && dataLoaded && categories.length === 0}}">
     <text class="empty-category-text">暂无分类</text>
   </view>
 
-  <!-- 底部安全区 -->
   <view class="safe-area-bottom"></view>
 </view>
-

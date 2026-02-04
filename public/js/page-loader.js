@@ -50,6 +50,11 @@ const pageInitFunctions = {
             window.BannerManagement.init();
         }
     },
+    'article-management': () => {
+        if (window.ArticleManagement && window.ArticleManagement.init) {
+            window.ArticleManagement.init();
+        }
+    },
     'member-levels': () => {
         if (window.MemberLevels && window.MemberLevels.init) {
             window.MemberLevels.init();

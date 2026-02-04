@@ -115,17 +115,111 @@
   color: #999;
 }
 
-.placeholder-section {
-  height: 400rpx;
-  margin: 24rpx;
+/* ==================== 活动横幅轮播 ==================== */
+
+.activity-banner-section {
+  margin: 0 24rpx 24rpx;
   border-radius: 16rpx;
-  background-color: #E3E9F2;
+  overflow: hidden;
+  background-color: #F5F5F5;
+  height: 200rpx;
+}
+
+.activity-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.activity-banner-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ==================== 资讯列表 ==================== */
+
+.article-section {
+  background-color: #FFFFFF;
+  margin: 20rpx 24rpx;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+}
+
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.article-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.article-item:last-child {
+  border-bottom: none;
+}
+
+.article-cover {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 12rpx;
+  flex-shrink: 0;
+  background-color: #F5F5F5;
+}
+
+.article-cover.placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #E8E8E8;
+}
+
+.article-placeholder-text {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.article-info {
+  flex: 1;
+  margin-left: 24rpx;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.article-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #333;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.article-summary {
+  font-size: 24rpx;
+  color: #999;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+.article-time {
+  font-size: 22rpx;
+  color: #BBB;
+}
+
+.article-arrow {
   font-size: 32rpx;
-  color: #4A5B73;
-  font-weight: bold;
+  color: #CCC;
+  margin-left: 16rpx;
 }
 
 /* ==================== 分类导航 ==================== */

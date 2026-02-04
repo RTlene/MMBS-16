@@ -662,7 +662,8 @@ window.showProductDropdown = showProductDropdown;
 // 获取位置文本
 function getPositionText(position) {
     const positionMap = {
-        'homepage': '首页',
+        'homepage': '首页首图',
+        'activity': '活动横幅',
         'product': '商品页',
         'category': '分类页',
         'member': '会员页'

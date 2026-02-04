@@ -77,6 +77,7 @@ const handleMulterError = (err, req, res, next) => {
 
 const POSITION_MAP = {
     homepage: 1,
+    activity: 5,   // 首页活动横幅轮播（首图下方）
     product: 2,
     category: 3,
     member: 4
@@ -117,6 +118,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
         const total = await Banner.count();
         const active = await Banner.count({ where: { status: 'active' } });
         const homepage = await Banner.count({ where: { position: POSITION_MAP.homepage } });
+        const activity = await Banner.count({ where: { position: POSITION_MAP.activity } });
         const product = await Banner.count({ where: { position: POSITION_MAP.product } });
 
         res.json({
@@ -126,6 +128,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
                 total,
                 active,
                 homepage,
+                activity,
                 product
             }
         });
@@ -301,10 +304,10 @@ router.post('/', authenticateToken, upload.single('image'), handleMulterError, a
         }
 
         // 验证位置
-        if (!['homepage', 'product', 'category', 'member'].includes(bannerData.position)) {
+        if (!['homepage', 'activity', 'product', 'category', 'member'].includes(bannerData.position)) {
             return res.status(400).json({
                 code: 1,
-                message: '位置必须是homepage、product、category或member之一'
+                message: '位置必须是homepage、activity、product、category或member之一'
             });
         }
 

@@ -15,18 +15,17 @@
 // 例如：http://localhost:3000 或 http://你的内网IP:端口 1 http://jp-2.frp.one:20262
 const DEV_BASE_URL = 'http://jp-2.frp.one:20262';
 
-// 生产环境（部署后的实际域名）
-// 部署时，请修改为实际的HTTPS域名
-// 例如：https://your-domain.com 或 https://your-service.weixin.qq.com
-const PROD_BASE_URL = 'https://你的云托管域名';
+// 生产环境（云托管公网域名）
+// 用作：1) 小程序请求服务器 2) 支付/回调等填写的完整地址 = PROD_BASE_URL + 路径（如 /api/payment/wechat/notify）
+// 开发工具联调云托管：ENV 改为 'production'，并在微信公众平台将本域名加入「request合法域名」
+const PROD_BASE_URL = 'https://express-1tth-223108-8-1373039464.sh.run.tcloudbase.com';
 
 // ==================== 环境配置 ====================
 
 // 当前环境（手动设置）
-// 'development' - 开发环境（本地测试）
-// 'production' - 生产环境（部署后）
-// 本地测试时保持 'development'，部署时改为 'production'
-const ENV = 'development';
+// 'production' - 使用云托管地址（开发工具、真机、发布均请求云托管）
+// 'development' - 使用下方 DEV_BASE_URL（用于联调本地或 frp 后端）
+const ENV = 'production';
 
 // 根据环境选择 API 地址
 const API_BASE_URL = (ENV === 'production' ? PROD_BASE_URL : DEV_BASE_URL);

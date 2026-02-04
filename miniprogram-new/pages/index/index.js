@@ -9,33 +9,27 @@ const { buildAbsoluteUrl, buildOptimizedImageUrl, formatMoney } = require('../..
 
 Page({
   data: {
-    // 轮播图
+    // 首图轮播
     banners: [],
     currentBannerIndex: 0,
-    
+    // 活动横幅轮播
+    activityBanners: [],
+    currentActivityBannerIndex: 0,
     // 分类导航
     categories: [],
-    
-    // 推荐商品
-    recommendProducts: [],
-    
     // 热门商品
     hotProducts: [],
-    
+    // 首页资讯列表（简单列表，最多 5 条）
+    homeArticles: [],
+    // 精选推荐商品
+    recommendProducts: [],
     // 加载状态
     loading: false,
     refreshing: false,
-    
-    // 错误状态
     error: null,
     hasError: false,
-    
-    // 数据加载完成状态（用于区分空数据和错误）
     dataLoaded: false,
-    
-    // 搜索关键词
     searchKeyword: '',
-    // 搜索栏渐隐
     bannerHeight: 0,
     searchOpacity: 0
   },
@@ -70,15 +64,15 @@ Page({
   onShow() {
     console.log('[Index] 页面显示');
     
-    // 更新购物车数量显示
+    // 更新购物车数量显示（tab 顺序：0首页 1资讯 2分类 3购物车 4我的）
     const app = getApp();
     if (app.globalData.cartCount > 0) {
       wx.setTabBarBadge({
-        index: 2,
+        index: 3,
         text: app.globalData.cartCount.toString()
       });
     } else {
-      wx.removeTabBarBadge({ index: 2 });
+      wx.removeTabBarBadge({ index: 3 });
     }
   },
 
@@ -128,9 +122,11 @@ Page({
     try {
       await Promise.all([
         this.loadBanners(),
+        this.loadActivityBanners(),
         this.loadCategories(),
-        this.loadRecommendProducts(),
-        this.loadHotProducts()
+        this.loadHotProducts(),
+        this.loadHomeArticles(),
+        this.loadRecommendProducts()
       ]);
       
       this.setData({ dataLoaded: true });
@@ -316,8 +312,88 @@ Page({
       }
     } catch (error) {
       console.error('[Index] 加载热门商品失败:', error);
-      // 热门商品加载失败不影响其他数据，只记录错误
       this.setData({ hotProducts: [] });
+    }
+  },
+
+  /**
+   * 加载活动横幅（首页活动区轮播，后台「轮播图管理」位置选「活动横幅」）
+   */
+  async loadActivityBanners() {
+    try {
+      const url = replaceUrlParams(API.BANNER.PUBLIC, { position: 'activity' });
+      const result = await request.get(url, {}, { showLoading: false, showError: false });
+      if (result && result.code === 0 && result.data && Array.isArray(result.data)) {
+        const list = result.data.map(item => {
+          const imageUrl = item.imageUrl || '';
+          if (!imageUrl) return null;
+          let optimizedImageUrl = '';
+          try {
+            const { API_BASE_URL } = require('../../config/api.js');
+            const isHttp = /^http:\/\//i.test(API_BASE_URL);
+            const systemInfo = wx.getSystemInfoSync();
+            if (systemInfo.platform !== 'devtools' && isHttp) {
+              optimizedImageUrl = buildAbsoluteUrl(imageUrl);
+            } else {
+              optimizedImageUrl = buildOptimizedImageUrl(imageUrl, { type: 'banner' });
+            }
+          } catch (e) {
+            optimizedImageUrl = buildAbsoluteUrl(imageUrl);
+          }
+          return {
+            id: item.id,
+            imageUrl: optimizedImageUrl,
+            linkType: item.linkType || 'external',
+            linkTarget: item.linkTarget || item.linkUrl || '',
+            title: item.title || ''
+          };
+        }).filter(Boolean);
+        this.setData({ activityBanners: list });
+      } else {
+        this.setData({ activityBanners: [] });
+      }
+    } catch (error) {
+      console.error('[Index] 加载活动横幅失败:', error);
+      this.setData({ activityBanners: [] });
+    }
+  },
+
+  /**
+   * 加载首页资讯列表（后台「文章/资讯」管理，最多展示 5 条）
+   */
+  async loadHomeArticles() {
+    try {
+      const result = await request.get(API.ARTICLE.LIST, {
+        page: 1,
+        limit: 5,
+        status: 'published'
+      }, { showLoading: false, showError: false });
+      if (result && result.data && result.data.articles) {
+        const list = (result.data.articles || []).map(a => {
+          let timeStr = '';
+          if (a.publishTime) {
+            const d = new Date(a.publishTime);
+            const now = new Date();
+            const sameDay = d.toDateString() === now.toDateString();
+            timeStr = sameDay
+              ? (d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'))
+              : (d.getMonth() + 1) + '-' + d.getDate();
+          }
+          return {
+            id: a.id,
+            title: a.title,
+            summary: (a.summary || '').slice(0, 36),
+            coverImage: a.coverImage ? buildAbsoluteUrl(a.coverImage) : '',
+            publishTime: timeStr
+          };
+        });
+        this.setData({ homeArticles: list });
+      } else {
+        this.setData({ homeArticles: [] });
+      }
+    } catch (error) {
+      console.error('[Index] 加载资讯失败:', error);
+      this.setData({ homeArticles: [] });
     }
   },
 
@@ -484,9 +560,36 @@ Page({
    * 查看更多热门商品
    */
   onMoreHotTap() {
-    wx.switchTab({
-      url: '/pages/category/category'
-    });
+    wx.switchTab({ url: '/pages/category/category' });
+  },
+
+  onActivityBannerChange(e) {
+    this.setData({ currentActivityBannerIndex: e.detail.current });
+  },
+
+  onActivityBannerTap(e) {
+    const { index } = e.currentTarget.dataset;
+    const banner = (this.data.activityBanners || [])[index];
+    if (!banner) return;
+    if (banner.linkType === 'product' && banner.linkTarget) {
+      wx.navigateTo({ url: `/pages/product/product?id=${banner.linkTarget}` });
+    } else if (banner.linkType === 'custom' && banner.linkTarget) {
+      wx.navigateTo({ url: banner.linkTarget });
+    } else if (banner.linkType === 'external' && banner.linkTarget) {
+      wx.setClipboardData({
+        data: banner.linkTarget,
+        success: () => { wx.showToast({ title: '链接已复制', icon: 'none' }); }
+      });
+    }
+  },
+
+  onArticleTap(e) {
+    const { id } = e.currentTarget.dataset;
+    if (id) wx.navigateTo({ url: `/pages/article/article?id=${id}` });
+  },
+
+  onMoreArticlesTap() {
+    wx.switchTab({ url: '/pages/articles/articles' });
   },
 
   // ==================== 工具方法 ====================

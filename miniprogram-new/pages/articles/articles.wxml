@@ -14,7 +14,7 @@
         <image class="cover-image" src="{{item.coverImage}}" mode="aspectFill" />
       </view>
       <view class="article-cover placeholder" wx:else>
-        <text class="cover-icon">📄</text>
+        <text class="cover-icon" aria-label="无封面">📄</text>
       </view>
 
       <!-- 文章信息 -->

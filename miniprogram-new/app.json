@@ -45,16 +45,16 @@
         "text": "首页"
       },
       {
+        "pagePath": "pages/articles/articles",
+        "text": "资讯"
+      },
+      {
         "pagePath": "pages/category/category",
         "text": "分类"
       },
       {
         "pagePath": "pages/cart/cart",
         "text": "购物车"
-      },
-      {
-        "pagePath": "pages/articles/articles",
-        "text": "文章"
       },
       {
         "pagePath": "pages/profile/profile",

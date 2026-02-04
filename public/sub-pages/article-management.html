@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资讯管理</title>
+  <style>
+    .article-management-container { padding: 20px; background: #f5f5f5; min-height: 100vh; }
+    .page-header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .page-title { font-size: 24px; font-weight: 600; color: #333; margin-bottom: 8px; }
+    .page-desc { color: #666; font-size: 14px; }
+    .filters { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+    .filter-input { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .btn-primary { background: #1890ff; color: white; }
+    .btn-success { background: #52c41a; color: white; }
+    .btn-danger { background: #ff4d4f; color: white; }
+    .table-container { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
+    .table-header { padding: 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .table-title { font-size: 18px; font-weight: 600; color: #333; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { background: #fafafa; font-weight: 600; color: #333; }
+    tbody tr:hover { background: #f5f5f5; }
+    .status-draft { background: #f5f5f5; color: #666; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+    .status-published { background: #f6ffed; color: #52c41a; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+    .status-archived { background: #fff2e8; color: #fa8c16; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+    .cover-preview { width: 80px; height: 50px; object-fit: cover; border-radius: 4px; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal.show { display: flex; }
+    .modal-content { background: white; border-radius: 8px; width: 90%; max-width: 640px; max-height: 90vh; overflow-y: auto; }
+    .modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .modal-title { font-size: 18px; font-weight: 600; color: #333; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+    .modal-body { padding: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; margin-bottom: 6px; font-weight: 500; color: #333; font-size: 14px; }
+    .form-input { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    .form-textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; min-height: 80px; resize: vertical; box-sizing: border-box; }
+    .pagination { display: flex; justify-content: center; align-items: center; padding: 16px; gap: 8px; }
+    .pagination button { padding: 8px 12px; border: 1px solid #d9d9d9; background: white; cursor: pointer; border-radius: 4px; }
+    .pagination button:hover:not(:disabled) { border-color: #1890ff; color: #1890ff; }
+    .pagination button.active { background: #1890ff; color: white; border-color: #1890ff; }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="article-management-container">
+    <div class="page-header">
+      <h1 class="page-title">资讯管理</h1>
+      <p class="page-desc">管理小程序首页「资讯」列表与资讯详情，发布后会在小程序首页资讯区展示。</p>
+    </div>
+    <div class="filters">
+      <input type="text" class="filter-input" id="searchInput" placeholder="搜索标题/摘要" style="width: 200px;">
+      <select class="filter-input" id="statusFilter" style="width: 120px;">
+        <option value="">全部状态</option>
+        <option value="draft">草稿</option>
+        <option value="published">已发布</option>
+        <option value="archived">已归档</option>
+      </select>
+      <button class="btn btn-primary" onclick="searchArticles()">搜索</button>
+      <button class="btn btn-success" onclick="showAddModal()">新增资讯</button>
+    </div>
+    <div class="table-container">
+      <div class="table-header">
+        <h2 class="table-title">资讯列表</h2>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>封面</th>
+            <th>标题</th>
+            <th>状态</th>
+            <th>发布时间</th>
+            <th>排序</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="articleTableBody"></tbody>
+      </table>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="articleModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="articleModalTitle">新增资讯</h3>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="articleForm">
+          <input type="hidden" id="articleId">
+          <div class="form-group">
+            <label class="form-label">标题 *</label>
+            <input type="text" class="form-input" id="articleTitle" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">摘要</label>
+            <textarea class="form-textarea" id="articleSummary" rows="2"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">封面图</label>
+            <input type="file" class="form-input" id="articleCover" accept="image/*">
+            <small style="color:#999;">留空则保持原图（编辑时）</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">正文（HTML 或纯文本）</label>
+            <textarea class="form-textarea" id="articleContent" rows="6"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">作者</label>
+            <input type="text" class="form-input" id="articleAuthor" value="MMBS商城">
+          </div>
+          <div class="form-group">
+            <label class="form-label">发布时间（留空为未发布）</label>
+            <input type="datetime-local" class="form-input" id="articlePublishTime">
+          </div>
+          <div class="form-group">
+            <label class="form-label">状态</label>
+            <select class="form-input" id="articleStatus">
+              <option value="draft">草稿</option>
+              <option value="published">已发布</option>
+              <option value="archived">已归档</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">排序（数字越小越靠前）</label>
+            <input type="number" class="form-input" id="articleSortOrder" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">外部链接（可选，如公众号文章）</label>
+            <input type="url" class="form-input" id="articleExternalUrl" placeholder="https://">
+          </div>
+          <div style="display:flex;gap:10px;margin-top:20px;">
+            <button type="submit" class="btn btn-primary">保存</button>
+            <button type="button" class="btn" onclick="closeModal()" style="background:#f0f0f0;">取消</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/article-management.js"></script>
+</body>
+</html>
