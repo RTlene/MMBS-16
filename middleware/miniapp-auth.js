@@ -4,7 +4,11 @@
  */
 
 const axios = require('axios');
+const https = require('https');
 const { Member, MemberLevel } = require('../db');
+
+// 云托管等环境出网可能经代理/SSL 拦截，会收到自签名证书，需跳过证书校验才能访问微信 API
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // ==================== 微信登录相关 ====================
 
@@ -29,7 +33,8 @@ async function code2Session(code) {
         js_code: code,
         grant_type: 'authorization_code'
       },
-      timeout: 10000
+      timeout: 10000,
+      httpsAgent
     });
 
     console.log('[MiniappAuth] code2Session 响应:', response.data);
