@@ -232,10 +232,25 @@ router.post('/wechat/notify', async (req, res) => {
         }
         console.log('[Payment] 支付回调数据:', notifyData);
 
-        // 解密数据（实际应实现解密逻辑）
-        // const decryptedData = wechatPayService.decryptNotifyData(notifyData);
+        // 解密 resource（微信支付 v3 回调为加密资源）
+        let decrypted = null;
+        try {
+            if (notifyData.resource && notifyData.resource.ciphertext) {
+                decrypted = wechatPayService.decryptNotifyData(notifyData);
+                console.log('[Payment] 回调 resource 解密成功:', {
+                    out_trade_no: decrypted?.out_trade_no,
+                    transaction_id: decrypted?.transaction_id,
+                    trade_state: decrypted?.trade_state
+                });
+            }
+        } catch (e) {
+            console.error('[Payment] 回调 resource 解密失败:', e.message || e);
+            // 解密失败直接返回 400，避免微信认为成功而停止重试
+            return res.status(400).send('解密失败');
+        }
 
-        const { out_trade_no, transaction_id, trade_state, trade_state_desc } = notifyData;
+        const payload = decrypted || notifyData;
+        const { out_trade_no, transaction_id, trade_state, trade_state_desc } = payload;
 
         if (!out_trade_no) {
             return res.status(400).send('订单号不存在');

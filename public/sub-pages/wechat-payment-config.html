@@ -72,9 +72,9 @@
             </div>
             <div class="form-row">
                 <div class="field">
-                    <label>API 密钥</label>
-                    <input type="password" class="form-control" id="wxPayKey" placeholder="留空表示不修改已保存的密钥">
-                    <div class="hint">首次配置必填；安全起见不回显</div>
+                    <label>APIv3 密钥（32 位）</label>
+                    <input type="password" class="form-control" id="wxApiV3Key" placeholder="留空表示不修改已保存的密钥">
+                    <div class="hint">用于解密微信支付回调 resource（AES-256-GCM）；首次配置必填；安全起见不回显</div>
                 </div>
                 <div class="field">
                     <label>证书序列号（可选）</label>
@@ -192,7 +192,7 @@
             <summary>如何获取商户号和 API 密钥？</summary>
             <ol>
                 <li>登录 <a href="https://pay.weixin.qq.com/" target="_blank">微信支付商户平台</a></li>
-                <li>账户中心 → API安全 → 设置 API 密钥（32 位）</li>
+                <li>账户中心 → API安全 → 设置 APIv3 密钥（32 位）</li>
                 <li>账户中心 → 商户信息 中查看商户号</li>
             </ol>
         </details>

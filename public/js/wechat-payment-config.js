@@ -51,7 +51,8 @@ function fillForm(data) {
     document.getElementById('wxAppId').value = data.wxAppId || '';
     document.getElementById('wxMchId').value = data.wxMchId || '';
     // 出于安全考虑，后端不会返回真实密钥；这里保持为空，留空表示不修改
-    document.getElementById('wxPayKey').value = '';
+    const apiV3El = document.getElementById('wxApiV3Key');
+    if (apiV3El) apiV3El.value = '';
     document.getElementById('wxCertSerialNo').value = data.wxCertSerialNo || '';
     document.getElementById('wxNotifyUrl').value = data.wxNotifyUrl || '';
     document.getElementById('baseUrl').value = data.baseUrl || '';
@@ -93,7 +94,8 @@ function applySuggestedNotifyUrl() {
 // 更新配置状态
 function updateConfigStatus() {
     const statusEl = document.getElementById('configStatus');
-    const hasRequired = configData.wxAppId && configData.wxMchId && configData.wxPayKey;
+    const hasKey = (configData.wxApiV3Key || configData.wxPayKey);
+    const hasRequired = configData.wxAppId && configData.wxMchId && hasKey;
     
     if (hasRequired) {
         statusEl.textContent = '已配置';
@@ -120,7 +122,8 @@ async function saveConfig(mode = 'all') {
         if (safeMode === 'all' || safeMode === 'basic') {
             payload.wxAppId = document.getElementById('wxAppId').value.trim();
             payload.wxMchId = document.getElementById('wxMchId').value.trim();
-            payload.wxPayKey = document.getElementById('wxPayKey').value.trim();
+            const apiV3El = document.getElementById('wxApiV3Key');
+            payload.wxApiV3Key = apiV3El ? apiV3El.value.trim() : '';
             payload.wxCertSerialNo = document.getElementById('wxCertSerialNo').value.trim();
         }
         if (safeMode === 'all' || safeMode === 'callback') {
@@ -142,9 +145,9 @@ async function saveConfig(mode = 'all') {
                 return;
             }
             // 密钥首次必须填；如果已有保存（后端会返回 ***已保存***），则允许留空表示不修改
-            const hasSavedKey = !!(configData && configData.wxPayKey);
-            if (!hasSavedKey && !payload.wxPayKey) {
-                showAlert('首次配置请填写 API 密钥；已保存过则可留空表示不修改', 'warning');
+            const hasSavedKey = !!(configData && (configData.wxApiV3Key || configData.wxPayKey));
+            if (!hasSavedKey && !payload.wxApiV3Key) {
+                showAlert('首次配置请填写 APIv3 密钥；已保存过则可留空表示不修改', 'warning');
                 return;
             }
         }
@@ -191,7 +194,8 @@ async function saveConfig(mode = 'all') {
             updateConfigStatus();
             updateNotifyPreview();
             // 保存后清空密钥输入框，避免页面残留
-            document.getElementById('wxPayKey').value = '';
+            const apiV3El = document.getElementById('wxApiV3Key');
+            if (apiV3El) apiV3El.value = '';
         } else {
             throw new Error(result.message || '保存配置失败');
         }

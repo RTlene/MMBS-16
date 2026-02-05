@@ -125,6 +125,8 @@ router.get('/get', authenticateToken, async (req, res) => {
             wxMchId: process.env.WX_MCHID || config.wxMchId || '',
             // 不把真实密钥回传到前端（只返回是否已配置）
             wxPayKey: maskSecret(process.env.WX_PAY_KEY || config.wxPayKey || ''),
+            // APIv3Key（用于回调解密），优先单独字段；兼容旧的 wxPayKey/WX_PAY_KEY
+            wxApiV3Key: maskSecret(process.env.WX_PAY_API_V3_KEY || config.wxApiV3Key || ''),
             wxCertSerialNo: process.env.WX_PAY_CERT_SERIAL_NO || config.wxCertSerialNo || '',
             wxNotifyUrl: process.env.WX_PAY_NOTIFY_URL || config.wxNotifyUrl || '',
             baseUrl: process.env.BASE_URL || config.baseUrl || '',
@@ -162,6 +164,7 @@ router.post('/save', authenticateToken, async (req, res) => {
             wxAppId,
             wxMchId,
             wxPayKey,
+            wxApiV3Key,
             wxCertSerialNo,
             wxNotifyUrl,
             baseUrl,
@@ -176,22 +179,31 @@ router.post('/save', authenticateToken, async (req, res) => {
         const next = { ...existing };
 
         // 处理密钥：空字符串代表“不修改”
-        const currentKey = process.env.WX_PAY_KEY || existing.wxPayKey || '';
-        const keyProvided = (typeof wxPayKey === 'string' && wxPayKey.trim().length > 0);
-        const nextKey = keyProvided ? wxPayKey.trim() : currentKey;
+        // - wxPayKey: 兼容旧字段（历史上用于 APIv3Key）
+        // - wxApiV3Key: 新增字段，优先用于回调解密
+        const currentPayKey = process.env.WX_PAY_KEY || existing.wxPayKey || '';
+        const payKeyProvided = (typeof wxPayKey === 'string' && wxPayKey.trim().length > 0);
+        const nextPayKey = payKeyProvided ? wxPayKey.trim() : currentPayKey;
+
+        const currentApiV3Key = process.env.WX_PAY_API_V3_KEY || existing.wxApiV3Key || '';
+        const apiV3KeyProvided = (typeof wxApiV3Key === 'string' && wxApiV3Key.trim().length > 0);
+        const nextApiV3Key = apiV3KeyProvided ? wxApiV3Key.trim() : currentApiV3Key;
 
         // ====== 按分组写入 ======
         if (saveMode === 'all' || saveMode === 'basic') {
             if (typeof wxAppId === 'string') next.wxAppId = wxAppId.trim();
             if (typeof wxMchId === 'string') next.wxMchId = wxMchId.trim();
-            next.wxPayKey = nextKey; // 必须写回（用于首次保存或保持）
+            next.wxPayKey = nextPayKey; // 兼容保留
+            next.wxApiV3Key = nextApiV3Key; // 新字段：APIv3Key
             if (typeof wxCertSerialNo === 'string') next.wxCertSerialNo = wxCertSerialNo.trim();
 
             // 基础配置保存时才做“必填校验”
-            if (!next.wxAppId || !next.wxMchId || !next.wxPayKey) {
+            // 这里要求配置 APIv3Key；兼容：若未填新字段但旧字段有值，也视为已配置
+            const effectiveApiV3Key = next.wxApiV3Key || next.wxPayKey;
+            if (!next.wxAppId || !next.wxMchId || !effectiveApiV3Key) {
                 return res.status(400).json({
                     code: 1,
-                    message: '基础配置不完整：请填写小程序AppID、商户号；并配置API密钥（首次保存必须填写）'
+                    message: '基础配置不完整：请填写小程序AppID、商户号；并配置 APIv3 密钥（首次保存必须填写）'
                 });
             }
         }
@@ -238,6 +250,7 @@ router.post('/save', authenticateToken, async (req, res) => {
         next.sandbox = !!next.sandbox;
         next.certPath = next.certPath || '/app/cert/apiclient_cert.pem';
         next.keyPath = next.keyPath || '/app/cert/apiclient_key.pem';
+        next.wxApiV3Key = next.wxApiV3Key || '';
         next.updatedAt = new Date().toISOString();
 
         // 保存配置到文件
@@ -248,6 +261,7 @@ router.post('/save', authenticateToken, async (req, res) => {
         if (next.wxAppId) process.env.WX_APPID = next.wxAppId;
         if (next.wxMchId) process.env.WX_MCHID = next.wxMchId;
         if (next.wxPayKey) process.env.WX_PAY_KEY = next.wxPayKey;
+        if (next.wxApiV3Key) process.env.WX_PAY_API_V3_KEY = next.wxApiV3Key;
         if (next.wxCertSerialNo) process.env.WX_PAY_CERT_SERIAL_NO = next.wxCertSerialNo;
         if (next.wxNotifyUrl) process.env.WX_PAY_NOTIFY_URL = next.wxNotifyUrl;
         if (next.baseUrl) process.env.BASE_URL = next.baseUrl;
@@ -263,7 +277,8 @@ router.post('/save', authenticateToken, async (req, res) => {
             data: {
                 ...next,
                 // 不返回敏感信息
-                wxPayKey: '***已保存***'
+                wxPayKey: next.wxPayKey ? '***已保存***' : '',
+                wxApiV3Key: next.wxApiV3Key ? '***已保存***' : ''
             },
             warning: next.wxNotifyUrl
                 ? '已写入 config/wechat-payment-config.json（本地联调用）。生产环境建议用环境变量/密钥管理，不建议落盘。'
@@ -289,12 +304,13 @@ router.post('/test', authenticateToken, async (req, res) => {
         const wxAppId = process.env.WX_APPID || config.wxAppId;
         const wxMchId = process.env.WX_MCHID || config.wxMchId;
         const wxPayKey = process.env.WX_PAY_KEY || config.wxPayKey;
+        const wxApiV3Key = process.env.WX_PAY_API_V3_KEY || config.wxApiV3Key || '';
 
         // 检查基本配置
-        if (!wxAppId || !wxMchId || !wxPayKey) {
+        if (!wxAppId || !wxMchId || !(wxApiV3Key || wxPayKey)) {
             return res.status(400).json({
                 code: 1,
-                message: '配置不完整，请先配置小程序AppID、商户号和API密钥'
+                message: '配置不完整，请先配置小程序AppID、商户号和 APIv3 密钥'
             });
         }
 
@@ -310,13 +326,13 @@ router.post('/test', authenticateToken, async (req, res) => {
         const serviceStatus = serviceReady ? '已就绪（运行时读 env）' : '未就绪';
 
         const result = {
-            configComplete: !!(wxAppId && wxMchId && wxPayKey),
+            configComplete: !!(wxAppId && wxMchId && (wxApiV3Key || wxPayKey)),
             certExists,
             keyExists,
             serviceStatus,
             wxAppId: wxAppId ? '已配置' : '未配置',
             wxMchId: wxMchId ? '已配置' : '未配置',
-            wxPayKey: wxPayKey ? '已配置' : '未配置',
+            wxApiV3Key: (wxApiV3Key || wxPayKey) ? '已配置' : '未配置',
             sandbox: (process.env.WX_PAY_SANDBOX === 'true') || !!config.sandbox
         };
 
@@ -335,9 +351,9 @@ router.post('/test', authenticateToken, async (req, res) => {
         } else {
             res.json({
                 code: 1,
-                message: '配置不完整，请先配置小程序AppID、商户号和API密钥',
+                message: '配置不完整，请先配置小程序AppID、商户号和 APIv3 密钥',
                 data: result,
-                issues: ['请填写小程序AppID、商户号、API密钥（首次保存必须填写密钥）']
+                issues: ['请填写小程序AppID、商户号、APIv3密钥（首次保存必须填写）']
             });
         }
     } catch (error) {

@@ -196,6 +196,7 @@ function loadPaymentConfigIntoEnv() {
       wxAppId: 'WX_APPID',
       wxMchId: 'WX_MCHID',
       wxPayKey: 'WX_PAY_KEY',
+      wxApiV3Key: 'WX_PAY_API_V3_KEY',
       wxCertSerialNo: 'WX_PAY_CERT_SERIAL_NO',
       wxNotifyUrl: 'WX_PAY_NOTIFY_URL',
       baseUrl: 'BASE_URL',

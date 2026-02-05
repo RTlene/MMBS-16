@@ -329,9 +329,46 @@ class WeChatPayService {
      * @param {Object} notifyData - 回调数据
      */
     decryptNotifyData(notifyData) {
-        // TODO: 实现数据解密逻辑
-        // 微信支付API v3 的回调数据是加密的，需要使用证书解密
-        return notifyData; // 简化处理
+        // 微信支付 API v3 回调 resource 使用 APIv3Key(AES-256-GCM) 加密
+        // 参考字段：resource.ciphertext / resource.nonce / resource.associated_data
+        // 优先使用 WX_PAY_API_V3_KEY；为兼容旧配置，回退到 WX_PAY_KEY
+        const apiV3Key = process.env.WX_PAY_API_V3_KEY || process.env.WX_PAY_KEY;
+        if (!apiV3Key || String(apiV3Key).trim().length === 0) {
+            throw new Error('未配置 APIv3Key（用于解密微信支付回调 resource）：请设置 WX_PAY_API_V3_KEY（或兼容使用 WX_PAY_KEY）');
+        }
+
+        const resource = notifyData?.resource;
+        if (!resource || typeof resource !== 'object') {
+            throw new Error('回调数据缺少 resource');
+        }
+        const ciphertext = resource.ciphertext;
+        const nonce = resource.nonce;
+        const associatedData = resource.associated_data || '';
+        if (!ciphertext || !nonce) {
+            throw new Error('回调 resource 缺少 ciphertext/nonce');
+        }
+
+        // ciphertext 格式：base64( 密文 + 16字节tag )
+        const cipherBuf = Buffer.from(ciphertext, 'base64');
+        if (cipherBuf.length <= 16) {
+            throw new Error('回调 resource ciphertext 长度不合法');
+        }
+        const data = cipherBuf.subarray(0, cipherBuf.length - 16);
+        const authTag = cipherBuf.subarray(cipherBuf.length - 16);
+
+        // 微信要求 APIv3Key 为 32 字节（ASCII）
+        const keyBuf = Buffer.from(String(apiV3Key), 'utf8');
+        if (keyBuf.length !== 32) {
+            throw new Error(`WX_PAY_KEY 长度不正确：期望 32 字节，实际 ${keyBuf.length} 字节`);
+        }
+
+        const decipher = crypto.createDecipheriv('aes-256-gcm', keyBuf, nonce);
+        if (associatedData) {
+            decipher.setAAD(Buffer.from(String(associatedData), 'utf8'));
+        }
+        decipher.setAuthTag(authTag);
+        const plain = Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+        return JSON.parse(plain);
     }
 }
 

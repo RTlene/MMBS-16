@@ -460,7 +460,7 @@ router.get('/orders', authenticateMiniappUser, async (req, res) => {
             } else if (status === 'paid') {
                 // 待发货：仅需发货的订单（至少包含一件实物商品），纯服务订单只出现在「待使用」
                 const [paidPhysicalRows] = await sequelize.query(
-                    `SELECT DISTINCT o.id FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical'`,
+                    `SELECT DISTINCT o.id FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical'`,
                     { replacements: { memberId: member.id } }
                 );
                 const orderIds = (paidPhysicalRows || []).map(r => r.id);
