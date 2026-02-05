@@ -258,6 +258,17 @@ docker login ccr.ccs.tencentyun.com
 1. 云托管环境变量是否配置：`WX_APPID`、`WX_MCHID`、`WX_PAY_KEY`、`WX_PAY_NOTIFY_URL`、`BASE_URL`（与云托管公网地址一致）。
 2. 是否已上传微信支付商户证书：`apiclient_key.pem`、`apiclient_cert.pem` 到镜像或挂载目录（如 `/app/cert/`），并配置 `WX_PAY_KEY_PATH`、`WX_PAY_CERT_PATH`、`WX_PAY_CERT_SERIAL_NO`。
 3. 若日志出现 `self-signed certificate`，当前代码已对微信支付 API 请求跳过证书校验，重新部署后即可。
+4. 查看云托管日志中 `[Payment] 创建支付订单失败:` 和 `[Payment] 详细错误:` 后的具体报错，按提示排查。
+
+### Q7: 日志报错 Table 'nodejs_demo.products' doesn't exist（或其它表不存在）
+
+**原因**：当前连接的数据库（如 `nodejs_demo`）里还没有建表。启动时为了加快冷启动，默认**不会**自动执行建表（未设置 `DB_SYNC=true`）。
+
+**处理**：
+1. 在云托管该服务的「环境变量」中**临时**增加：`DB_SYNC` = `true`。
+2. 保存并**重新部署**一次，让服务启动时执行一次数据库同步（建表）。
+3. 部署成功、确认表已生成后，将 `DB_SYNC` 删掉或改为 `false`，再部署一次，避免每次启动都做同步。
+4. 若你使用的是已有数据库（如 `mall_admin`）且表已存在，请将 `MYSQL_DATABASE` 设为该库名，并确保表名与代码一致（如商品表为 `Products`）。
 
 ---
 

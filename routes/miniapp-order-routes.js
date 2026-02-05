@@ -629,15 +629,15 @@ router.get('/orders/stats', authenticateMiniappUser, async (req, res) => {
             }
         }
 
-        // 待发货（仅需发货的 paid 订单，排除纯服务订单），与订单列表「待发货」tab 一致
+        // 待发货（仅需发货的 paid 订单，排除纯服务订单），与订单列表「待发货」tab 一致（表名与 db.js 一致：Products）
         try {
             const [paidShipRows] = await sequelize.query(
-                `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical'`,
+                `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical'`,
                 { replacements: { memberId: member.id } }
             );
             statusCounts.paidNeedShip = (paidShipRows && paidShipRows[0] && parseInt(paidShipRows[0].cnt, 10)) || 0;
         } catch (err) {
-            console.error('统计待发货(需发货)失败:', err);
+            console.error('统计待发货(需发货)失败:', err.message || err);
             statusCounts.paidNeedShip = 0;
         }
 
