@@ -16,11 +16,19 @@ const router = express.Router();
  * POST /api/payment/wechat/create
  */
 router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     try {
         const { orderId } = req.body;
         const member = req.member;
+        console.log('[Payment] create 请求开始:', {
+            requestId,
+            orderId,
+            memberId: member?.id,
+            hasOpenid: !!member?.openid
+        });
 
         if (!orderId) {
+            console.warn('[Payment] create 缺少参数 orderId:', { requestId, memberId: member?.id });
             return res.status(400).json({
                 code: 1,
                 message: '订单ID不能为空'
@@ -36,6 +44,7 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
         });
 
         if (!order) {
+            console.warn('[Payment] create 订单不存在:', { requestId, orderId, memberId: member?.id });
             return res.status(404).json({
                 code: 1,
                 message: '订单不存在'
@@ -44,6 +53,12 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
 
         // 验证订单是否属于当前用户
         if (order.memberId !== member.id) {
+            console.warn('[Payment] create 越权访问订单:', {
+                requestId,
+                orderId,
+                orderMemberId: order.memberId,
+                memberId: member.id
+            });
             return res.status(403).json({
                 code: 1,
                 message: '无权访问此订单'
@@ -52,6 +67,12 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
 
         // 验证订单状态
         if (order.status !== 'pending') {
+            console.warn('[Payment] create 订单状态不允许支付:', {
+                requestId,
+                orderId: order.id,
+                orderNo: order.orderNo,
+                status: order.status
+            });
             return res.status(400).json({
                 code: 1,
                 message: '订单状态不正确，无法支付'
@@ -60,6 +81,12 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
 
         // 验证支付方式
         if (order.paymentMethod !== 'wechat') {
+            console.warn('[Payment] create 支付方式不匹配:', {
+                requestId,
+                orderId: order.id,
+                orderNo: order.orderNo,
+                paymentMethod: order.paymentMethod
+            });
             return res.status(400).json({
                 code: 1,
                 message: '订单支付方式不是微信支付'
@@ -68,6 +95,15 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
 
         // 检查是否配置了微信支付
         if (!process.env.WX_APPID || !process.env.WX_MCHID) {
+            console.error('[Payment] create 微信支付环境变量未配置:', {
+                requestId,
+                hasWX_APPID: !!process.env.WX_APPID,
+                hasWX_MCHID: !!process.env.WX_MCHID,
+                hasWX_PAY_CERT_SERIAL_NO: !!process.env.WX_PAY_CERT_SERIAL_NO,
+                hasWX_PAY_KEY: !!process.env.WX_PAY_KEY,
+                hasWX_PAY_NOTIFY_URL: !!process.env.WX_PAY_NOTIFY_URL,
+                baseUrl: process.env.BASE_URL || null
+            });
             return res.status(500).json({
                 code: 1,
                 message: '微信支付未配置，请联系管理员'
@@ -76,6 +112,10 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
 
         // 检查商户私钥是否已配置（无私钥无法调微信统一下单）
         if (!wechatPayService.hasPrivateKey()) {
+            console.error('[Payment] create 商户私钥未配置:', {
+                requestId,
+                keyPath: process.env.WX_PAY_KEY_PATH || null
+            });
             return res.status(503).json({
                 code: 1,
                 message: '微信支付商户私钥未配置，无法发起支付。请将 apiclient_key.pem 上传到服务器 cert 目录（如 /app/cert/）并重启服务。'
@@ -85,6 +125,7 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
         // 获取用户openid
         const openid = member.openid;
         if (!openid) {
+            console.warn('[Payment] create 用户缺少 openid:', { requestId, memberId: member.id, orderId: order.id });
             return res.status(400).json({
                 code: 1,
                 message: '用户未绑定微信，无法使用微信支付'
@@ -94,6 +135,14 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
         // 调用微信支付统一下单
         const totalAmount = Math.round(parseFloat(order.totalAmount) * 100); // 转换为分
         
+        console.log('[Payment] create 准备统一下单:', {
+            requestId,
+            orderId: order.id,
+            orderNo: order.orderNo,
+            totalAmountFen: totalAmount,
+            sandbox: process.env.WX_PAY_SANDBOX === 'true',
+            notifyUrl: process.env.WX_PAY_NOTIFY_URL || null
+        });
         const prepayResult = await wechatPayService.createJsapiOrder({
             outTradeNo: order.orderNo,
             description: `订单支付-${order.orderNo}`,
@@ -101,6 +150,7 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
             openid: openid,
             attach: JSON.stringify({ orderId: order.id })
         });
+        console.log('[Payment] create 统一下单成功:', { requestId, orderNo: order.orderNo, prepayId: prepayResult?.prepayId });
 
         // 生成小程序支付参数
         const payParams = wechatPayService.generateMiniProgramPayParams(prepayResult.prepayId);
@@ -125,7 +175,16 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
     } catch (error) {
         const msg = error.message || '创建支付订单失败';
         console.error('[Payment] 创建支付订单失败:', msg);
-        console.error('[Payment] 详细错误:', error.response?.data || error.cause || error.stack || error);
+        console.error('[Payment] 详细错误:', {
+            requestId,
+            name: error?.name,
+            code: error?.code,
+            message: error?.message,
+            responseStatus: error?.response?.status,
+            responseData: error?.response?.data,
+            cause: error?.cause,
+            stack: error?.stack
+        });
         res.status(500).json({
             code: 1,
             message: msg,
