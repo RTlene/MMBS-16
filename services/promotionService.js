@@ -16,38 +16,35 @@ class PromotionService {
      */
     static async getProductWithPromotions(productId, memberId, skuId = null, quantity = 1) {
         try {
-            // 并行执行可以并行的查询，提高性能
-            // 优化但保留图片：仅排除超大富文本/视频
-            const [product, member] = await Promise.all([
-                Product.findByPk(productId, {
-                    attributes: {
-                        exclude: ['detailContent', 'videos'] // images 与 detailImages 一并返回，便于直接显示
-                    },
-                    include: [
-                        { 
-                            model: ProductSKU, 
-                            as: 'skus', 
-                            where: { status: 'active' }, 
-                            required: false,
-                            attributes: ['id', 'name', 'price', 'stock'] // 完全移除 images 和 attributes，通过分段加载获取
-                        }
-                    ]
-                }),
-                Member.findByPk(memberId, {
-                    attributes: ['id', 'nickname', 'memberLevelId', 'availablePoints', 'status'], // 只选择需要的会员字段
-                    include: [{ 
-                        model: MemberLevel, 
-                        as: 'memberLevel',
-                        attributes: ['id', 'name', 'level'] // 只选择需要的等级字段
-                    }]
-                })
-            ]);
+            const effectiveMemberId = memberId && Number(memberId) > 0 ? Number(memberId) : null;
+            // 未登录（memberId=0 或空）时只查商品，不查会员，按游客展示
+            const productPromise = Product.findByPk(productId, {
+                attributes: {
+                    exclude: ['detailContent', 'videos']
+                },
+                include: [
+                    { 
+                        model: ProductSKU, 
+                        as: 'skus', 
+                        where: { status: 'active' }, 
+                        required: false,
+                        attributes: ['id', 'name', 'price', 'stock']
+                    }
+                ]
+            });
+            const memberPromise = effectiveMemberId
+                ? Member.findByPk(effectiveMemberId, {
+                    attributes: ['id', 'nickname', 'memberLevelId', 'availablePoints', 'status'],
+                    include: [{ model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] }]
+                  })
+                : Promise.resolve(null);
+            const [product, member] = await Promise.all([productPromise, memberPromise]);
 
             if (!product || product.status !== 'active') {
                 throw new Error('商品不存在或已下架');
             }
-
-            if (!member || member.status !== 'active') {
+            // 已传 memberId 但查不到或已禁用才报错；未登录（memberId=0）按游客处理，不报错
+            if (effectiveMemberId && (!member || member.status !== 'active')) {
                 throw new Error('会员不存在或已被禁用');
             }
 
@@ -203,7 +200,7 @@ class PromotionService {
                     savings: priceCalculation.savings,
                     savingsRate: priceCalculation.savingsRate
                 },
-                member: {
+                member: member ? {
                     id: member.id,
                     nickname: member.nickname,
                     memberLevel: member.memberLevel ? {
@@ -212,7 +209,7 @@ class PromotionService {
                         level: member.memberLevel.level
                     } : null,
                     availablePoints: member.availablePoints || 0
-                }
+                } : null
             };
 
             return result;
@@ -585,7 +582,7 @@ class PromotionService {
         }
 
         // 应用会员等级折扣
-        if (member.memberLevel && member.memberLevel.directCommissionRate > 0) {
+        if (member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
             const memberDiscount = originalAmount * member.memberLevel.directCommissionRate;
             if (memberDiscount > 0) {
                 discounts.push({
@@ -721,7 +718,7 @@ class PromotionService {
         }
 
         // 应用会员等级折扣
-        if (member.memberLevel && member.memberLevel.directCommissionRate > 0) {
+        if (member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
             const memberDiscount = originalAmount * member.memberLevel.directCommissionRate;
             if (memberDiscount > 0) {
                 discounts.push({

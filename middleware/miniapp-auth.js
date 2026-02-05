@@ -19,7 +19,7 @@ async function code2Session(code) {
     const secret = process.env.WX_APPSECRET;
     
     if (!appid || !secret) {
-      throw new Error('未配置微信小程序 AppID 或 AppSecret');
+      throw new Error('未配置微信小程序 AppID 或 AppSecret。请在云托管环境变量中配置 WX_APPID 和 WX_APPSECRET');
     }
     
     const response = await axios.get('https://api.weixin.qq.com/sns/jscode2session', {
