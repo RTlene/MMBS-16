@@ -5,8 +5,12 @@
 
 const crypto = require('crypto');
 const axios = require('axios');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
+
+// 云托管等环境出网可能经代理/SSL 拦截，请求微信支付 API 时需跳过证书校验
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 class WeChatPayService {
     constructor() {
@@ -188,7 +192,8 @@ class WeChatPayService {
                     'Accept': 'application/json',
                     'User-Agent': 'WeChatPay-APIv3-NodeJS'
                 },
-                timeout: 10000
+                timeout: 10000,
+                httpsAgent
             });
 
             return {
@@ -266,7 +271,8 @@ class WeChatPayService {
                 headers: {
                     'Authorization': authHeader,
                     'Accept': 'application/json'
-                }
+                },
+                httpsAgent
             });
 
             return response.data;
@@ -296,7 +302,8 @@ class WeChatPayService {
                     'Content-Type': 'application/json',
                     'Authorization': authHeader,
                     'Accept': 'application/json'
-                }
+                },
+                httpsAgent
             });
 
             return response.data;

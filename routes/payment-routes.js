@@ -124,7 +124,7 @@ router.post('/wechat/create', authenticateMiniappUser, async (req, res) => {
         });
     } catch (error) {
         const msg = error.message || '创建支付订单失败';
-        console.error('[Payment] 创建支付订单失败:', msg, error.response?.data || '');
+        console.error('[Payment] 创建支付订单失败:', msg, error.response?.data || error.cause || '');
         res.status(500).json({
             code: 1,
             message: msg,

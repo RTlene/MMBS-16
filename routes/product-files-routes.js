@@ -128,11 +128,15 @@ router.post('/:productId', upload.array('files', 20), async (req, res) => {
     }
 });
 
+// 前端传 mainImages，数据库字段为 images
+const TYPE_TO_FIELD = { mainImages: 'images', detailImages: 'detailImages', videos: 'videos' };
+
 // 删除商品文件
 router.delete('/:productId/:filename', async (req, res) => {
     try {
         const { productId, filename } = req.params;
-        const { type } = req.body; // 'mainImages', 'detailImages', 'videos'
+        const { type } = req.body; // 'mainImages' | 'detailImages' | 'videos'
+        const field = TYPE_TO_FIELD[type] || type;
         
         // 获取商品信息
         const product = await Product.findByPk(productId);
@@ -150,12 +154,12 @@ router.delete('/:productId/:filename', async (req, res) => {
         }
 
         // 更新商品数据
-        const currentData = product[type] || [];
+        const currentData = product[field] || [];
         const fileUrl = `/uploads/products/${productId}/${filename}`;
         const newData = currentData.filter(url => url !== fileUrl);
         
         await product.update({
-            [type]: newData
+            [field]: newData
         });
         
         res.json({
