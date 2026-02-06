@@ -217,6 +217,166 @@
             max-height: 95vh;
             overflow-y: auto;
         }
+
+        /* 小程序详情预览 */
+        .preview-modal-content {
+            background-color: white;
+            margin: 3% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 95%;
+            max-width: 980px;
+            max-height: 92vh;
+            overflow-y: auto;
+        }
+
+        .preview-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .preview-hint {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.6;
+            background: #f8f9fa;
+            border: 1px solid #eee;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .phone-frame {
+            width: 360px;
+            border: 1px solid #e6e6e6;
+            border-radius: 28px;
+            padding: 12px;
+            background: #111;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+            position: sticky;
+            top: 12px;
+        }
+
+        .phone-screen {
+            background: #f8f8f8;
+            border-radius: 20px;
+            overflow: hidden;
+            height: 720px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mp-gallery {
+            height: 300px;
+            background: #fff;
+            position: relative;
+        }
+
+        .mp-gallery img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            background: #f5f5f5;
+        }
+
+        .mp-gallery .badge {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 999px;
+        }
+
+        .mp-scroll {
+            flex: 1;
+            overflow: auto;
+            padding-bottom: 88px;
+        }
+
+        .mp-card {
+            background: #fff;
+            margin: 10px 10px 0;
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+
+        .mp-price {
+            font-size: 20px;
+            font-weight: 700;
+            color: #d4af37;
+        }
+
+        .mp-title {
+            margin-top: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1.35;
+        }
+
+        .mp-subtitle {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .mp-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #333;
+            margin: 0 0 8px;
+        }
+
+        .mp-detail img {
+            width: 100%;
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: #f5f5f5;
+        }
+
+        .mp-bottom-bar {
+            height: 76px;
+            background: #fff;
+            border-top: 1px solid rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+        }
+
+        .mp-btn {
+            flex: 1;
+            height: 44px;
+            border-radius: 22px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            margin-left: 8px;
+        }
+
+        .mp-btn-primary {
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+            color: #1a1a2e;
+        }
+
+        .mp-btn-secondary {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: #d4af37;
+        }
+
+        @media (max-width: 980px) {
+            .preview-layout { grid-template-columns: 1fr; }
+            .phone-frame { position: relative; width: 100%; max-width: 420px; margin: 0 auto; }
+        }
         
         .modal-header {
             display: flex;
@@ -702,9 +862,54 @@
                 
                 <div style="text-align: right; margin-top: 20px;">
                     <button type="button" class="btn" onclick="closeProductModal()" style="margin-right: 10px;">取消</button>
+                    <button type="button" class="btn btn-success" onclick="openMiniappProductPreview()" style="margin-right: 10px;">小程序详情预览</button>
                     <button type="submit" class="btn btn-primary">保存</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 小程序详情预览模态框 -->
+    <div id="miniappPreviewModal" class="modal">
+        <div class="preview-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">小程序商品详情页预览</h2>
+                <span class="close" onclick="closeMiniappProductPreview()">&times;</span>
+            </div>
+            <div class="preview-layout">
+                <div class="preview-hint">
+                    <div style="font-weight: 600; margin-bottom: 8px;">说明</div>
+                    <div>此预览用于在后台快速查看“商品详情页”在小程序里的大致效果（图片、标题、价格、详情图）。</div>
+                    <div>预览数据来自当前编辑表单（含未保存的本地图片预览）。</div>
+                    <div style="margin-top: 10px;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="refreshMiniappProductPreview()">刷新预览</button>
+                    </div>
+                </div>
+                <div class="phone-frame" aria-label="miniapp preview">
+                    <div class="phone-screen">
+                        <div class="mp-gallery">
+                            <img id="mpPreviewMainImage" alt="商品主图预览" src="">
+                            <span class="badge" id="mpPreviewImageBadge">0/0</span>
+                        </div>
+                        <div class="mp-scroll">
+                            <div class="mp-card">
+                                <div class="mp-price" id="mpPreviewPrice">¥0.00</div>
+                                <div class="mp-title" id="mpPreviewTitle">商品名称</div>
+                                <div class="mp-subtitle" id="mpPreviewSubtitle"></div>
+                            </div>
+                            <div class="mp-card">
+                                <div class="mp-section-title">商品详情</div>
+                                <div class="mp-detail" id="mpPreviewDetailImages"></div>
+                                <div id="mpPreviewDetailFallback" style="font-size: 12px; color: #666; line-height: 1.6;"></div>
+                            </div>
+                        </div>
+                        <div class="mp-bottom-bar">
+                            <button type="button" class="mp-btn mp-btn-secondary" title="预览按钮（不下单）">加入购物车</button>
+                            <button type="button" class="mp-btn mp-btn-primary" title="预览按钮（不下单）">立即购买</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </body>

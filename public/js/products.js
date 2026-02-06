@@ -29,6 +29,10 @@ window.productManagementData = window.productManagementData || {
         mainImages: [],
         detailImages: [],
         videos: []
+    },
+    previewState: {
+        galleryIndex: 0,
+        galleryTimer: null
     }
 };
 
@@ -335,6 +339,126 @@ function openAddProductModal() {
 // 关闭商品模态框
 function closeProductModal() {
     document.getElementById('productModal').style.display = 'none';
+}
+
+// ==================== 小程序详情页预览（后台） ====================
+
+function _formatPrice(n) {
+    const num = Number(n);
+    if (Number.isFinite(num)) return num.toFixed(2);
+    return '0.00';
+}
+
+function _escapeText(s) {
+    return String(s || '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[c]));
+}
+
+function _collectPreviewDataFromForm() {
+    const name = document.getElementById('productName')?.value || '';
+    const description = document.getElementById('productDescription')?.value || '';
+    const productType = document.getElementById('productType')?.value || 'physical';
+
+    const mainImages = (window.productManagementData.mediaData.mainImages || []).map(x => x.url).filter(Boolean);
+    const detailImages = (window.productManagementData.mediaData.detailImages || []).map(x => x.url).filter(Boolean);
+
+    const skus = window.productManagementData.skus || [];
+    const prices = skus.map(s => Number(s.price)).filter(p => Number.isFinite(p) && p > 0);
+    const minPrice = prices.length ? Math.min(...prices) : 0;
+    const maxPrice = prices.length ? Math.max(...prices) : 0;
+    const priceText = minPrice === maxPrice ? `¥${_formatPrice(minPrice)}` : `¥${_formatPrice(minPrice)} - ¥${_formatPrice(maxPrice)}`;
+
+    const detailFallback = (document.getElementById('detailContentEditor')?.innerText || '').trim() || description || '暂无详情';
+
+    return {
+        name,
+        description,
+        productType,
+        mainImages,
+        detailImages,
+        priceText,
+        detailFallback
+    };
+}
+
+function _renderMiniappPreview(data) {
+    const modal = document.getElementById('miniappPreviewModal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('mpPreviewTitle');
+    const subEl = document.getElementById('mpPreviewSubtitle');
+    const priceEl = document.getElementById('mpPreviewPrice');
+    const imgEl = document.getElementById('mpPreviewMainImage');
+    const badgeEl = document.getElementById('mpPreviewImageBadge');
+    const detailEl = document.getElementById('mpPreviewDetailImages');
+    const fallbackEl = document.getElementById('mpPreviewDetailFallback');
+
+    if (titleEl) titleEl.textContent = data.name || '未命名商品';
+    if (subEl) subEl.textContent = data.description || '';
+    if (priceEl) priceEl.textContent = data.priceText || '¥0.00';
+
+    // gallery
+    const images = data.mainImages || [];
+    const idx = window.productManagementData.previewState.galleryIndex || 0;
+    const safeIdx = images.length ? Math.max(0, Math.min(idx, images.length - 1)) : 0;
+    window.productManagementData.previewState.galleryIndex = safeIdx;
+    if (imgEl) {
+        imgEl.src = images[safeIdx] || '';
+        imgEl.style.background = images[safeIdx] ? '#fff' : '#f5f5f5';
+    }
+    if (badgeEl) badgeEl.textContent = `${images.length ? safeIdx + 1 : 0}/${images.length}`;
+
+    // detail images
+    const details = data.detailImages || [];
+    if (detailEl) {
+        detailEl.innerHTML = details.map((url) => `<img src="${_escapeText(url)}" alt="详情图">`).join('');
+    }
+    if (fallbackEl) {
+        fallbackEl.style.display = details.length ? 'none' : 'block';
+        fallbackEl.textContent = details.length ? '' : data.detailFallback;
+    }
+}
+
+function _startPreviewGalleryAutoplay() {
+    _stopPreviewGalleryAutoplay();
+    const state = window.productManagementData.previewState;
+    state.galleryTimer = setInterval(() => {
+        const images = (window.productManagementData.mediaData.mainImages || []).map(x => x.url).filter(Boolean);
+        if (!images.length) return;
+        state.galleryIndex = (state.galleryIndex + 1) % images.length;
+        _renderMiniappPreview(_collectPreviewDataFromForm());
+    }, 2500);
+}
+
+function _stopPreviewGalleryAutoplay() {
+    const state = window.productManagementData.previewState;
+    if (state.galleryTimer) {
+        clearInterval(state.galleryTimer);
+        state.galleryTimer = null;
+    }
+}
+
+function openMiniappProductPreview() {
+    const modal = document.getElementById('miniappPreviewModal');
+    if (!modal) return;
+    modal.style.display = 'block';
+    _renderMiniappPreview(_collectPreviewDataFromForm());
+    _startPreviewGalleryAutoplay();
+}
+
+function closeMiniappProductPreview() {
+    const modal = document.getElementById('miniappPreviewModal');
+    if (modal) modal.style.display = 'none';
+    _stopPreviewGalleryAutoplay();
+}
+
+function refreshMiniappProductPreview() {
+    _renderMiniappPreview(_collectPreviewDataFromForm());
 }
 
 // 编辑商品
@@ -1097,6 +1221,9 @@ window.Products = {
     formatText,
     insertImage,
     insertLink
+    ,openMiniappProductPreview
+    ,closeMiniappProductPreview
+    ,refreshMiniappProductPreview
 };
 
 window.addAttribute = addAttribute;
@@ -1122,6 +1249,9 @@ window.clearVideos = clearVideos;
 window.formatText = formatText;
 window.insertImage = insertImage;
 window.insertLink = insertLink;
+window.openMiniappProductPreview = openMiniappProductPreview;
+window.closeMiniappProductPreview = closeMiniappProductPreview;
+window.refreshMiniappProductPreview = refreshMiniappProductPreview;
 
 // 页面加载完成后初始化
 if (document.readyState === 'loading') {

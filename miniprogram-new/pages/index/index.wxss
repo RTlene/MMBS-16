@@ -42,9 +42,10 @@
 
 .banner-section {
   position: relative;
-  height: 100vh;
-  margin: 0;
-  border-radius: 0;
+  /* 首图不再占满全屏：使用更舒适的固定高度 + 圆角卡片风格 */
+  height: 420rpx;
+  margin: 24rpx 24rpx 0;
+  border-radius: 16rpx;
   overflow: hidden;
   background-color: #F5F5F5;
 }
