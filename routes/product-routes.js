@@ -1,6 +1,7 @@
 const express = require('express');
 const { Product, ProductSKU, ProductAttribute, Category } = require('../db');
 const { Op } = require('sequelize');
+const { deleteProductFiles } = require('./product-files-routes');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 const router = express.Router();
@@ -470,6 +471,39 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// 上架/下架商品（仅允许 active / inactive）
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body || {};
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({
+        code: 1,
+        message: '状态只能为 active（上架）或 inactive（下架）'
+      });
+    }
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({
+        code: 1,
+        message: '商品不存在'
+      });
+    }
+    await product.update({ status });
+    res.json({
+      code: 0,
+      message: status === 'active' ? '已上架' : '已下架',
+      data: { id: product.id, status }
+    });
+  } catch (error) {
+    console.error('更新商品状态失败:', error);
+    res.status(500).json({
+      code: 1,
+      message: '服务器错误: ' + error.message
+    });
+  }
+});
+
 // 删除商品
 router.delete('/:id', async (req, res) => {
   try {
@@ -483,21 +517,31 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    // 删除商品文件（如果存在）
+    // 删除商品文件（直接调用，避免在 Cloud Run 等环境请求 localhost 导致 ECONNREFUSED）
     try {
-      const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/product-files/${id}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) {
-        console.warn('删除商品文件失败');
+      const result = await deleteProductFiles(id);
+      if (!result.ok) {
+        console.warn('删除商品文件:', result.message || '跳过');
       }
-    } catch (error) {
-      console.warn('删除商品文件失败:', error);
+    } catch (err) {
+      console.warn('删除商品文件失败:', err);
     }
-    
-    // 删除商品（会级联删除SKU和属性）
-    await product.destroy();
-    
+
+    // 删除商品（会级联删除 SKU 和属性；若有订单引用则外键约束会报错）
+    try {
+      await product.destroy();
+    } catch (err) {
+      const isFk = err.errno === 1451 || (err.original && err.original.errno === 1451) ||
+        err.code === 'ER_ROW_IS_REFERENCED_2' || (err.original && err.original.code === 'ER_ROW_IS_REFERENCED_2');
+      if (isFk) {
+        return res.status(400).json({
+          code: 1,
+          message: '该商品已有订单记录，无法删除。请先处理相关订单或联系管理员。'
+        });
+      }
+      throw err;
+    }
+
     res.json({
       code: 0,
       message: '商品删除成功'

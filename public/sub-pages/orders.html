@@ -1270,6 +1270,27 @@
             </div>
         </div>
     </div>
+
+    <!-- 删除订单（需密码验证） -->
+    <div class="modal fade" id="deleteOrderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">删除订单</h5>
+                    <button type="button" class="btn-close" onclick="if(window.orderManagement) orderManagement.closeDeleteOrderModal();"></button>
+                </div>
+                <div class="modal-body">
+                    <p>即将删除订单 <strong id="deleteOrderPasswordOrderNo"></strong>，此操作不可恢复。</p>
+                    <p class="text-danger mb-2">请输入当前登录账号的密码以确认删除：</p>
+                    <input type="password" id="deleteOrderPasswordInput" class="form-control" placeholder="登录密码" autocomplete="current-password">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="if(window.orderManagement) orderManagement.closeDeleteOrderModal();">取消</button>
+                    <button type="button" class="btn btn-danger" onclick="if(window.orderManagement) orderManagement.confirmDeleteOrder();">确认删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="../js/order.js"></script>
 </body>
 </html>

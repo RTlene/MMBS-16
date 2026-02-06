@@ -178,37 +178,38 @@ router.delete('/:productId/:filename', async (req, res) => {
     }
 });
 
+/**
+ * 删除指定商品的所有上传文件（磁盘目录 + 清空 DB 中的 images/detailImages/videos）
+ * 供 product-routes 删除商品时直接调用，避免在 Cloud Run 等环境请求 localhost 导致 ECONNREFUSED。
+ * @param {string|number} productId
+ * @returns {{ ok: boolean, message?: string }}
+ */
+async function deleteProductFiles(productId) {
+    const product = await Product.findByPk(productId);
+    if (!product) {
+        return { ok: false, message: '商品不存在' };
+    }
+    const productDir = path.join(uploadDir, String(productId));
+    if (fs.existsSync(productDir)) {
+        fs.rmSync(productDir, { recursive: true, force: true });
+    }
+    await product.update({
+        images: [],
+        detailImages: [],
+        videos: []
+    });
+    return { ok: true };
+}
+
 // 删除商品所有文件
 router.delete('/:productId', async (req, res) => {
     try {
         const { productId } = req.params;
-        
-        // 获取商品信息
-        const product = await Product.findByPk(productId);
-        if (!product) {
-            return res.status(404).json({
-                code: 1,
-                message: '商品不存在'
-            });
+        const result = await deleteProductFiles(productId);
+        if (!result.ok) {
+            return res.status(404).json({ code: 1, message: result.message || '商品不存在' });
         }
-
-        // 删除商品目录
-        const productDir = path.join(uploadDir, productId.toString());
-        if (fs.existsSync(productDir)) {
-            fs.rmSync(productDir, { recursive: true, force: true });
-        }
-
-        // 清空商品文件数据
-        await product.update({
-            images: [],
-            detailImages: [],
-            videos: []
-        });
-        
-        res.json({
-            code: 0,
-            message: '删除成功'
-        });
+        res.json({ code: 0, message: '删除成功' });
     } catch (error) {
         console.error('删除文件失败:', error);
         res.status(500).json({
@@ -219,3 +220,4 @@ router.delete('/:productId', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.deleteProductFiles = deleteProductFiles;

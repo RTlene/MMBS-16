@@ -343,7 +343,66 @@ class OrderManagement {
             </button>`;
         }
 
+        // 删除订单（需密码验证）
+        buttons += `<button class="btn btn-sm btn-danger" onclick="orderManagement.showDeleteOrderModal(${order.id}, '${(order.orderNo || '').replace(/'/g, "\\'")}')" title="删除订单">
+            <i class="fas fa-trash-alt"></i>
+        </button>`;
+
         return buttons;
+    }
+
+    // 显示删除订单弹窗（需输入当前账号密码）
+    showDeleteOrderModal(orderId, orderNo) {
+        this.pendingDeleteOrderId = orderId;
+        const modal = document.getElementById('deleteOrderModal');
+        const orderNoEl = document.getElementById('deleteOrderPasswordOrderNo');
+        const input = document.getElementById('deleteOrderPasswordInput');
+        if (modal) {
+            if (orderNoEl) orderNoEl.textContent = orderNo || ('订单#' + orderId);
+            if (input) { input.value = ''; input.focus(); }
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+        }
+    }
+
+    closeDeleteOrderModal() {
+        this.pendingDeleteOrderId = null;
+        const modal = document.getElementById('deleteOrderModal');
+        if (modal) {
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+        }
+    }
+
+    async confirmDeleteOrder() {
+        const orderId = this.pendingDeleteOrderId;
+        const input = document.getElementById('deleteOrderPasswordInput');
+        const password = input?.value?.trim();
+        if (!password) {
+            showAlert('请输入当前登录账号的密码', 'error');
+            return;
+        }
+        if (!orderId) {
+            this.closeDeleteOrderModal();
+            return;
+        }
+        try {
+            const response = await fetch(`/api/orders/${orderId}`, {
+                method: 'DELETE',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert('订单已删除', 'success');
+                this.closeDeleteOrderModal();
+                await this.loadOrders();
+            } else {
+                showAlert(result.message || '删除失败', 'error');
+            }
+        } catch (e) {
+            showAlert('删除失败: ' + (e.message || '网络错误'), 'error');
+        }
     }
 
     // 获取状态徽章

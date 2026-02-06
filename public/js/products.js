@@ -202,6 +202,8 @@ function renderProducts() {
                 </span>
             </td>
             <td>
+                ${product.status === 'active' ? `<button class="btn btn-secondary btn-sm" onclick="toggleProductStatus(${product.id}, 'inactive')" title="下架后小程序将不再展示">下架</button>` : ''}
+                ${product.status === 'inactive' ? `<button class="btn btn-success btn-sm" onclick="toggleProductStatus(${product.id}, 'active')" title="上架">上架</button>` : ''}
                 <button class="btn btn-warning btn-sm" onclick="editProduct(${product.id})">编辑</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteProduct(${product.id})">删除</button>
             </td>
@@ -543,6 +545,28 @@ async function editProduct(id) {
         }
     } catch (error) {
         console.error('获取商品信息失败:', error);
+    }
+}
+
+// 上架/下架商品
+async function toggleProductStatus(id, status) {
+    const action = status === 'active' ? '上架' : '下架';
+    try {
+        const response = await fetch(`/api/products/${id}/status`, {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        const result = await response.json();
+        if (result.code === 0) {
+            alert(result.message || action + '成功');
+            loadProducts();
+        } else {
+            alert((result.message || action + '失败'));
+        }
+    } catch (error) {
+        console.error('更新商品状态失败:', error);
+        alert(action + '失败: ' + error.message);
     }
 }
 
