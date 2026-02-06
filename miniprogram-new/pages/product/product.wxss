@@ -201,6 +201,19 @@
   margin-top: 16rpx;
 }
 
+.video-section {
+  margin-bottom: 20rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+  background-color: #000;
+}
+
+.product-video {
+  width: 100%;
+  height: 420rpx;
+  display: block;
+}
+
 .detail-image {
   width: 100%;
   display: block;

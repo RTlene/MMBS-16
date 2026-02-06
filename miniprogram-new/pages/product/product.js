@@ -72,6 +72,7 @@ Page({
     productBasic: null,     // 商品基础信息（必要字段）
     carouselImages: [],     // 主图轮播
     detailImages: [],       // 详情图
+    videos: [],             // 商品视频
     skus: [],               // SKU列表
     selectedSku: null,      // 选中的SKU
     currentImageIndex: 0,   // 当前图片索引
@@ -214,6 +215,7 @@ Page({
       // 首次加载：直接使用接口返回的主图与详情图
       const mainImages = mapImages(product.images || [], { type: 'detail' });
       const detailImages = mapImages(product.detailImages || [], { type: 'detail' });
+      const videos = ensureArray(product.videos || []).map(buildAbsoluteUrl).filter(Boolean);
       const skuImageFallback = []; // SKU图片仍走分段加载
       
       const { httpImages: mainHttp, dataImages: mainData } = splitImagesByType(mainImages);
@@ -267,6 +269,7 @@ Page({
         },
         carouselImages,
         detailImages,
+        videos,
         skus: skuList,
         selectedSku: skuList.length > 0 ? skuList[0] : null,
         promotions,

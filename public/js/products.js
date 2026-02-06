@@ -366,6 +366,7 @@ function _collectPreviewDataFromForm() {
 
     const mainImages = (window.productManagementData.mediaData.mainImages || []).map(x => x.url).filter(Boolean);
     const detailImages = (window.productManagementData.mediaData.detailImages || []).map(x => x.url).filter(Boolean);
+    const videos = (window.productManagementData.mediaData.videos || []).map(x => x.url).filter(Boolean);
 
     const skus = window.productManagementData.skus || [];
     const prices = skus.map(s => Number(s.price)).filter(p => Number.isFinite(p) && p > 0);
@@ -381,6 +382,7 @@ function _collectPreviewDataFromForm() {
         productType,
         mainImages,
         detailImages,
+        videos,
         priceText,
         detailFallback
     };
@@ -397,6 +399,8 @@ function _renderMiniappPreview(data) {
     const badgeEl = document.getElementById('mpPreviewImageBadge');
     const detailEl = document.getElementById('mpPreviewDetailImages');
     const fallbackEl = document.getElementById('mpPreviewDetailFallback');
+    const videoWrap = document.getElementById('mpPreviewVideoWrap');
+    const videoEl = document.getElementById('mpPreviewVideo');
 
     if (titleEl) titleEl.textContent = data.name || '未命名商品';
     if (subEl) subEl.textContent = data.description || '';
@@ -421,6 +425,14 @@ function _renderMiniappPreview(data) {
     if (fallbackEl) {
         fallbackEl.style.display = details.length ? 'none' : 'block';
         fallbackEl.textContent = details.length ? '' : data.detailFallback;
+    }
+
+    // 视频预览（仅展示第一个）
+    const videos = data.videos || [];
+    if (videoWrap) videoWrap.style.display = videos.length ? 'block' : 'none';
+    if (videoEl) {
+        videoEl.src = videos[0] || '';
+        videoEl.style.display = videos[0] ? 'block' : 'none';
     }
 }
 
@@ -1075,6 +1087,17 @@ async function handleProductFiles(productId) {
                 const result = await response.json();
                 if (result.code !== 0) {
                     console.warn('上传文件失败:', result.message);
+                } else {
+                    // 用服务端返回的 updatedData 覆盖本地列表，避免后续保存把 videos 覆盖为空
+                    const updatedData = result.data && result.data.updatedData;
+                    if (Array.isArray(updatedData)) {
+                        window.productManagementData.mediaData[type] = updatedData.map(url => ({
+                            url,
+                            name: type === 'videos' ? '视频' : '文件',
+                            isNew: false
+                        }));
+                        renderMediaPreview(type);
+                    }
                 }
             } catch (error) {
                 console.warn('上传文件失败:', error);
@@ -1119,15 +1142,10 @@ async function submitProductForm(event) {
     }
     
     // 准备提交数据
-    const getPersistedMedia = (type) => window.productManagementData.mediaData[type]
-        .filter(item => !item.isNew)
-        .map(item => item.url);
-
     const submitData = {
         ...productData,
-        images: getPersistedMedia('mainImages'),
-        detailImages: getPersistedMedia('detailImages'),
-        videos: getPersistedMedia('videos'),
+        // 注意：images/detailImages/videos 由 /api/product-files 维护
+        // 这里不要在 PUT /api/products 时携带，否则可能覆盖刚上传的视频/图片
         detailContent: document.getElementById('detailContent').value,
         attributes: window.productManagementData.attributes.filter(attr => attr.name.trim()),
         skus: skus,
@@ -1155,7 +1173,7 @@ async function submitProductForm(event) {
         if (result.code === 0) {
             const productId = editingProductId || result.data.id;
             
-            // 处理文件上传和删除
+            // 处理文件上传和删除（images/detailImages/videos 由 /api/product-files 维护）
             await handleProductFiles(productId);
             
             alert(editingProductId ? '商品更新成功' : '商品创建成功');

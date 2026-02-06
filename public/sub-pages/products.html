@@ -342,6 +342,19 @@
             background: #f5f5f5;
         }
 
+        .mp-video-wrap {
+            margin-top: 8px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .mp-preview-video {
+            width: 100%;
+            height: 200px;
+            display: block;
+        }
+
         .mp-bottom-bar {
             height: 76px;
             background: #fff;
@@ -879,7 +892,7 @@
             <div class="preview-layout">
                 <div class="preview-hint">
                     <div style="font-weight: 600; margin-bottom: 8px;">说明</div>
-                    <div>此预览用于在后台快速查看“商品详情页”在小程序里的大致效果（图片、标题、价格、详情图）。</div>
+                    <div>此预览用于在后台快速查看“商品详情页”在小程序里的大致效果（图片、视频、标题、价格、详情图）。</div>
                     <div>预览数据来自当前编辑表单（含未保存的本地图片预览）。</div>
                     <div style="margin-top: 10px;">
                         <button type="button" class="btn btn-primary btn-sm" onclick="refreshMiniappProductPreview()">刷新预览</button>
@@ -896,6 +909,12 @@
                                 <div class="mp-price" id="mpPreviewPrice">¥0.00</div>
                                 <div class="mp-title" id="mpPreviewTitle">商品名称</div>
                                 <div class="mp-subtitle" id="mpPreviewSubtitle"></div>
+                            </div>
+                            <div class="mp-card" id="mpPreviewVideoWrap" style="display: none;">
+                                <div class="mp-section-title">商品视频</div>
+                                <div class="mp-video-wrap">
+                                    <video id="mpPreviewVideo" class="mp-preview-video" controls playsinline></video>
+                                </div>
                             </div>
                             <div class="mp-card">
                                 <div class="mp-section-title">商品详情</div>

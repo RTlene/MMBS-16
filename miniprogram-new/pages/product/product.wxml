@@ -79,6 +79,17 @@
     <view class="detail-section" wx:if="{{productBasic}}">
       <view class="section-title">商品详情</view>
       <view class="detail-content">
+        <!-- 商品视频（如有） -->
+        <view class="video-section" wx:if="{{videos.length > 0}}">
+          <video
+            class="product-video"
+            src="{{videos[0]}}"
+            controls
+            autoplay="{{false}}"
+            show-center-play-btn="{{true}}"
+            object-fit="cover"
+          ></video>
+        </view>
         <image 
           wx:for="{{detailImages}}" 
           wx:key="index"
