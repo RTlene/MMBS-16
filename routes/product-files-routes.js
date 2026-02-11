@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { Product } = require('../db');
 const { compressImage } = require('../utils/imageCompress');
+const cosStorage = require('../services/cosStorage');
 const router = express.Router();
 
 // 确保上传目录存在
@@ -70,10 +71,10 @@ router.post('/:productId', upload.array('files', 20), async (req, res) => {
             });
         }
 
-        // 压缩图片文件
+        // 压缩图片文件（仍写本地，供 COS 上传或本地回退）
         const files = await Promise.all(req.files.map(async (file) => {
             const filePath = path.join(uploadDir, productId.toString(), file.filename);
-            
+
             // 只压缩图片文件
             if (file.mimetype.startsWith('image/')) {
                 try {
@@ -83,7 +84,7 @@ router.post('/:productId', upload.array('files', 20), async (req, res) => {
                         maxHeight: 1920,
                         keepOriginal: false
                     });
-                    
+
                     if (compressResult.success && !compressResult.skipped) {
                         console.log(`[ProductFiles] 图片压缩成功: ${file.filename}, 原始: ${(compressResult.originalSize / 1024).toFixed(2)}KB, 压缩后: ${(compressResult.compressedSize / 1024).toFixed(2)}KB, 节省: ${compressResult.savedPercent}%`);
                     }
@@ -91,12 +92,23 @@ router.post('/:productId', upload.array('files', 20), async (req, res) => {
                     console.error(`[ProductFiles] 图片压缩失败: ${file.filename}`, error);
                 }
             }
-            
-            // 获取最终文件大小（可能已被压缩）
+
             const finalStats = fs.statSync(filePath);
-            
+            let url = `/uploads/products/${productId}/${file.filename}`;
+
+            // 若配置了 COS，上传到对象存储并返回 COS 公网 URL（持久化，再次编辑可加载）
+            if (cosStorage.isConfigured()) {
+                try {
+                    const objectKey = cosStorage.getObjectKey(productId, file.filename);
+                    url = await cosStorage.uploadFromPath(filePath, objectKey);
+                    console.log(`[ProductFiles] 已上传至 COS: ${file.filename} -> ${url}`);
+                } catch (err) {
+                    console.error(`[ProductFiles] COS 上传失败，使用本地路径: ${file.filename}`, err.message);
+                }
+            }
+
             return {
-                url: `/uploads/products/${productId}/${file.filename}`,
+                url,
                 filename: file.filename,
                 originalName: file.originalname,
                 size: finalStats.size,

@@ -8,6 +8,30 @@ const router = express.Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// 数据库连接被重置时重试（云环境常见 ECONNRESET）
+const DB_RETRY_CODES = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST'];
+function isDbConnectionError(err) {
+  const code = err && (err.code || err.original && err.original.code);
+  return DB_RETRY_CODES.includes(code) || (err.original && err.original.errno === -104);
+}
+
+async function withDbRetry(fn, maxAttempts = 3) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts && (err.name === 'SequelizeDatabaseError' && isDbConnectionError(err))) {
+        await new Promise(r => setTimeout(r, 100 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 function sendCsv(res, filename, csvText) {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
@@ -255,11 +279,11 @@ router.post('/import', upload.single('file'), async (req, res) => {
   }
 });
 
-// 获取单个商品
+// 获取单个商品（含 DB 连接重置时自动重试）
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findByPk(id, {
+    const product = await withDbRetry(() => Product.findByPk(id, {
       include: [
         {
           model: Category,
@@ -277,25 +301,26 @@ router.get('/:id', async (req, res) => {
           order: [['sortOrder', 'ASC'], ['createdAt', 'ASC']]
         }
       ]
-    });
-    
+    }));
+
     if (!product) {
       return res.status(404).json({
         code: 1,
         message: '商品不存在'
       });
     }
-    
+
     res.json({
       code: 0,
       message: '获取成功',
       data: product
     });
-  } catch (error) {
-    console.error('获取商品失败:', error);
-    res.status(500).json({
+  } catch (err) {
+    console.error('获取商品失败:', err);
+    const isDbConn = err.name === 'SequelizeDatabaseError' && isDbConnectionError(err);
+    res.status(isDbConn ? 503 : 500).json({
       code: 1,
-      message: '服务器错误: ' + error.message
+      message: isDbConn ? '数据库连接异常，请稍后重试' : ('服务器错误: ' + (err.message || ''))
     });
   }
 });

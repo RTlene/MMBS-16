@@ -699,14 +699,24 @@ function renderMediaPreview(type) {
     }
     
     preview.classList.remove('empty');
+    const placeholderImg = getMediaDisplayUrl('/images/default-product.svg') || '/images/default-product.svg';
     preview.innerHTML = mediaData.map((item, index) => {
         const displayUrl = getMediaDisplayUrl(item.url);
+        const failTip = '当前节点暂无该文件，可重新上传或刷新';
+        if (type === 'videos') {
+            return `
+        <div class="media-item">
+            <video src="${_escapeText(displayUrl)}" controls
+                onerror="this.style.display='none'; var n=this.nextElementSibling; if(n) n.style.display='block';"></video>
+            <span class="media-load-fail" style="display:none;font-size:12px;color:#999;" title="${_escapeText(failTip)}">视频不可用</span>
+            <button class="remove-btn" onclick="removeMediaItem('${type}', ${index})">&times;</button>
+        </div>
+    `;
+        }
         return `
         <div class="media-item">
-            ${type === 'videos' ?
-                `<video src="${_escapeText(displayUrl)}" controls></video>` :
-                `<img src="${_escapeText(displayUrl)}" alt="${_escapeText(item.name || '')}">`
-            }
+            <img src="${_escapeText(displayUrl)}" alt="${_escapeText(item.name || '')}"
+                onerror="this.onerror=null; this.src='${_escapeText(placeholderImg)}'; this.alt='图片加载失败'; this.title='${_escapeText(failTip)}';">
             <button class="remove-btn" onclick="removeMediaItem('${type}', ${index})">&times;</button>
         </div>
     `;
@@ -1095,52 +1105,59 @@ async function handleProductFiles(productId) {
         pendingDeletes[type] = []; // 清空待删除列表
     }
     
-    // 处理上传文件
+    // 处理上传文件：逐个上传，避免单次请求体过大导致 413（尤其视频）
+    const token = localStorage.getItem('token');
+    const headers = { 'Authorization': `Bearer ${token}` };
+
     for (const type of ['mainImages', 'detailImages', 'videos']) {
-        if (pendingUploads[type].length > 0) {
+        const files = pendingUploads[type];
+        if (!files || files.length === 0) continue;
+
+        let failedCount = 0;
+        for (const file of files) {
             try {
                 const formData = new FormData();
                 formData.append('type', type);
-                pendingUploads[type].forEach(file => {
-                    formData.append('files', file);
-                });
-                
-                // 获取认证头，但不设置Content-Type（让浏览器自动设置）
-                const token = localStorage.getItem('token');
-                const headers = {
-                    'Authorization': `Bearer ${token}`
-                };
-                
+                formData.append('files', file);
+
                 const response = await fetch(`/api/product-files/${productId}`, {
                     method: 'POST',
                     headers: headers,
                     body: formData
                 });
-                
+
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    failedCount++;
+                    console.warn('上传文件失败:', response.status, file.name);
+                    continue;
                 }
-                
+
                 const result = await response.json();
                 if (result.code !== 0) {
-                    console.warn('上传文件失败:', result.message);
-                } else {
-                    // 用服务端返回的 updatedData 覆盖本地列表，避免后续保存把 videos 覆盖为空
-                    const updatedData = result.data && result.data.updatedData;
-                    if (Array.isArray(updatedData)) {
-                        window.productManagementData.mediaData[type] = updatedData.map(url => ({
-                            url,
-                            name: type === 'videos' ? '视频' : '文件',
-                            isNew: false
-                        }));
-                        renderMediaPreview(type);
-                    }
+                    failedCount++;
+                    console.warn('上传文件失败:', result.message, file.name);
+                    continue;
+                }
+
+                const updatedData = result.data && result.data.updatedData;
+                if (Array.isArray(updatedData)) {
+                    window.productManagementData.mediaData[type] = updatedData.map(url => ({
+                        url,
+                        name: type === 'videos' ? '视频' : '文件',
+                        isNew: false
+                    }));
+                    renderMediaPreview(type);
                 }
             } catch (error) {
-                console.warn('上传文件失败:', error);
+                failedCount++;
+                console.warn('上传文件失败:', file.name, error);
             }
         }
-        pendingUploads[type] = []; // 清空待上传列表
+        pendingUploads[type] = [];
+
+        if (failedCount > 0) {
+            alert('有 ' + failedCount + ' 个文件上传失败（可能因体积或网关限制）。视频建议一次只选一个文件，已上传成功的已保存。');
+        }
     }
 }
 
