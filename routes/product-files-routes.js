@@ -31,10 +31,11 @@ const storage = multer.diskStorage({
     }
 });
 
+// 单文件 10MB；若遇 413，多为网关限制（如 Cloud Run/TCB 请求体上限），可：1) 一次少传几个文件 2) 在部署侧提高 client_max_body_size
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB限制
+        fileSize: 10 * 1024 * 1024 // 10MB 单文件
     },
     fileFilter: function (req, file, cb) {
         if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {

@@ -20,7 +20,7 @@ class PromotionService {
             // 未登录（memberId=0 或空）时只查商品，不查会员，按游客展示
             const productPromise = Product.findByPk(productId, {
                 attributes: {
-                    exclude: ['detailContent', 'videos']
+                    exclude: ['detailContent']
                 },
                 include: [
                     { 
@@ -113,6 +113,8 @@ class PromotionService {
             const limitedImages = (product.images || []).slice(0, 3);
             // 返回详情图（限制最多10张，优先保障直接展示）
             const limitedDetailImages = (product.detailImages || []).slice(0, 10);
+            // 返回商品视频（用于轮播中主图后展示）
+            const limitedVideos = (product.videos || []).slice(0, 5);
             
             // 限制description长度，避免过长文本
             const limitedDescription = product.description 
@@ -137,6 +139,7 @@ class PromotionService {
                     description: limitedDescription, // 使用限制长度的描述
                     images: limitedImages,
                     detailImages: limitedDetailImages,
+                    videos: limitedVideos,
                     price: product.price,
                     originalPrice: product.originalPrice || null,
                     sales: product.sales || 0,

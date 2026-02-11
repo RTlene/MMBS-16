@@ -70,7 +70,8 @@ Page({
   data: {
     productId: null,
     productBasic: null,     // 商品基础信息（必要字段）
-    carouselImages: [],     // 主图轮播
+    carouselImages: [],     // 主图 URL 列表（用于分享图等）
+    carouselItems: [],      // 轮播项：主图+视频，{ type: 'image'|'video', url }
     detailImages: [],       // 详情图
     videos: [],             // 商品视频
     skus: [],               // SKU列表
@@ -229,15 +230,21 @@ Page({
         : (preferredDetail.length > 0
             ? preferredDetail
             : (skuHttp.length > 0 ? skuHttp : (mainData.length > 0 ? mainData : detailImages)));
+      // 轮播项：主图在前，视频接在主图后面（主图滑到最后再滑即视频）
+      const carouselItems = [
+        ...carouselImages.map(url => ({ type: 'image', url })),
+        ...videos.map(url => ({ type: 'video', url }))
+      ];
       
       console.log('[Product] 加载商品详情:', {
         productId: product.id,
         productName: product.name,
         skuCount: skuList.length,
-        skus: skuList.map(s => ({ id: s.id, name: s.name, price: s.price, stock: s.stock })),
         mainImages: mainImages.length,
         detailImages: detailImages.length,
-        carouselImages: carouselImages.length
+        videos: videos.length,
+        carouselImages: carouselImages.length,
+        carouselItems: carouselItems.length
       });
       
       // 计算总库存（如果没有SKU，使用商品库存）
@@ -268,6 +275,7 @@ Page({
           productType: productType
         },
         carouselImages,
+        carouselItems,
         detailImages,
         videos,
         skus: skuList,
@@ -412,6 +420,11 @@ Page({
       // 如果主图只有1张或没有主图，补充详情图到轮播
       if (this.data.carouselImages.length <= 1 && allImages.length > 0) {
         updateData.carouselImages = allImages;
+        const videos = this.data.videos || [];
+        updateData.carouselItems = [
+          ...allImages.map(url => ({ type: 'image', url })),
+          ...videos.map(url => ({ type: 'video', url }))
+        ];
       }
       
       this.setData(updateData);

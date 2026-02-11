@@ -45,6 +45,14 @@ function getAuthHeaders() {
     };
 }
 
+// 后台编辑页媒体展示用：相对路径转为当前域名绝对路径，避免跨域或路径导致 404
+function getMediaDisplayUrl(url) {
+    if (!url) return '';
+    if (/^data:/.test(url) || /^https?:\/\//i.test(url)) return url;
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    return origin + (url.startsWith('/') ? url : '/' + url);
+}
+
 // ==================== 报表导出/导入（CSV） ====================
 window.exportProducts = async function exportProducts() {
     try {
@@ -414,15 +422,16 @@ function _renderMiniappPreview(data) {
     const safeIdx = images.length ? Math.max(0, Math.min(idx, images.length - 1)) : 0;
     window.productManagementData.previewState.galleryIndex = safeIdx;
     if (imgEl) {
-        imgEl.src = images[safeIdx] || '';
-        imgEl.style.background = images[safeIdx] ? '#fff' : '#f5f5f5';
+        const mainUrl = images[safeIdx] ? getMediaDisplayUrl(images[safeIdx]) : '';
+        imgEl.src = mainUrl;
+        imgEl.style.background = mainUrl ? '#fff' : '#f5f5f5';
     }
     if (badgeEl) badgeEl.textContent = `${images.length ? safeIdx + 1 : 0}/${images.length}`;
 
     // detail images
     const details = data.detailImages || [];
     if (detailEl) {
-        detailEl.innerHTML = details.map((url) => `<img src="${_escapeText(url)}" alt="详情图">`).join('');
+        detailEl.innerHTML = details.map((url) => `<img src="${_escapeText(getMediaDisplayUrl(url))}" alt="详情图">`).join('');
     }
     if (fallbackEl) {
         fallbackEl.style.display = details.length ? 'none' : 'block';
@@ -433,8 +442,9 @@ function _renderMiniappPreview(data) {
     const videos = data.videos || [];
     if (videoWrap) videoWrap.style.display = videos.length ? 'block' : 'none';
     if (videoEl) {
-        videoEl.src = videos[0] || '';
-        videoEl.style.display = videos[0] ? 'block' : 'none';
+        const videoUrl = videos[0] ? getMediaDisplayUrl(videos[0]) : '';
+        videoEl.src = videoUrl;
+        videoEl.style.display = videoUrl ? 'block' : 'none';
     }
 }
 
@@ -689,15 +699,18 @@ function renderMediaPreview(type) {
     }
     
     preview.classList.remove('empty');
-    preview.innerHTML = mediaData.map((item, index) => `
+    preview.innerHTML = mediaData.map((item, index) => {
+        const displayUrl = getMediaDisplayUrl(item.url);
+        return `
         <div class="media-item">
-            ${type === 'videos' ? 
-                `<video src="${item.url}" controls></video>` : 
-                `<img src="${item.url}" alt="${item.name}">`
+            ${type === 'videos' ?
+                `<video src="${_escapeText(displayUrl)}" controls></video>` :
+                `<img src="${_escapeText(displayUrl)}" alt="${_escapeText(item.name || '')}">`
             }
             <button class="remove-btn" onclick="removeMediaItem('${type}', ${index})">&times;</button>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // 移除媒体项

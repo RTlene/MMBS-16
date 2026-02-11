@@ -20,6 +20,13 @@
   height: 100%;
 }
 
+/* 轮播中的视频（主图后一屏一个） */
+.product-video-swiper {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
 /* 内容区域 */
 .product-content {
   flex: 1;

@@ -1,17 +1,25 @@
 <!--pages/product/product.wxml-->
 <view class="product-page">
   
-  <!-- 商品图片轮播 -->
+  <!-- 商品图片+视频轮播（主图在前，滑到最后为视频） -->
   <swiper 
     class="product-swiper"
     indicator-dots="{{true}}"
     indicator-color="rgba(0, 0, 0, 0.3)"
     indicator-active-color="#FFFFFF"
     bindchange="onImageChange"
-    wx:if="{{carouselImages.length}}"
+    wx:if="{{carouselItems.length}}"
   >
-    <swiper-item wx:for="{{carouselImages}}" wx:key="index" bindtap="onImageTap">
-      <image class="product-image" src="{{item}}" mode="aspectFill" />
+    <swiper-item wx:for="{{carouselItems}}" wx:key="index" bindtap="onImageTap">
+      <image wx:if="{{item.type === 'image'}}" class="product-image" src="{{item.url}}" mode="aspectFill" />
+      <video 
+        wx:elif="{{item.type === 'video'}}" 
+        class="product-video-swiper" 
+        src="{{item.url}}" 
+        controls 
+        show-center-play-btn="{{true}}"
+        object-fit="contain"
+      />
     </swiper-item>
   </swiper>
   <view class="empty-gallery" wx:elif="{{productBasic}}">
@@ -75,21 +83,10 @@
       </view>
     </view>
 
-    <!-- 商品详情 -->
+    <!-- 商品详情（视频已放在顶部轮播中，主图后） -->
     <view class="detail-section" wx:if="{{productBasic}}">
       <view class="section-title">商品详情</view>
       <view class="detail-content">
-        <!-- 商品视频（如有） -->
-        <view class="video-section" wx:if="{{videos.length > 0}}">
-          <video
-            class="product-video"
-            src="{{videos[0]}}"
-            controls
-            autoplay="{{false}}"
-            show-center-play-btn="{{true}}"
-            object-fit="cover"
-          ></video>
-        </view>
         <image 
           wx:for="{{detailImages}}" 
           wx:key="index"
