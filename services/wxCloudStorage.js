@@ -52,7 +52,8 @@ async function uploadFromPath(localFilePath, cloudPath) {
     }
     const { url: uploadUrl, token, authorization, cos_file_id, file_id } = data;
     if (!uploadUrl || !cos_file_id || !file_id) {
-        throw new Error('tcb/uploadfile 返回缺少 url/cos_file_id/file_id');
+        console.warn('[wxCloudStorage] tcb/uploadfile 返回结构异常，完整响应:', JSON.stringify(data));
+        throw new Error('tcb/uploadfile 返回缺少 url/cos_file_id/file_id（若为云托管环境请检查开放接口与 tcb 权限）');
     }
 
     const FormData = require('form-data');

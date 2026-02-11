@@ -45,15 +45,19 @@ function getAuthHeaders() {
     };
 }
 
-// 后台编辑页媒体展示用：相对路径转绝对路径；cloud:// 走接口换临时链接
+// 后台编辑页媒体展示用：相对路径转绝对路径；cloud:// 走 temp-url；COS 直链走 cos-url 换签名（私有桶可读）
 function getMediaDisplayUrl(url) {
     if (!url) return '';
-    if (/^data:/.test(url) || /^https?:\/\//i.test(url)) return url;
+    if (/^data:/.test(url)) return url;
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
     if (/^cloud:\/\//.test(url)) {
-        const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
         return origin + '/api/storage/temp-url?fileId=' + encodeURIComponent(url);
     }
-    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    // COS 默认域名（私有桶直链会 403），统一经后端换签名链接
+    if (/^https:\/\/[^/]+\.cos\.[^/]+\.myqcloud\.com\//.test(url)) {
+        return origin + '/api/storage/cos-url?url=' + encodeURIComponent(url);
+    }
+    if (/^https?:\/\//i.test(url)) return url;
     return origin + (url.startsWith('/') ? url : '/' + url);
 }
 

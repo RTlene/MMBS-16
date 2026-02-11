@@ -148,9 +148,64 @@ function getPublicUrl(objectKey) {
     return `https://${Bucket}.cos.${Region}.myqcloud.com/${objectKey}`;
 }
 
+/**
+ * 从当前配置的 COS 公网 URL 中解析出对象键（用于签名）
+ * 仅当 URL 匹配当前 BUCKET+REGION 或 COS_DOMAIN 时返回 key，否则返回 null
+ */
+function parseObjectKeyFromUrl(fullUrl) {
+    if (!fullUrl || typeof fullUrl !== 'string') return null;
+    const Bucket = process.env.COS_BUCKET;
+    const Region = process.env.COS_REGION;
+    const customDomain = process.env.COS_DOMAIN;
+    try {
+        const u = new URL(fullUrl);
+        const pathname = u.pathname.replace(/^\/+/, '');
+        if (!pathname) return null;
+        if (customDomain) {
+            const base = customDomain.replace(/\/$/, '').replace(/^https?:\/\//, '').split('/')[0];
+            if (u.hostname === base) {
+                return pathname;
+            }
+        }
+        if (Bucket && Region && u.hostname === `${Bucket}.cos.${Region}.myqcloud.com`) {
+            return pathname;
+        }
+    } catch (_) {}
+    return null;
+}
+
+/**
+ * 生成带签名的临时访问 URL（私有桶时 H5 展示用），有效期默认 1 小时
+ */
+function getSignedUrl(objectKey, expiresIn = 3600) {
+    const client = getClient();
+    const Bucket = process.env.COS_BUCKET;
+    const Region = process.env.COS_REGION;
+    if (!client || !Bucket || !Region) {
+        return Promise.reject(new Error('COS 未配置'));
+    }
+    return new Promise((resolve, reject) => {
+        client.getObjectUrl(
+            {
+                Bucket,
+                Region,
+                Key: objectKey,
+                Sign: true,
+                Expires: expiresIn
+            },
+            (err, data) => {
+                if (err) reject(err);
+                else resolve(data && data.Url ? data.Url : '');
+            }
+        );
+    });
+}
+
 module.exports = {
     isConfigured,
     getObjectKey,
     uploadFromPath,
-    getPublicUrl
+    getPublicUrl,
+    parseObjectKeyFromUrl,
+    getSignedUrl
 };
