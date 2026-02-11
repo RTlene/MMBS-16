@@ -6,9 +6,10 @@ const wxCloudStorage = require('../services/wxCloudStorage');
 const cosStorage = require('../services/cosStorage');
 const router = express.Router();
 
-/** COS 私有桶：根据公网 URL 生成签名 URL 并 302，供 H5 图片/视频展示 */
+/** COS 私有桶：根据公网 URL 生成签名 URL。默认 302 跳转（H5 图片）；format=json 时返回 { url }（小程序 video 等不跟重定向的场景） */
 router.get('/cos-url', async (req, res) => {
     const rawUrl = req.query.url;
+    const asJson = req.query.format === 'json';
     if (!rawUrl || typeof rawUrl !== 'string') {
         return res.status(400).json({ code: 1, message: '缺少参数 url' });
     }
@@ -23,6 +24,9 @@ router.get('/cos-url', async (req, res) => {
         const signedUrl = await cosStorage.getSignedUrl(objectKey, 3600);
         if (!signedUrl) {
             return res.status(502).json({ code: 1, message: '生成签名链接失败' });
+        }
+        if (asJson) {
+            return res.json({ code: 0, url: signedUrl });
         }
         res.redirect(302, signedUrl);
     } catch (err) {

@@ -216,7 +216,7 @@ Page({
       // 首次加载：直接使用接口返回的主图与详情图
       const mainImages = mapImages(product.images || [], { type: 'detail' });
       const detailImages = mapImages(product.detailImages || [], { type: 'detail' });
-      const videos = ensureArray(product.videos || []).map(buildAbsoluteUrl).filter(Boolean);
+      const videos = ensureArray(product.videos || []).map(url => util.buildCosProxyUrlIfNeeded(buildAbsoluteUrl(url))).filter(Boolean);
       const skuImageFallback = []; // SKU图片仍走分段加载
       
       const { httpImages: mainHttp, dataImages: mainData } = splitImagesByType(mainImages);
@@ -298,6 +298,8 @@ Page({
         console.log('[Product] 开始执行分段加载（仅SKU图片）');
         this.loadSkuImages(skuList);
       }, 200); // 延迟200ms，确保主数据已渲染
+      // 小程序 video 不跟 302，需把代理 URL 换成签名直链后再播放
+      this.resolveVideoSignedUrls();
     } catch (error) {
       console.error('[Product] 加载商品详情失败:', error);
       console.error('[Product] 错误详情:', {
@@ -428,6 +430,7 @@ Page({
       }
       
       this.setData(updateData);
+      if (updateData.carouselItems) this.resolveVideoSignedUrls();
       
       if (detailImages.length > 0) {
         console.log('[Product] ✅ 详情图已更新到页面，数量:', detailImages.length);
@@ -532,14 +535,56 @@ Page({
   },
 
   /**
-   * 预览图片
+   * 将轮播中视频的 cos-url 代理地址解析为签名直链（小程序 video 不跟 302，必须用直链才能播放）
+   */
+  async resolveVideoSignedUrls() {
+    const items = this.data.carouselItems || [];
+    const videoIndices = [];
+    items.forEach((item, i) => {
+      if (item.type === 'video' && item.url && item.url.indexOf('/api/storage/cos-url') !== -1) {
+        videoIndices.push(i);
+      }
+    });
+    if (videoIndices.length === 0) return;
+    try {
+      const next = items.slice();
+      const promises = videoIndices.map(async (i) => {
+        const proxyUrl = items[i].url;
+        const match = proxyUrl.match(/[?&]url=([^&]+)/);
+        const encoded = match ? match[1] : '';
+        const cosUrl = encoded ? decodeURIComponent(encoded) : '';
+        if (!cosUrl) return;
+        const res = await request.get('/api/storage/cos-url', { url: cosUrl, format: 'json' });
+        const data = (res && res.data) ? res.data : res;
+        const signed = data && data.url;
+        if (signed) next[i] = { ...next[i], url: signed };
+      });
+      await Promise.all(promises);
+      this.setData({ carouselItems: next });
+    } catch (e) {
+      console.warn('[Product] 解析视频签名链接失败', e);
+    }
+  },
+
+  /**
+   * 点击视频区域：仅阻止冒泡，不触发图片预览，由 video 组件处理播放
+   */
+  onVideoAreaTap() {
+    // no-op，阻止事件冒泡到 swiper-item，避免触发 onImageTap
+  },
+
+  /**
+   * 预览图片（仅主图；当前项为视频时不触发，由 video 组件自己处理播放）
    */
   onImageTap() {
-    const { carouselImages, currentImageIndex } = this.data;
+    const { carouselItems, carouselImages, currentImageIndex } = this.data;
+    const current = carouselItems && carouselItems[currentImageIndex];
+    if (current && current.type === 'video') return;
     if (!carouselImages.length) return;
+    const currentUrl = carouselImages[currentImageIndex] || carouselImages[0];
     wx.previewImage({
       urls: carouselImages,
-      current: carouselImages[currentImageIndex]
+      current: currentUrl
     });
   },
 

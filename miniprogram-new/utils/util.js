@@ -387,6 +387,24 @@ function buildOptimizedImageUrl(url, options = {}) {
 }
 
 /**
+ * 媒体（视频/图片）URL：若是私有桶 COS 直链则返回后端 cos-url 代理地址，否则返回原 URL
+ * 小程序端用此加载 COS 视频或非图片优化场景的 COS 图，避免 403
+ */
+function buildCosProxyUrlIfNeeded(url) {
+  if (!url || typeof url !== 'string') return url || '';
+  if (/^data:/.test(url)) return url;
+  if (!/^https:\/\/[^/]+\.cos\.[^/]+\.myqcloud\.com\//.test(url)) return url;
+  let apiBase = '';
+  try {
+    const { API_BASE_URL } = require('../config/api.js');
+    apiBase = API_BASE_URL || '';
+  } catch (e) {
+    apiBase = '';
+  }
+  return apiBase ? `${apiBase.replace(/\/$/, '')}/api/storage/cos-url?url=${encodeURIComponent(url)}` : url;
+}
+
+/**
  * 解析 URL 参数
  * @param {string} url - URL 字符串
  * @returns {Object} 参数对象
@@ -654,6 +672,7 @@ module.exports = {
   // URL
   buildAbsoluteUrl,
   buildOptimizedImageUrl,
+  buildCosProxyUrlIfNeeded,
   parseUrlParams,
   buildUrlParams,
   

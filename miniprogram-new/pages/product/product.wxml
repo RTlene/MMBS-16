@@ -18,7 +18,9 @@
         src="{{item.url}}" 
         controls 
         show-center-play-btn="{{true}}"
+        show-play-btn="{{true}}"
         object-fit="contain"
+        catchtap="onVideoAreaTap"
       />
     </swiper-item>
   </swiper>
