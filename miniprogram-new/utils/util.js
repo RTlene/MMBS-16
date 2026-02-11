@@ -308,6 +308,18 @@ function buildOptimizedImageUrl(url, options = {}) {
   if (/^data:image\//i.test(url)) {
     return url;
   }
+
+  // 私有桶 COS 直链会 403，小程序需经后端 cos-url 换签名链接再加载
+  if (/^https:\/\/[^/]+\.cos\.[^/]+\.myqcloud\.com\//.test(url)) {
+    let apiBase = '';
+    try {
+      const { API_BASE_URL } = require('../config/api.js');
+      apiBase = API_BASE_URL || '';
+    } catch (e) {
+      apiBase = '';
+    }
+    return apiBase ? `${apiBase.replace(/\/$/, '')}/api/storage/cos-url?url=${encodeURIComponent(url)}` : url;
+  }
   
   // 如果是完整URL，需要先提取路径部分
   let imagePath = url;
