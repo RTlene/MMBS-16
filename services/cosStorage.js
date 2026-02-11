@@ -1,35 +1,83 @@
 /**
  * 腾讯云 COS 对象存储上传
  * 配置后商品图片/视频将上传到 COS，再次编辑可正常加载。
- * 环境变量：COS_SECRET_ID, COS_SECRET_KEY, COS_BUCKET, COS_REGION；可选 COS_PREFIX, COS_DOMAIN
+ *
+ * 环境变量（二选一）：
+ * 1) 云托管自动注入：仅需 COS_BUCKET、COS_REGION，通过开放接口 getauth 获取临时密钥（无需填密钥）
+ * 2) 自建 COS：COS_SECRET_ID、COS_SECRET_KEY、COS_BUCKET、COS_REGION
+ * 可选：COS_PREFIX、COS_DOMAIN
  */
 
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
+
+const WX_COS_AUTH_URL = 'http://api.weixin.qq.com/_/cos/getauth';
 
 let cosClient = null;
+
+/**
+ * 是否仅使用云托管注入的 BUCKET+REGION（无 SECRET_ID/SECRET_KEY 时走 getauth 临时密钥）
+ */
+function useCloudRunTempKey() {
+    const bucket = process.env.COS_BUCKET;
+    const region = process.env.COS_REGION;
+    const hasPermanent = process.env.COS_SECRET_ID && process.env.COS_SECRET_KEY;
+    return !!(bucket && region && !hasPermanent);
+}
 
 function getClient() {
     if (cosClient) return cosClient;
     const SecretId = process.env.COS_SECRET_ID;
     const SecretKey = process.env.COS_SECRET_KEY;
-    if (!SecretId || !SecretKey) return null;
-    try {
-        const COS = require('cos-nodejs-sdk-v5');
-        cosClient = new COS({
-            SecretId,
-            SecretKey,
-            Protocol: 'https:'
-        });
-        return cosClient;
-    } catch (e) {
-        console.warn('[COS] SDK 未安装或初始化失败:', e.message);
-        return null;
+    if (SecretId && SecretKey) {
+        try {
+            const COS = require('cos-nodejs-sdk-v5');
+            cosClient = new COS({
+                SecretId,
+                SecretKey,
+                Protocol: 'https:'
+            });
+            return cosClient;
+        } catch (e) {
+            console.warn('[COS] SDK 未安装或初始化失败:', e.message);
+            return null;
+        }
     }
+    if (useCloudRunTempKey()) {
+        try {
+            const COS = require('cos-nodejs-sdk-v5');
+            cosClient = new COS({
+                getAuthorization: function (options, callback) {
+                    axios.get(WX_COS_AUTH_URL, { timeout: 10000, validateStatus: () => true })
+                        .then(res => {
+                            const data = res.data;
+                            if (data && data.TmpSecretId && data.TmpSecretKey) {
+                                callback({
+                                    TmpSecretId: data.TmpSecretId,
+                                    TmpSecretKey: data.TmpSecretKey,
+                                    SecurityToken: data.Token || '',
+                                    ExpiredTime: data.ExpiredTime
+                                });
+                            } else {
+                                callback(new Error('getauth 返回无效: ' + JSON.stringify(data)));
+                            }
+                        })
+                        .catch(err => callback(err));
+                },
+                Protocol: 'https:'
+            });
+            return cosClient;
+        } catch (e) {
+            console.warn('[COS] 云托管临时密钥初始化失败:', e.message);
+            return null;
+        }
+    }
+    return null;
 }
 
 /**
- * 是否已配置 COS（配置后上传将写入 COS 并返回 COS 地址）
+ * 是否已配置 COS（有 BUCKET+REGION，且能拿到客户端：永久密钥或云托管 getauth）
  */
 function isConfigured() {
     const bucket = process.env.COS_BUCKET;
