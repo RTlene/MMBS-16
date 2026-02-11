@@ -45,10 +45,14 @@ function getAuthHeaders() {
     };
 }
 
-// 后台编辑页媒体展示用：相对路径转为当前域名绝对路径，避免跨域或路径导致 404
+// 后台编辑页媒体展示用：相对路径转绝对路径；cloud:// 走接口换临时链接
 function getMediaDisplayUrl(url) {
     if (!url) return '';
     if (/^data:/.test(url) || /^https?:\/\//i.test(url)) return url;
+    if (/^cloud:\/\//.test(url)) {
+        const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+        return origin + '/api/storage/temp-url?fileId=' + encodeURIComponent(url);
+    }
     const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
     return origin + (url.startsWith('/') ? url : '/' + url);
 }

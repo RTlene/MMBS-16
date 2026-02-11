@@ -79,6 +79,8 @@ app.use('/api/products', require('./middleware/auth').authenticateToken, product
 app.use('/api/skus', require('./middleware/auth').authenticateToken, skuRoutes);
 // 添加商品文件管理路由
 app.use('/api/product-files', require('./middleware/auth').authenticateToken, productFilesRoutes);
+// 云托管存储：file_id 换临时链接（供 H5 展示 cloud://，可不鉴权以便 img src 直接请求）
+app.use('/api/storage', require('./routes/storage-routes'));
 // 添加会员等级管理路由
 app.use('/api/member-levels', require('./middleware/auth').authenticateToken, memberLevelRoutes);
 // 添加分销等级管理路由

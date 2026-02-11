@@ -5,6 +5,7 @@ const fs = require('fs');
 const { Product } = require('../db');
 const { compressImage } = require('../utils/imageCompress');
 const cosStorage = require('../services/cosStorage');
+const wxCloudStorage = require('../services/wxCloudStorage');
 const router = express.Router();
 
 // 确保上传目录存在
@@ -96,8 +97,25 @@ router.post('/:productId', upload.array('files', 20), async (req, res) => {
             const finalStats = fs.statSync(filePath);
             let url = `/uploads/products/${productId}/${file.filename}`;
 
-            // 若配置了 COS，上传到对象存储并返回 COS 公网 URL（持久化，再次编辑可加载）
-            if (cosStorage.isConfigured()) {
+            // 优先使用云托管自带对象存储（无需单独配置 COS），其次 COS，最后本地
+            if (wxCloudStorage.isConfigured()) {
+                try {
+                    const cloudPath = wxCloudStorage.getCloudPath(productId, file.filename);
+                    url = await wxCloudStorage.uploadFromPath(filePath, cloudPath);
+                    console.log(`[ProductFiles] 已上传至云托管存储: ${file.filename} -> ${url}`);
+                } catch (err) {
+                    console.error(`[ProductFiles] 云托管存储上传失败，使用 COS/本地: ${file.filename}`, err.message);
+                    if (cosStorage.isConfigured()) {
+                        try {
+                            const objectKey = cosStorage.getObjectKey(productId, file.filename);
+                            url = await cosStorage.uploadFromPath(filePath, objectKey);
+                            console.log(`[ProductFiles] 已上传至 COS: ${file.filename}`);
+                        } catch (e) {
+                            console.error(`[ProductFiles] COS 上传失败:`, e.message);
+                        }
+                    }
+                }
+            } else if (cosStorage.isConfigured()) {
                 try {
                     const objectKey = cosStorage.getObjectKey(productId, file.filename);
                     url = await cosStorage.uploadFromPath(filePath, objectKey);
