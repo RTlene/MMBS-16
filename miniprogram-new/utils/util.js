@@ -314,10 +314,16 @@ function buildOptimizedImageUrl(url, options = {}) {
   let baseUrl = '';
   
   if (/^https?:\/\//i.test(url)) {
-    // 提取基础URL和路径
-    const urlObj = new URL(url);
-    baseUrl = `${urlObj.protocol}//${urlObj.host}`;
-    imagePath = urlObj.pathname;
+    // 小程序运行时不保证存在全局 URL 构造器，这里用轻量解析替代
+    // 期望：baseUrl = protocol + '//' + host；imagePath = path + query（保留原 query，便于后续继续拼接参数）
+    const match = url.match(/^(https?:)\/\/([^\/?#]+)([^#]*)/i);
+    if (match) {
+      baseUrl = `${match[1]}//${match[2]}`;
+      imagePath = match[3] || '/';
+    } else {
+      // 兜底：当作相对路径处理
+      imagePath = url;
+    }
   } else {
     // 相对路径，需要转换为绝对URL
     imagePath = url;

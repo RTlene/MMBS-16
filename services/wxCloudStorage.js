@@ -46,13 +46,21 @@ async function uploadFromPath(localFilePath, cloudPath) {
         validateStatus: () => true
     });
 
-    const data = res.data;
-    if (data.errcode != null && data.errcode !== 0) {
-        throw new Error(data.errmsg || 'tcb/uploadfile 失败: ' + JSON.stringify(data));
+    let data = res.data;
+    // 部分网关/SDK 可能返回字符串，做一次兼容解析
+    if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch (_) {}
     }
-    const { url: uploadUrl, token, authorization, cos_file_id, file_id } = data;
+    // 有些接口会把数据包在 respdata 中
+    const payload = (data && data.respdata) ? data.respdata : data;
+
+    if (payload && payload.errcode != null && payload.errcode !== 0) {
+        throw new Error(payload.errmsg || 'tcb/uploadfile 失败: ' + JSON.stringify(payload));
+    }
+
+    const { url: uploadUrl, token, authorization, cos_file_id, file_id } = payload || {};
     if (!uploadUrl || !cos_file_id || !file_id) {
-        console.warn('[wxCloudStorage] tcb/uploadfile 返回结构异常，完整响应:', JSON.stringify(data));
+        console.warn('[wxCloudStorage] tcb/uploadfile 返回结构异常，HTTP status=', res.status, '完整响应:', JSON.stringify(data));
         throw new Error('tcb/uploadfile 返回缺少 url/cos_file_id/file_id（若为云托管环境请检查开放接口与 tcb 权限）');
     }
 
@@ -72,7 +80,8 @@ async function uploadFromPath(localFilePath, cloudPath) {
         validateStatus: () => true
     });
 
-    if (uploadRes.status !== 200) {
+    // COS 表单上传成功常见返回 204 No Content（也可能是 200/201）
+    if (![200, 201, 204].includes(uploadRes.status)) {
         throw new Error('上传到 COS 失败: status ' + uploadRes.status);
     }
 

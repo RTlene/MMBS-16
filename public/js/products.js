@@ -1124,6 +1124,14 @@ async function handleProductFiles(productId) {
         let failedCount = 0;
         for (const file of files) {
             try {
+                // 云托管/网关常见二进制上限约 20MiB，提前在前端拦截，避免直接 413
+                const MAX_BYTES = 20 * 1024 * 1024;
+                if (file && typeof file.size === 'number' && file.size > MAX_BYTES) {
+                    failedCount++;
+                    console.warn('文件过大，跳过上传:', file.name, file.size);
+                    continue;
+                }
+
                 const formData = new FormData();
                 formData.append('type', type);
                 formData.append('files', file);

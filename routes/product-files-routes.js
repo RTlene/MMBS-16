@@ -37,7 +37,8 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB 单文件
+        // 微信云托管/Cloud Run 常见二进制请求体上限约 20MiB，这里与其对齐；也可通过环境变量 MAX_FILE_SIZE 调整
+        fileSize: Number.parseInt(process.env.MAX_FILE_SIZE || '', 10) || (20 * 1024 * 1024) // 默认 20MB 单文件
     },
     fileFilter: function (req, file, cb) {
         if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
@@ -48,8 +49,23 @@ const upload = multer({
     }
 });
 
+// 统一处理 multer 报错（如 413/LIMIT_FILE_SIZE）
+function uploadFilesMiddleware(req, res, next) {
+    return upload.array('files', 20)(req, res, (err) => {
+        if (!err) return next();
+        // multer 的文件过大错误
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({
+                code: 1,
+                message: `文件过大，单文件最大 ${(Number.parseInt(process.env.MAX_FILE_SIZE || '', 10) || (20 * 1024 * 1024)) / 1024 / 1024}MB；云托管网关也可能限制约 20MiB，请压缩视频或改用客户端直传方案`
+            });
+        }
+        return res.status(400).json({ code: 1, message: err.message || '上传失败' });
+    });
+}
+
 // 上传商品文件
-router.post('/:productId', upload.array('files', 20), async (req, res) => {
+router.post('/:productId', uploadFilesMiddleware, async (req, res) => {
     try {
         const { productId } = req.params;
         const { type } = req.body; // 'images' | 'detailImages' | 'videos'
