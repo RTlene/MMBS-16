@@ -216,7 +216,7 @@ Page({
       // 首次加载：直接使用接口返回的主图与详情图
       const mainImages = mapImages(product.images || [], { type: 'detail' });
       const detailImages = mapImages(product.detailImages || [], { type: 'detail' });
-      const videos = ensureArray(product.videos || []).map(url => util.buildCosProxyUrlIfNeeded(buildAbsoluteUrl(url))).filter(Boolean);
+      const videos = ensureArray(product.videos || []).map(url => util.buildVideoPlayProxyUrl(url)).filter(Boolean);
       const skuImageFallback = []; // SKU图片仍走分段加载
       
       const { httpImages: mainHttp, dataImages: mainData } = splitImagesByType(mainImages);
@@ -535,34 +535,42 @@ Page({
   },
 
   /**
-   * 将轮播中视频的 cos-url 代理地址解析为签名直链（小程序 video 不跟 302，必须用直链才能播放）
+   * 将轮播中视频的代理地址（cos-url / temp-url）解析为直链（小程序 video 不跟 302，必须用直链才能播放）
    */
   async resolveVideoSignedUrls() {
     const items = this.data.carouselItems || [];
-    const videoIndices = [];
+    const toResolve = [];
     items.forEach((item, i) => {
-      if (item.type === 'video' && item.url && item.url.indexOf('/api/storage/cos-url') !== -1) {
-        videoIndices.push(i);
-      }
+      if (item.type !== 'video' || !item.url) return;
+      if (item.url.indexOf('/api/storage/cos-url') !== -1) toResolve.push({ i, type: 'cos', url: item.url });
+      else if (item.url.indexOf('/api/storage/temp-url') !== -1) toResolve.push({ i, type: 'temp', url: item.url });
     });
-    if (videoIndices.length === 0) return;
+    if (toResolve.length === 0) return;
     try {
       const next = items.slice();
-      const promises = videoIndices.map(async (i) => {
-        const proxyUrl = items[i].url;
-        const match = proxyUrl.match(/[?&]url=([^&]+)/);
-        const encoded = match ? match[1] : '';
-        const cosUrl = encoded ? decodeURIComponent(encoded) : '';
-        if (!cosUrl) return;
-        const res = await request.get('/api/storage/cos-url', { url: cosUrl, format: 'json' });
-        const data = (res && res.data) ? res.data : res;
-        const signed = data && data.url;
-        if (signed) next[i] = { ...next[i], url: signed };
+      const promises = toResolve.map(async ({ i, type, url: proxyUrl }) => {
+        let playUrl = '';
+        if (type === 'cos') {
+          const match = proxyUrl.match(/[?&]url=([^&]+)/);
+          const cosUrl = match ? decodeURIComponent(match[1]) : '';
+          if (!cosUrl) return;
+          const res = await request.get('/api/storage/cos-url', { url: cosUrl, format: 'json' });
+          const data = (res && res.data) ? res.data : res;
+          playUrl = data && data.url ? data.url : '';
+        } else {
+          const match = proxyUrl.match(/[?&]fileId=([^&]+)/);
+          const fileId = match ? decodeURIComponent(match[1]) : '';
+          if (!fileId) return;
+          const res = await request.get('/api/storage/temp-url', { fileId: fileId, format: 'json' });
+          const data = (res && res.data) ? res.data : res;
+          playUrl = data && data.url ? data.url : '';
+        }
+        if (playUrl) next[i] = { ...next[i], url: playUrl };
       });
       await Promise.all(promises);
       this.setData({ carouselItems: next });
     } catch (e) {
-      console.warn('[Product] 解析视频签名链接失败', e);
+      console.warn('[Product] 解析视频播放链接失败', e);
     }
   },
 

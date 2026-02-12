@@ -35,8 +35,10 @@ router.get('/cos-url', async (req, res) => {
     }
 });
 
+/** 云托管 file_id 换临时下载链接。默认 302；format=json 时返回 { url }（小程序 video 等不跟重定向时用） */
 router.get('/temp-url', async (req, res) => {
     const fileId = req.query.fileId;
+    const asJson = req.query.format === 'json';
     if (!fileId || typeof fileId !== 'string' || !fileId.startsWith('cloud://')) {
         return res.status(400).json({ code: 1, message: '缺少或无效的 fileId（需为 cloud:// 开头）' });
     }
@@ -47,6 +49,9 @@ router.get('/temp-url', async (req, res) => {
         const downloadUrl = await wxCloudStorage.getTempDownloadUrl(fileId.trim(), 86400);
         if (!downloadUrl) {
             return res.status(404).json({ code: 1, message: '无法获取下载链接' });
+        }
+        if (asJson) {
+            return res.json({ code: 0, url: downloadUrl });
         }
         res.redirect(302, downloadUrl);
     } catch (err) {

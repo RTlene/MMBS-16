@@ -405,6 +405,29 @@ function buildCosProxyUrlIfNeeded(url) {
 }
 
 /**
+ * 视频播放用 URL：cloud:// 走 temp-url，COS 直链走 cos-url，其它用绝对地址（小程序需再 resolve 成直链才能播放）
+ */
+function buildVideoPlayProxyUrl(url) {
+  if (!url || typeof url !== 'string') return url || '';
+  if (/^data:/.test(url)) return url;
+  let apiBase = '';
+  try {
+    const { API_BASE_URL } = require('../config/api.js');
+    apiBase = (API_BASE_URL || '').replace(/\/$/, '');
+  } catch (e) {
+    apiBase = '';
+  }
+  if (/^cloud:\/\//.test(url)) {
+    return apiBase ? `${apiBase}/api/storage/temp-url?fileId=${encodeURIComponent(url)}` : url;
+  }
+  const abs = /^https?:\/\//i.test(url) ? url : buildAbsoluteUrl(url);
+  if (/^https:\/\/[^/]+\.cos\.[^/]+\.myqcloud\.com\//.test(abs)) {
+    return apiBase ? `${apiBase}/api/storage/cos-url?url=${encodeURIComponent(abs)}` : abs;
+  }
+  return abs;
+}
+
+/**
  * 解析 URL 参数
  * @param {string} url - URL 字符串
  * @returns {Object} 参数对象
@@ -673,6 +696,7 @@ module.exports = {
   buildAbsoluteUrl,
   buildOptimizedImageUrl,
   buildCosProxyUrlIfNeeded,
+  buildVideoPlayProxyUrl,
   parseUrlParams,
   buildUrlParams,
   
