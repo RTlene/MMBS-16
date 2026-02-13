@@ -14,6 +14,7 @@ window.WithdrawalManagement = {
 
   init() {
     this.loadWithdrawals();
+    this.loadWithdrawalConfig();
     this.bindEvents();
   },
 
@@ -34,6 +35,46 @@ window.WithdrawalManagement = {
     document.getElementById('btnComplete').addEventListener('click', function () {
       self.doComplete();
     });
+    document.getElementById('btnSaveWithdrawalConfig').addEventListener('click', function () {
+      self.saveWithdrawalConfig();
+    });
+  },
+
+  async loadWithdrawalConfig() {
+    try {
+      const res = await fetch('/api/withdrawals/config', { headers: this.getAuthHeaders() });
+      const result = await res.json();
+      if (result.code === 0 && result.data) {
+        const a = result.data.autoApprove || {};
+        document.getElementById('autoApproveEnabled').checked = !!a.enabled;
+        document.getElementById('autoApproveMaxAmount').value = a.maxAmount != null ? a.maxAmount : '';
+      }
+    } catch (e) {
+      console.error('加载提现配置失败', e);
+    }
+  },
+
+  async saveWithdrawalConfig() {
+    const enabled = document.getElementById('autoApproveEnabled').checked;
+    const maxAmount = parseFloat(document.getElementById('autoApproveMaxAmount').value) || 0;
+    try {
+      const res = await fetch('/api/withdrawals/config', {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          autoApprove: { enabled, maxAmount }
+        })
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        alert('配置已保存');
+      } else {
+        alert(result.message || '保存失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('网络错误');
+    }
   },
 
   getAuthHeaders() {

@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const wxCloudStorage = require('../services/wxCloudStorage');
 const cosStorage = require('../services/cosStorage');
+const configStore = require('../services/configStore');
 
 const router = express.Router();
 
@@ -73,9 +74,13 @@ if (!fs.existsSync(configDir)) {
 }
 
 /**
- * 读取配置
+ * 读取配置（优先从统一配置存储 payment 段取，否则读本地文件）
  */
 function readConfig() {
+    const fromStore = configStore.getSection('payment');
+    if (fromStore && typeof fromStore === 'object' && Object.keys(fromStore).length > 0) {
+        return fromStore;
+    }
     try {
         if (fs.existsSync(CONFIG_FILE_PATH)) {
             const data = fs.readFileSync(CONFIG_FILE_PATH, 'utf8');
@@ -358,6 +363,8 @@ router.post('/save', authenticateToken, async (req, res) => {
 
         // 保存配置到文件
         saveConfig(next);
+        // 同步到统一配置存储（对象存储加密 + 本地 app-config.json）
+        await configStore.setSection('payment', next);
 
         // 更新环境变量（仅当前进程，重启后需要重新配置）
         // 注意：这里只是提示，实际需要手动配置环境变量或重启服务

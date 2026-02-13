@@ -192,6 +192,8 @@ const startupAt = Date.now();
 let dbReady = false;
 let dbInitError = null;
 
+const configStore = require('./services/configStore');
+
 /** 启动时从配置文件恢复微信支付相关环境变量，避免每次部署后需重新在后台配置 */
 function loadPaymentConfigIntoEnv() {
   const configPath = path.join(__dirname, 'config', 'wechat-payment-config.json');
@@ -225,6 +227,21 @@ function loadPaymentConfigIntoEnv() {
 }
 
 async function bootstrap() {
+  // 优先从统一配置存储（对象存储加密 / 本地）加载，并同步 payment 到本地文件供后续使用
+  try {
+    const configData = await configStore.read();
+    configStore._cache = configData;
+    const payment = configStore.getSection('payment');
+    if (payment && Object.keys(payment).length > 0) {
+      const configPath = path.join(__dirname, 'config', 'wechat-payment-config.json');
+      const configDir = path.dirname(configPath);
+      if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(configPath, JSON.stringify(payment, null, 2), 'utf8');
+    }
+  } catch (e) {
+    console.warn('[Startup] 加载统一配置失败:', e.message);
+    configStore._cache = {};
+  }
   loadPaymentConfigIntoEnv();
   if (typeof ensureCertFromStorage === 'function') {
     try {

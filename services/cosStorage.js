@@ -134,6 +134,63 @@ function uploadFromPath(localFilePath, objectKey) {
 }
 
 /**
+ * 上传 Buffer 到 COS（用于配置等小文件）
+ * @param {string} objectKey - 对象键
+ * @param {Buffer} buffer - 内容
+ * @returns {Promise<void>}
+ */
+function putObjectBuffer(objectKey, buffer) {
+    const client = getClient();
+    const Bucket = process.env.COS_BUCKET;
+    const Region = process.env.COS_REGION;
+    if (!client || !Bucket || !Region) {
+        return Promise.reject(new Error('COS 未配置'));
+    }
+    return new Promise((resolve, reject) => {
+        client.putObject(
+            { Bucket, Region, Key: objectKey, Body: buffer },
+            (err) => {
+                if (err) reject(err);
+                else resolve();
+            }
+        );
+    });
+}
+
+/**
+ * 从 COS 下载对象为 Buffer
+ * @param {string} objectKey - 对象键
+ * @returns {Promise<Buffer>}
+ */
+function getObjectBuffer(objectKey) {
+    const client = getClient();
+    const Bucket = process.env.COS_BUCKET;
+    const Region = process.env.COS_REGION;
+    if (!client || !Bucket || !Region) {
+        return Promise.reject(new Error('COS 未配置'));
+    }
+    return new Promise((resolve, reject) => {
+        client.getObject(
+            { Bucket, Region, Key: objectKey },
+            (err, data) => {
+                if (err) {
+                    if (err.statusCode === 404) {
+                        reject(Object.assign(new Error('NOT_FOUND'), { statusCode: 404 }));
+                    } else {
+                        reject(err);
+                    }
+                    return;
+                }
+                const body = data && data.Body;
+                if (body instanceof Buffer) resolve(body);
+                else if (Buffer.isBuffer(body)) resolve(body);
+                else resolve(Buffer.from(body || ''));
+            }
+        );
+    });
+}
+
+/**
  * 删除 COS 上的对象
  * @param {string} objectKey - 对象键，如 products/1/xxx.jpg
  * @returns {Promise<void>}
@@ -228,6 +285,8 @@ module.exports = {
     isConfigured,
     getObjectKey,
     uploadFromPath,
+    putObjectBuffer,
+    getObjectBuffer,
     deleteObject,
     getPublicUrl,
     parseObjectKeyFromUrl,

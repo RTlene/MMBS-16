@@ -2,6 +2,8 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { CommissionWithdrawal, Member } = require('../db');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
+const configStore = require('../services/configStore');
+const withdrawalService = require('../services/withdrawalService');
 
 const router = express.Router();
 
@@ -125,16 +127,35 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
             frozenCommission: (parseFloat(member.frozenCommission || 0) + withdrawalAmount)
         });
 
+        // 小额自动通过：仅支持微信钱包，且金额不超过配置的最大自动通过金额
+        const withdrawalConfig = configStore.getSection('withdrawal') || {};
+        const autoApprove = withdrawalConfig.autoApprove || {};
+        const autoApproved = !!autoApprove.enabled
+            && withdrawal.accountType === 'wechat'
+            && withdrawalAmount <= (parseFloat(autoApprove.maxAmount) || 0);
+        let finalWithdrawal = withdrawal;
+        if (autoApproved) {
+            try {
+                const { withdrawal: updated } = await withdrawalService.performApprove(withdrawal.id, {});
+                finalWithdrawal = updated;
+            } catch (err) {
+                console.error('[MiniappWithdrawal] 小额自动通过失败:', err.message);
+                // 不改变响应：仍返回“已提交请等待审核”，后台可手动审核
+            }
+        }
+
         res.json({
             code: 0,
-            message: '提现申请已提交，请等待审核',
+            message: (autoApproved && finalWithdrawal.status === 'approved')
+                ? '提现申请已提交并自动通过，款项将打至微信零钱'
+                : '提现申请已提交，请等待审核',
             data: {
                 withdrawal: {
-                    id: withdrawal.id,
-                    withdrawalNo: withdrawal.withdrawalNo,
-                    amount: withdrawal.amount,
-                    status: withdrawal.status,
-                    createdAt: withdrawal.createdAt
+                    id: finalWithdrawal.id,
+                    withdrawalNo: finalWithdrawal.withdrawalNo,
+                    amount: finalWithdrawal.amount,
+                    status: finalWithdrawal.status,
+                    createdAt: finalWithdrawal.createdAt
                 }
             }
         });

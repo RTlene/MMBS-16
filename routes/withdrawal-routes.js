@@ -5,7 +5,8 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { CommissionWithdrawal, Member } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
-const wechatPayService = require('../services/wechatPayService');
+const withdrawalService = require('../services/withdrawalService');
+const configStore = require('../services/configStore');
 
 const router = express.Router();
 
@@ -122,6 +123,54 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 /**
+ * 获取提现配置（小额自动通过等）
+ * GET /api/withdrawals/config
+ */
+router.get('/config', authenticateToken, async (req, res) => {
+  try {
+    const section = configStore.getSection('withdrawal') || {};
+    const autoApprove = section.autoApprove || { enabled: false, maxAmount: 0 };
+    res.json({
+      code: 0,
+      message: '获取成功',
+      data: {
+        autoApprove: {
+          enabled: !!autoApprove.enabled,
+          maxAmount: Math.max(0, parseFloat(autoApprove.maxAmount) || 0)
+        }
+      }
+    });
+  } catch (e) {
+    console.error('[Withdrawals] 获取配置失败:', e);
+    res.status(500).json({ code: 1, message: '获取配置失败', error: e.message });
+  }
+});
+
+/**
+ * 保存提现配置
+ * PUT /api/withdrawals/config
+ */
+router.put('/config', authenticateToken, async (req, res) => {
+  try {
+    const { autoApprove } = req.body || {};
+    const section = configStore.getSection('withdrawal') || {};
+    section.autoApprove = {
+      enabled: !!autoApprove?.enabled,
+      maxAmount: Math.max(0, parseFloat(autoApprove?.maxAmount) || 0)
+    };
+    await configStore.setSection('withdrawal', section);
+    res.json({
+      code: 0,
+      message: '配置已保存',
+      data: { autoApprove: section.autoApprove }
+    });
+  } catch (e) {
+    console.error('[Withdrawals] 保存配置失败:', e);
+    res.status(500).json({ code: 1, message: '保存配置失败', error: e.message });
+  }
+});
+
+/**
  * 获取提现申请详情（后台）
  * 遇数据库连接重置(ECONNRESET)时自动重试一次
  */
@@ -193,53 +242,21 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.put('/:id/approve', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const withdrawal = await CommissionWithdrawal.findByPk(id, { include: [{ model: Member, as: 'member' }] });
-    if (!withdrawal) return res.status(404).json({ code: 1, message: '提现申请不存在' });
-    if (withdrawal.status !== 'pending') {
-      return res.status(400).json({ code: 1, message: '只能审核待审核状态的申请' });
-    }
-    const member = withdrawal.member;
-    if (!member) return res.status(500).json({ code: 1, message: '会员信息不存在' });
-    const amount = parseFloat(withdrawal.amount);
-
-    if (withdrawal.accountType === 'wechat') {
-      const openid = member.openid;
-      if (!openid || !openid.trim()) {
-        return res.status(400).json({ code: 1, message: '该会员未绑定微信 openid，无法发起微信转账' });
-      }
-      const amountCents = Math.round(amount * 100);
-      try {
-        await wechatPayService.transferToBalance({
-          outBatchNo: withdrawal.withdrawalNo,
-          openid: openid.trim(),
-          amountCents,
-          remark: '佣金提现'
-        });
-      } catch (err) {
-        console.error('[Withdrawal] 商家转账失败:', err);
-        return res.status(500).json({
-          code: 1,
-          message: err.message || '微信转账发起失败，请检查商户号是否开通商家转账及日限额'
-        });
-      }
-      await member.update({
-        frozenCommission: Math.max(0, parseFloat(member.frozenCommission || 0) - amount)
-      });
-    }
-
-    await withdrawal.update({
-      status: 'approved',
-      processedBy: req.user.id,
-      processedAt: new Date()
-    });
+    const { withdrawal } = await withdrawalService.performApprove(id, { processedBy: req.user.id });
     res.json({
       code: 0,
       message: withdrawal.accountType === 'wechat' ? '已通过并已发起微信转账' : '已通过审核',
       data: { withdrawal: { id: withdrawal.id, status: 'approved' } }
     });
   } catch (error) {
+    if (error.message === '提现申请不存在') {
+      return res.status(404).json({ code: 1, message: error.message });
+    }
+    if (error.message === '只能审核待审核状态的申请' || error.message.includes('openid')) {
+      return res.status(400).json({ code: 1, message: error.message });
+    }
     console.error('审核通过失败:', error);
-    res.status(500).json({ code: 1, message: '操作失败', error: error.message });
+    res.status(500).json({ code: 1, message: error.message || '操作失败' });
   }
 });
 

@@ -60,6 +60,25 @@
             <p class="page-description">审核与处理小程序用户提交的佣金提现申请</p>
         </div>
 
+        <!-- 小额自动通过配置 -->
+        <div class="content-card" style="margin-bottom: 20px;">
+            <div class="card-header" style="flex-direction: column; align-items: stretch;">
+                <div class="detail-section-title" style="margin-bottom: 12px;">小额自动通过</div>
+                <p class="page-description" style="margin: 0 0 12px 0;">启用后，微信钱包提现且金额不超过下方金额时将自动通过并发起转账，无需人工审核。</p>
+                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="autoApproveEnabled" />
+                        <span>启用小额自动通过</span>
+                    </label>
+                    <div class="form-group" style="margin: 0;">
+                        <label for="autoApproveMaxAmount">最大自动通过金额（元）</label>
+                        <input type="number" id="autoApproveMaxAmount" class="form-input" min="0" step="0.01" placeholder="例如 100" style="width: 140px;" />
+                    </div>
+                    <button type="button" class="btn btn-primary" id="btnSaveWithdrawalConfig">保存配置</button>
+                </div>
+            </div>
+        </div>
+
         <div class="content-card">
             <div class="card-header">
                 <div class="search-filters">
