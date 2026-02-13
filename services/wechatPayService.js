@@ -314,15 +314,16 @@ class WeChatPayService {
     }
 
     /**
-     * 商家转账到零钱（单笔）
-     * 收款人以 openid 标识，不使用账户名；单笔金额>=2000元时微信要求传 userName 与 openid 对应真实姓名一致。
+     * 商家转账到零钱（单笔）- 使用升级版接口「发起转账」
+     * 商户号接入升级版后需使用 /v3/fund-app/mch-transfer/transfer-bills，并传转账场景 1005（佣金报酬）及报备信息。
+     * 收款人以 openid 标识；单笔>=2000元时需传加密的 userName（需配置 Wechatpay-Serial 与公钥），此处仅实现小额不传姓名。
      * @param {Object} params
-     * @param {string} params.outBatchNo - 商户批次单号（唯一，仅数字与字母，不能含下划线等）
+     * @param {string} params.outBatchNo - 商户单号（唯一，仅数字与字母）
      * @param {string} params.openid - 收款用户 openid（必填）
      * @param {number} params.amountCents - 转账金额（单位：分）
      * @param {string} [params.remark] - 转账备注（用户可见，最多32字符）
-     * @param {string} [params.userName] - 收款用户真实姓名（单笔>=2000元时必填，需与 openid 一致）
-     * @returns {Promise<{ out_batch_no, batch_id, create_time, batch_status }>}
+     * @param {string} [params.userName] - 收款用户真实姓名（>=2000元时必填且需公钥加密，当前未实现加密则仅支持小额）
+     * @returns {Promise<{ out_bill_no, transfer_bill_no, create_time, state, package_info? }>}
      */
     async transferToBalance(params) {
         const { outBatchNo, openid, amountCents, remark, userName } = params;
@@ -333,46 +334,45 @@ class WeChatPayService {
         if (!this.privateKey || !this.certSerialNo) throw new Error('商户证书/私钥未配置');
         if (!openid || amountCents == null || amountCents < 1) throw new Error('转账参数无效：openid 与金额（分）必填且金额大于 0');
 
-        // 微信要求：商户批次单号、商户明细单号仅支持数字和字母，不能含下划线等
-        const batchNoAlnum = String(outBatchNo).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
-        const outDetailNo = (batchNoAlnum + '1').substring(0, 32); // 批次内单笔时明细单号 = 批次号+1
-        const batchName = '佣金提现';
-        const batchRemark = (remark || '佣金提现').substring(0, 32);
+        // 商户单号仅数字与字母，最长 32
+        const outBillNo = String(outBatchNo).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32) || 'WD' + Date.now();
         const transferRemark = (remark || '佣金提现').substring(0, 32);
-        const totalAmount = Math.round(Number(amountCents));
-        const totalNum = 1;
+        const transferAmount = Math.round(Number(amountCents));
 
-        const detail = {
-            out_detail_no: outDetailNo,
-            transfer_amount: totalAmount,
-            transfer_remark: transferRemark,
-            openid: openid
-        };
-        if (userName && userName.trim()) detail.user_name = userName.trim();
-
+        // 升级版接口：必填 transfer_scene_id（1005=佣金报酬）、transfer_scene_report_infos（岗位类型+报酬说明）
         const requestBody = {
             appid: appId,
-            out_batch_no: batchNoAlnum,
-            batch_name: batchName,
-            batch_remark: batchRemark,
-            total_amount: totalAmount,
-            total_num: totalNum,
-            transfer_detail_list: [detail]
+            out_bill_no: outBillNo,
+            transfer_scene_id: '1005',
+            openid: openid.trim(),
+            transfer_amount: transferAmount,
+            transfer_remark: transferRemark,
+            user_recv_perception: '劳务报酬',
+            transfer_scene_report_infos: [
+                { info_type: '岗位类型', info_content: '分销员' },
+                { info_type: '报酬说明', info_content: '佣金提现' }
+            ]
         };
+        // 单笔>=2000元时微信要求传 user_name 且需用微信支付公钥 RSA 加密，并带 Wechatpay-Serial。当前未实现加密，仅支持单笔<2000元。
+        // if (userName && userName.trim()) requestBody.user_name = '<加密后的姓名>';
 
-        const urlPath = '/v3/transfer/batches';
+        const urlPath = '/v3/fund-app/mch-transfer/transfer-bills';
         const bodyStr = JSON.stringify(requestBody);
         const baseUrl = 'https://api.mch.weixin.qq.com';
         const authHeader = this.generateAuthHeader('POST', urlPath, bodyStr);
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader,
+            'Accept': 'application/json',
+            'User-Agent': 'WeChatPay-APIv3-NodeJS'
+        };
+        if (process.env.WECHATPAY_SERIAL) {
+            headers['Wechatpay-Serial'] = process.env.WECHATPAY_SERIAL;
+        }
 
         try {
             const response = await axios.post(baseUrl + urlPath, requestBody, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': authHeader,
-                    'Accept': 'application/json',
-                    'User-Agent': 'WeChatPay-APIv3-NodeJS'
-                },
+                headers,
                 timeout: 15000,
                 httpsAgent
             });
