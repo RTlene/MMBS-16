@@ -21,36 +21,60 @@ function statusText(status) {
   return map[status] || status;
 }
 
+function isConnResetError(err) {
+  return err.code === 'ECONNRESET' || (err.name === 'SequelizeDatabaseError' && err.original && /ECONNRESET/i.test(String(err.original)));
+}
+
 /**
  * 获取提现申请列表（后台）
+ * 遇 ECONNRESET 时自动重试一次
  */
 router.get('/', authenticateToken, async (req, res) => {
+  const { page = 1, limit = 10, status = '', search = '' } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const where = {};
+  if (status) where.status = status;
+  if (search && search.trim()) {
+    const searchTrim = search.trim();
+    where[Op.or] = [
+      { withdrawalNo: { [Op.like]: `%${searchTrim}%` } },
+      { '$member.nickname$': { [Op.like]: `%${searchTrim}%` } },
+      { '$member.phone$': { [Op.like]: `%${searchTrim}%` } },
+      { accountName: { [Op.like]: `%${searchTrim}%` } },
+      { accountNumber: { [Op.like]: `%${searchTrim}%` } }
+    ];
+  }
+  const queryOptions = {
+    where,
+    include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission'] }],
+    order: [['createdAt', 'DESC']],
+    limit: parseInt(limit),
+    offset
+  };
+
+  let count, rows;
   try {
-    const { page = 1, limit = 10, status = '', search = '' } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const where = {};
-
-    if (status) where.status = status;
-
-    if (search && search.trim()) {
-      const searchTrim = search.trim();
-      where[Op.or] = [
-        { withdrawalNo: { [Op.like]: `%${searchTrim}%` } },
-        { '$member.nickname$': { [Op.like]: `%${searchTrim}%` } },
-        { '$member.phone$': { [Op.like]: `%${searchTrim}%` } },
-        { accountName: { [Op.like]: `%${searchTrim}%` } },
-        { accountNumber: { [Op.like]: `%${searchTrim}%` } }
-      ];
+    const result = await CommissionWithdrawal.findAndCountAll(queryOptions);
+    count = result.count;
+    rows = result.rows;
+  } catch (error) {
+    if (isConnResetError(error)) {
+      try {
+        await new Promise(r => setTimeout(r, 200));
+        const result = await CommissionWithdrawal.findAndCountAll(queryOptions);
+        count = result.count;
+        rows = result.rows;
+      } catch (retryErr) {
+        console.error('获取提现列表失败(重试后):', retryErr);
+        return res.status(500).json({ code: 1, message: '获取提现列表失败', error: retryErr.message });
+      }
+    } else {
+      console.error('获取提现列表失败:', error);
+      return res.status(500).json({ code: 1, message: '获取提现列表失败', error: error.message });
     }
+  }
 
-    const { count, rows } = await CommissionWithdrawal.findAndCountAll({
-      where,
-      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission'] }],
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset
-    });
-
+  try {
     const withdrawals = rows.map(w => {
       const m = w.member || {};
       return {
@@ -114,8 +138,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ code: 1, message: '提现申请不存在' });
     }
   } catch (error) {
-    const isConnReset = error.code === 'ECONNRESET' || (error.name === 'SequelizeDatabaseError' && /ECONNRESET/i.test(String(error.original)));
-    if (isConnReset) {
+    if (isConnResetError(error)) {
       try {
         await new Promise(r => setTimeout(r, 200));
         withdrawal = await findDetail();
