@@ -50,6 +50,14 @@
   line-height: 1.6;
 }
 
+.field.map-choose-row {
+  align-items: center;
+}
+
+.field.map-choose-row .map-btn {
+  margin-left: 0;
+}
+
 .items-section {
   margin: 24rpx;
 }

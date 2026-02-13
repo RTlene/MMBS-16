@@ -3,6 +3,7 @@
  */
 
 const request = require('../../utils/request.js');
+const auth = require('../../utils/auth.js');
 const { API, replaceUrlParams, API_BASE_URL } = require('../../config/api.js');
 const { buildAbsoluteUrl, buildOptimizedImageUrl, formatMoney } = require('../../utils/util.js');
 
@@ -39,6 +40,16 @@ Page({
    */
   onLoad(options) {
     console.log('[Index] 页面加载', options);
+
+    // 首次进入时若未登录则触发登录（不阻塞首屏）
+    const app = getApp();
+    if (!app.globalData.isLogin) {
+      auth.login().then(function (result) {
+        if (result && result.success) {
+          app.globalData.isLogin = true;
+        }
+      }).catch(function () {});
+    }
     
     // 加载页面数据
     this.loadPageData();

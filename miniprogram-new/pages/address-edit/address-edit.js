@@ -1,24 +1,6 @@
 const { API, replaceUrlParams } = require('../../config/api');
 const request = require('../../utils/request');
-
-function splitRegionDetail(fullAddress = '', name = '') {
-  // 粗略切分到“区/县/市”结束的位置，其余归入详细地址
-  const pattern = /(.*?(省|市|自治区|特别行政区))?(.*?(市|州|盟))?(.*?(区|县|旗))/;
-  const match = fullAddress.match(pattern);
-  if (match && match[0]) {
-    const region = match[0].trim();
-    const rest = fullAddress.slice(region.length).trim();
-    const detailParts = [rest, name].filter(Boolean);
-    return {
-      region,
-      detail: detailParts.join(' ').trim() || name || fullAddress || ''
-    };
-  }
-  return {
-    region: '',
-    detail: (name ? `${fullAddress} ${name}` : fullAddress).trim()
-  };
-}
+const { splitRegionDetail } = require('../../utils/address.js');
 
 Page({
   data: {

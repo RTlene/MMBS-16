@@ -39,6 +39,10 @@
         auto-height
       />
     </view>
+    <view class="field map-choose-row">
+      <text class="field-label">地图选址</text>
+      <button class="map-btn" size="mini" type="primary" bindtap="onChooseLocation">选择地点</button>
+    </view>
   </view>
 
   <!-- 商品列表 -->

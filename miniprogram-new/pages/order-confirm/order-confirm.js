@@ -4,6 +4,7 @@
 
 const request = require('../../utils/request.js');
 const { API } = require('../../config/api.js');
+const { splitRegionDetail } = require('../../utils/address.js');
 
 Page({
   data: {
@@ -19,6 +20,8 @@ Page({
     receiverName: '',
     receiverPhone: '',
     shippingAddress: '',
+    shippingRegion: '',   // 地图选点时的省市区，用于保存到地址管理
+    shippingDetail: '',  // 地图选点时的详细地址
     remark: '',
     submitting: false,
     // 佣金和积分相关
@@ -131,8 +134,29 @@ Page({
       selectedAddressId: addr.id,
       receiverName: addr.name || '',
       receiverPhone: addr.phone || '',
-      shippingAddress: `${addr.region || ''} ${addr.detail || ''}`.trim()
+      shippingAddress: `${addr.region || ''} ${addr.detail || ''}`.trim(),
+      shippingRegion: addr.region || '',
+      shippingDetail: addr.detail || ''
     });
+  },
+
+  /** 地图选址（临时地址） */
+  async onChooseLocation() {
+    try {
+      const res = await wx.chooseLocation();
+      if (res && res.address) {
+        const parsed = splitRegionDetail(res.address || '', res.name || '');
+        const fullText = [parsed.region, parsed.detail].filter(Boolean).join(' ').trim();
+        this.setData({
+          shippingAddress: fullText,
+          shippingRegion: parsed.region,
+          shippingDetail: parsed.detail,
+          selectedAddressId: null
+        });
+      }
+    } catch (err) {
+      // 用户取消不提示
+    }
   },
 
   onChooseSavedAddress() {
@@ -484,12 +508,45 @@ Page({
           });
         }
 
-        // 跳转到订单详情页面
-        setTimeout(() => {
+        const goToDetail = () => {
           wx.redirectTo({
             url: `/pages/order-detail/order-detail?id=${orderId}&from=create`
           });
-        }, 1200);
+        };
+
+        // 询问是否将当前收货地址保存到地址管理
+        wx.showModal({
+          title: '保存地址',
+          content: '是否将当前收货地址保存到地址管理中？',
+          success: (modalRes) => {
+            if (modalRes.confirm) {
+              const region = this.data.shippingRegion || '';
+              const detail = this.data.shippingDetail || this.data.shippingAddress || '';
+              if (!receiverName.trim() || !receiverPhone.trim() || !detail.trim()) {
+                goToDetail();
+                return;
+              }
+              request.post(API.ADDRESS.CREATE, {
+                name: receiverName.trim(),
+                phone: receiverPhone.trim(),
+                region: region,
+                detail: detail.trim()
+              }, { needAuth: true, showLoading: false, showError: false })
+                .then((saveRes) => {
+                  if (saveRes.code === 0) {
+                    wx.showToast({ title: '地址已保存', icon: 'success' });
+                  }
+                })
+                .catch(() => {})
+                .finally(() => {
+                  setTimeout(goToDetail, 800);
+                });
+            } else {
+              setTimeout(goToDetail, 500);
+            }
+          },
+          fail: () => setTimeout(goToDetail, 500)
+        });
       } else {
         throw new Error(result.message || '下单失败');
       }
