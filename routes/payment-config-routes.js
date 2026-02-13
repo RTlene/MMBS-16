@@ -1,16 +1,23 @@
 /**
  * 微信支付配置路由
- * 用于保存和读取微信支付配置
+ * 用于保存和读取微信支付配置；证书上传会同步到对象存储，启动时可从存储恢复
  */
 
 const express = require('express');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
+const axios = require('axios');
 const { authenticateToken } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
+const wxCloudStorage = require('../services/wxCloudStorage');
+const cosStorage = require('../services/cosStorage');
 
 const router = express.Router();
+
+const CERT_CERT_NAME = 'apiclient_cert.pem';
+const CERT_KEY_NAME = 'apiclient_key.pem';
+const CLOUD_CERT_PREFIX = 'cert';
 
 // 证书存储目录（与默认 WX_PAY_CERT_PATH / WX_PAY_KEY_PATH 一致）
 const CERT_DIR = path.join(__dirname, '../cert');
@@ -96,6 +103,102 @@ function saveConfig(config) {
 function maskSecret(secret) {
     if (!secret) return '';
     return '***已保存***';
+}
+
+/**
+ * 将本地证书文件上传到对象存储，优先云托管，其次 COS
+ * @param {string} localPath - 本地文件路径
+ * @param {string} cloudName - 云上文件名，如 apiclient_cert.pem
+ * @returns {Promise<{ type: 'wxcloud'|'cos', ref: string }|null>}
+ */
+async function uploadCertToStorage(localPath, cloudName) {
+    if (!fs.existsSync(localPath)) return null;
+    const cloudPath = `${CLOUD_CERT_PREFIX}/${cloudName}`;
+    if (wxCloudStorage.isConfigured()) {
+        try {
+            const fileId = await wxCloudStorage.uploadFromPath(localPath, cloudPath);
+            return { type: 'wxcloud', ref: fileId };
+        } catch (e) {
+            console.warn('[PaymentConfig] 云托管证书上传失败:', e.message);
+        }
+    }
+    if (cosStorage.isConfigured()) {
+        try {
+            const objectKey = `${CLOUD_CERT_PREFIX}/${cloudName}`;
+            const url = await cosStorage.uploadFromPath(localPath, objectKey);
+            return { type: 'cos', ref: objectKey };
+        } catch (e) {
+            console.warn('[PaymentConfig] COS 证书上传失败:', e.message);
+        }
+    }
+    if (!wxCloudStorage.isConfigured() && !cosStorage.isConfigured()) {
+        console.warn('[PaymentConfig] 未配置对象存储（WX_CLOUD_ENV/CBR_ENV_ID 或 COS_BUCKET+COS_REGION），证书无法同步到对象存储，重启后需重新上传证书');
+    }
+    return null;
+}
+
+/**
+ * 从对象存储下载证书到本地（用于实例启动时恢复）
+ * @param {string} type - 'wxcloud'|'cos'
+ * @param {string} ref - file_id 或 objectKey
+ * @param {string} localPath - 写入的本地路径
+ * @returns {Promise<boolean>}
+ */
+async function downloadCertFromStorage(type, ref, localPath) {
+    let url = '';
+    if (type === 'wxcloud' && ref) {
+        try {
+            url = await wxCloudStorage.getTempDownloadUrl(ref, 3600);
+        } catch (e) {
+            console.warn('[PaymentConfig] 获取云托管证书下载链接失败:', e.message);
+            return false;
+        }
+    } else if (type === 'cos' && ref) {
+        try {
+            url = await cosStorage.getSignedUrl(ref, 3600);
+        } catch (e) {
+            console.warn('[PaymentConfig] 获取 COS 证书签名链接失败:', e.message);
+            return false;
+        }
+    }
+    if (!url) return false;
+    try {
+        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+        const dir = path.dirname(localPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(localPath, res.data, { mode: 0o600 });
+        return true;
+    } catch (e) {
+        console.warn('[PaymentConfig] 下载证书到本地失败:', e.message);
+        return false;
+    }
+}
+
+/**
+ * 若本地证书不存在且配置中有对象存储引用，则从存储恢复到 cert 目录（供启动时调用）
+ */
+async function ensureCertFromStorage() {
+    const config = readConfig();
+    const certPath = path.join(CERT_DIR, CERT_CERT_NAME);
+    const keyPath = path.join(CERT_DIR, CERT_KEY_NAME);
+    let restored = false;
+    if (!fs.existsSync(certPath) && config.certStorageRef && config.certStorageType) {
+        const ok = await downloadCertFromStorage(config.certStorageType, config.certStorageRef, certPath);
+        if (ok) {
+            process.env.WX_PAY_CERT_PATH = certPath;
+            restored = true;
+            console.log('[PaymentConfig] 已从对象存储恢复商户证书');
+        }
+    }
+    if (!fs.existsSync(keyPath) && config.keyStorageRef && config.keyStorageType) {
+        const ok = await downloadCertFromStorage(config.keyStorageType, config.keyStorageRef, keyPath);
+        if (ok) {
+            process.env.WX_PAY_KEY_PATH = keyPath;
+            restored = true;
+            console.log('[PaymentConfig] 已从对象存储恢复商户私钥');
+        }
+    }
+    return restored;
 }
 
 function normalizeBaseUrl(url) {
@@ -384,7 +487,7 @@ router.post('/upload-cert', authenticateToken, (req, res, next) => {
         }
         next();
     });
-}, (req, res) => {
+}, async (req, res) => {
     try {
         const files = req.files || {};
         const certFile = Array.isArray(files.certFile) ? files.certFile[0] : files.certFile;
@@ -397,18 +500,38 @@ router.post('/upload-cert', authenticateToken, (req, res, next) => {
             });
         }
 
-        const certPath = path.join(CERT_DIR, 'apiclient_cert.pem');
-        const keyPath = path.join(CERT_DIR, 'apiclient_key.pem');
+        const certPath = path.join(CERT_DIR, CERT_CERT_NAME);
+        const keyPath = path.join(CERT_DIR, CERT_KEY_NAME);
         const certSaved = !!certFile;
         const keySaved = !!keyFile;
 
-        // 更新当前进程环境变量指向默认路径（与保存路径一致）
+        // 同步到对象存储并写入配置引用，便于实例重启后恢复
+        const config = readConfig();
+        if (certSaved) {
+            const certStorage = await uploadCertToStorage(certPath, CERT_CERT_NAME);
+            if (certStorage) {
+                config.certStorageType = certStorage.type;
+                config.certStorageRef = certStorage.ref;
+            }
+        }
+        if (keySaved) {
+            const keyStorage = await uploadCertToStorage(keyPath, CERT_KEY_NAME);
+            if (keyStorage) {
+                config.keyStorageType = keyStorage.type;
+                config.keyStorageRef = keyStorage.ref;
+            }
+        }
+        if ((certSaved || keySaved) && (config.certStorageRef || config.keyStorageRef)) {
+            saveConfig(config);
+        }
+
         process.env.WX_PAY_CERT_PATH = certPath;
         process.env.WX_PAY_KEY_PATH = keyPath;
 
         const messages = [];
         if (certSaved) messages.push('商户证书已上传');
         if (keySaved) messages.push('商户私钥已上传');
+        if (config.certStorageRef || config.keyStorageRef) messages.push('已同步至对象存储');
 
         res.json({
             code: 0,
@@ -457,7 +580,7 @@ router.post('/upload-cert-zip', authenticateToken, (req, res, next) => {
         }
         next();
     });
-}, (req, res) => {
+}, async (req, res) => {
     try {
         if (!req.file || !req.file.buffer) {
             return res.status(400).json({
@@ -486,8 +609,8 @@ router.post('/upload-cert-zip', authenticateToken, (req, res, next) => {
             });
         }
 
-        const certPath = path.join(CERT_DIR, 'apiclient_cert.pem');
-        const keyPath = path.join(CERT_DIR, 'apiclient_key.pem');
+        const certPath = path.join(CERT_DIR, CERT_CERT_NAME);
+        const keyPath = path.join(CERT_DIR, CERT_KEY_NAME);
 
         if (certEntry) {
             fs.writeFileSync(certPath, certEntry.getData(), { mode: 0o600 });
@@ -496,12 +619,32 @@ router.post('/upload-cert-zip', authenticateToken, (req, res, next) => {
             fs.writeFileSync(keyPath, keyEntry.getData(), { mode: 0o600 });
         }
 
+        const config = readConfig();
+        if (certEntry) {
+            const certStorage = await uploadCertToStorage(certPath, CERT_CERT_NAME);
+            if (certStorage) {
+                config.certStorageType = certStorage.type;
+                config.certStorageRef = certStorage.ref;
+            }
+        }
+        if (keyEntry) {
+            const keyStorage = await uploadCertToStorage(keyPath, CERT_KEY_NAME);
+            if (keyStorage) {
+                config.keyStorageType = keyStorage.type;
+                config.keyStorageRef = keyStorage.ref;
+            }
+        }
+        if ((certEntry || keyEntry) && (config.certStorageRef || config.keyStorageRef)) {
+            saveConfig(config);
+        }
+
         process.env.WX_PAY_CERT_PATH = certPath;
         process.env.WX_PAY_KEY_PATH = keyPath;
 
         const parts = [];
         if (certEntry) parts.push('商户证书');
         if (keyEntry) parts.push('商户私钥');
+        if (config.certStorageRef || config.keyStorageRef) parts.push('已同步至对象存储');
 
         res.json({
             code: 0,
@@ -524,3 +667,4 @@ router.post('/upload-cert-zip', authenticateToken, (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.ensureCertFromStorage = ensureCertFromStorage;

@@ -226,8 +226,21 @@ router.delete('/:productId/:filename', async (req, res) => {
 });
 
 /**
- * 删除指定商品的所有上传文件（磁盘目录 + 清空 DB 中的 images/detailImages/videos）
- * 供 product-routes 删除商品时直接调用，避免在 Cloud Run 等环境请求 localhost 导致 ECONNREFUSED。
+ * 收集商品所有媒体 URL（images + detailImages + videos）
+ */
+function collectProductFileUrls(product) {
+    const list = [];
+    for (const field of ['images', 'detailImages', 'videos']) {
+        const arr = product[field];
+        if (Array.isArray(arr)) list.push(...arr);
+        else if (arr) list.push(arr);
+    }
+    return list.filter(u => typeof u === 'string' && u.trim()).map(u => u.trim());
+}
+
+/**
+ * 删除指定商品的所有上传文件（本地磁盘 + 对象存储中的 COS 文件 + 清空 DB）
+ * 云托管 file_id(cloud://) 需在控制台或后续对接删除 API 清理。
  * @param {string|number} productId
  * @returns {{ ok: boolean, message?: string }}
  */
@@ -235,6 +248,20 @@ async function deleteProductFiles(productId) {
     const product = await Product.findByPk(productId);
     if (!product) {
         return { ok: false, message: '商品不存在' };
+    }
+    const urls = collectProductFileUrls(product);
+    if (cosStorage.isConfigured() && urls.length > 0) {
+        for (const url of urls) {
+            const key = cosStorage.parseObjectKeyFromUrl(url);
+            if (key) {
+                try {
+                    await cosStorage.deleteObject(key);
+                    console.log('[ProductFiles] 已从 COS 删除:', key);
+                } catch (e) {
+                    console.warn('[ProductFiles] COS 删除失败:', key, e.message);
+                }
+            }
+        }
     }
     const productDir = path.join(uploadDir, String(productId));
     if (fs.existsSync(productDir)) {

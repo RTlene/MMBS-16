@@ -229,6 +229,11 @@ async function bootstrap() {
   if (typeof ensureCertFromStorage === 'function') {
     try {
       await ensureCertFromStorage();
+      const wechatPayService = require('./services/wechatPayService');
+      if (wechatPayService && typeof wechatPayService.refreshFromEnv === 'function') {
+        wechatPayService.refreshFromEnv();
+        console.log('[Startup] 已刷新微信支付证书（从对象存储恢复后）');
+      }
     } catch (e) {
       console.warn('[Startup] 从对象存储恢复证书失败:', e.message);
     }

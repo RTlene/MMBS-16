@@ -99,16 +99,37 @@ router.get('/', authenticateToken, async (req, res) => {
 
 /**
  * 获取提现申请详情（后台）
+ * 遇数据库连接重置(ECONNRESET)时自动重试一次
  */
 router.get('/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const withdrawal = await CommissionWithdrawal.findByPk(id, {
+  const { id } = req.params;
+  const findDetail = async () =>
+    CommissionWithdrawal.findByPk(id, {
       include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission'] }]
     });
+  let withdrawal = null;
+  try {
+    withdrawal = await findDetail();
     if (!withdrawal) {
       return res.status(404).json({ code: 1, message: '提现申请不存在' });
     }
+  } catch (error) {
+    const isConnReset = error.code === 'ECONNRESET' || (error.name === 'SequelizeDatabaseError' && /ECONNRESET/i.test(String(error.original)));
+    if (isConnReset) {
+      try {
+        await new Promise(r => setTimeout(r, 200));
+        withdrawal = await findDetail();
+      } catch (retryErr) {
+        console.error('获取提现详情失败(重试后):', retryErr);
+        return res.status(500).json({ code: 1, message: '获取提现详情失败', error: retryErr.message });
+      }
+    } else {
+      console.error('获取提现详情失败:', error);
+      return res.status(500).json({ code: 1, message: '获取提现详情失败', error: error.message });
+    }
+    if (!withdrawal) return res.status(404).json({ code: 1, message: '提现申请不存在' });
+  }
+  try {
     const m = withdrawal.member || {};
     res.json({
       code: 0,
@@ -137,9 +158,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
         }
       }
     });
-  } catch (error) {
-    console.error('获取提现详情失败:', error);
-    res.status(500).json({ code: 1, message: '获取提现详情失败', error: error.message });
+  } catch (e) {
+    res.status(500).json({ code: 1, message: '获取提现详情失败', error: e.message });
   }
 });
 

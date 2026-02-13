@@ -134,6 +134,29 @@ function uploadFromPath(localFilePath, objectKey) {
 }
 
 /**
+ * 删除 COS 上的对象
+ * @param {string} objectKey - 对象键，如 products/1/xxx.jpg
+ * @returns {Promise<void>}
+ */
+function deleteObject(objectKey) {
+    const client = getClient();
+    const Bucket = process.env.COS_BUCKET;
+    const Region = process.env.COS_REGION;
+    if (!client || !Bucket || !Region) {
+        return Promise.reject(new Error('COS 未配置'));
+    }
+    return new Promise((resolve, reject) => {
+        client.deleteObject(
+            { Bucket, Region, Key: objectKey },
+            (err) => {
+                if (err) reject(err);
+                else resolve();
+            }
+        );
+    });
+}
+
+/**
  * 根据对象键得到公网访问 URL
  * 若配置了 COS_DOMAIN（如 CDN 域名），则返回 https://COS_DOMAIN/Key；否则使用 COS 默认域名
  */
@@ -205,6 +228,7 @@ module.exports = {
     isConfigured,
     getObjectKey,
     uploadFromPath,
+    deleteObject,
     getPublicUrl,
     parseObjectKeyFromUrl,
     getSignedUrl
