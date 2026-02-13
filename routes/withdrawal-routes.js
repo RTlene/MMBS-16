@@ -103,7 +103,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const withdrawal = await CommissionWithdrawal.findByPk(id, {
-      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission', 'totalCommission'] }]
+      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission'] }]
     });
     if (!withdrawal) {
       return res.status(404).json({ code: 1, message: '提现申请不存在' });
