@@ -1,6 +1,6 @@
 /**
  * 微信云托管自带对象存储
- * 使用 tcb/uploadfile、tcb/batchdownloadfile，需在控制台开通「开放接口服务」并配置 /tcb/uploadfile、/tcb/batchdownloadfile 权限。
+ * 使用 tcb/uploadfile、tcb/batchdownloadfile、tcb/batchdeletefile，需在控制台开通「开放接口服务」并配置对应 tcb 权限。
  * 环境变量：WX_CLOUD_ENV 或 CBR_ENV_ID（云托管环境 ID）
  */
 
@@ -115,9 +115,55 @@ async function getTempDownloadUrl(fileId, maxAge = 86400) {
     return list[0].download_url || '';
 }
 
+/**
+ * 批量删除云托管对象存储中的文件（一次最多 50 个）
+ * @param {string[]} fileIds - file_id 列表，如 ['cloud://xxx', 'cloud://yyy']
+ * @returns {Promise<{ deleted: number, failed: Array<{ fileId: string, errMsg: string }> }>}
+ */
+async function deleteFiles(fileIds) {
+    const env = getEnv().trim();
+    if (!env) return Promise.reject(new Error('未配置 WX_CLOUD_ENV 或 CBR_ENV_ID'));
+    const list = (Array.isArray(fileIds) ? fileIds : [fileIds]).filter(id => typeof id === 'string' && id.trim().startsWith('cloud://'));
+    if (list.length === 0) return { deleted: 0, failed: [] };
+    if (list.length > 50) {
+        const first = await deleteFiles(list.slice(0, 50));
+        const rest = await deleteFiles(list.slice(50));
+        return { deleted: first.deleted + rest.deleted, failed: [...first.failed, ...rest.failed] };
+    }
+    const res = await axios.post(
+        `${WX_API}/tcb/batchdeletefile`,
+        { env, fileid_list: list },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 15000, validateStatus: () => true }
+    );
+    const data = res.data;
+    if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch (_) {}
+    }
+    const payload = (data && data.respdata) ? data.respdata : data;
+    if (payload && payload.errcode != null && payload.errcode !== 0) {
+        throw new Error(payload.errmsg || 'tcb/batchdeletefile 失败: ' + JSON.stringify(payload));
+    }
+    const deleteList = payload && Array.isArray(payload.delete_list) ? payload.delete_list : [];
+    let deleted = 0;
+    const failed = [];
+    for (let i = 0; i < deleteList.length; i++) {
+        const item = deleteList[i];
+        const fileId = typeof item === 'string' ? item : (item && item.fileid);
+        const status = item && item.status;
+        const errMsg = (item && item.errmsg) || '';
+        if (typeof item === 'string' || status === 0) deleted++;
+        else failed.push({ fileId: fileId || list[i], errMsg: errMsg || '删除失败' });
+    }
+    if (deleteList.length === 0 && list.length > 0) {
+        console.warn('[wxCloudStorage] tcb/batchdeletefile 返回无 delete_list，可能需在控制台配置 tcb/batchdeletefile 权限');
+    }
+    return { deleted, failed };
+}
+
 module.exports = {
     isConfigured,
     getCloudPath,
     uploadFromPath,
-    getTempDownloadUrl
+    getTempDownloadUrl,
+    deleteFiles
 };

@@ -239,8 +239,7 @@ function collectProductFileUrls(product) {
 }
 
 /**
- * 删除指定商品的所有上传文件（本地磁盘 + 对象存储中的 COS 文件 + 清空 DB）
- * 云托管 file_id(cloud://) 需在控制台或后续对接删除 API 清理。
+ * 删除指定商品的所有上传文件（本地磁盘 + 云托管/COS 对象存储 + 清空 DB）
  * @param {string|number} productId
  * @returns {{ ok: boolean, message?: string }}
  */
@@ -250,8 +249,20 @@ async function deleteProductFiles(productId) {
         return { ok: false, message: '商品不存在' };
     }
     const urls = collectProductFileUrls(product);
-    if (cosStorage.isConfigured() && urls.length > 0) {
-        for (const url of urls) {
+    const cloudFileIds = urls.filter(u => typeof u === 'string' && u.trim().startsWith('cloud://'));
+    const cosUrls = urls.filter(u => typeof u === 'string' && !u.trim().startsWith('cloud://'));
+
+    if (wxCloudStorage.isConfigured() && cloudFileIds.length > 0) {
+        try {
+            const result = await wxCloudStorage.deleteFiles(cloudFileIds);
+            console.log('[ProductFiles] 云托管删除:', result.deleted, '个成功', result.failed.length ? `，${result.failed.length} 个失败` : '');
+            result.failed.forEach(f => console.warn('[ProductFiles] 云托管删除失败:', f.fileId, f.errMsg));
+        } catch (e) {
+            console.warn('[ProductFiles] 云托管批量删除失败:', e.message);
+        }
+    }
+    if (cosStorage.isConfigured() && cosUrls.length > 0) {
+        for (const url of cosUrls) {
             const key = cosStorage.parseObjectKeyFromUrl(url);
             if (key) {
                 try {
