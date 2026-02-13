@@ -71,7 +71,7 @@ Page({
    */
   onAccountTypeChange(e) {
     const index = parseInt(e.detail.value);
-    const types = ['wechat', 'alipay', 'bank'];
+    const types = ['wechat', 'bank'];
     const type = types[index];
     this.setData({
       'form.accountType': type,

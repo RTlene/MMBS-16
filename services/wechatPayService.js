@@ -314,6 +314,76 @@ class WeChatPayService {
     }
 
     /**
+     * 商家转账到零钱（单笔）
+     * @param {Object} params
+     * @param {string} params.outBatchNo - 商户批次单号（唯一，仅数字字母）
+     * @param {string} params.openid - 收款用户 openid
+     * @param {number} params.amountCents - 转账金额（单位：分）
+     * @param {string} [params.remark] - 转账备注（用户可见，最多32字符）
+     * @param {string} [params.userName] - 收款用户姓名（>=2000元时必填，需与 openid 一致）
+     * @returns {Promise<{ out_batch_no, batch_id, create_time, batch_status }>}
+     */
+    async transferToBalance(params) {
+        const { outBatchNo, openid, amountCents, remark, userName } = params;
+        this.refreshFromEnv();
+        const appId = process.env.WX_APPID;
+        const mchId = process.env.WX_MCHID;
+        if (!appId || !mchId) throw new Error('微信支付配置不完整，请检查 WX_APPID 和 WX_MCHID');
+        if (!this.privateKey || !this.certSerialNo) throw new Error('商户证书/私钥未配置');
+        if (!openid || amountCents == null || amountCents < 1) throw new Error('转账参数无效：openid 与金额（分）必填且金额大于 0');
+
+        const outDetailNo = (outBatchNo + '_1').substring(0, 32);
+        const batchName = '佣金提现';
+        const batchRemark = (remark || '佣金提现').substring(0, 32);
+        const transferRemark = (remark || '佣金提现').substring(0, 32);
+        const totalAmount = Math.round(Number(amountCents));
+        const totalNum = 1;
+
+        const detail = {
+            out_detail_no: outDetailNo,
+            transfer_amount: totalAmount,
+            transfer_remark: transferRemark,
+            openid: openid
+        };
+        if (userName && userName.trim()) detail.user_name = userName.trim();
+
+        const requestBody = {
+            appid: appId,
+            out_batch_no: String(outBatchNo).substring(0, 32),
+            batch_name: batchName,
+            batch_remark: batchRemark,
+            total_amount: totalAmount,
+            total_num: totalNum,
+            transfer_detail_list: [detail]
+        };
+
+        const urlPath = '/v3/transfer/batches';
+        const bodyStr = JSON.stringify(requestBody);
+        const baseUrl = 'https://api.mch.weixin.qq.com';
+        const authHeader = this.generateAuthHeader('POST', urlPath, bodyStr);
+
+        try {
+            const response = await axios.post(baseUrl + urlPath, requestBody, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authHeader,
+                    'Accept': 'application/json',
+                    'User-Agent': 'WeChatPay-APIv3-NodeJS'
+                },
+                timeout: 15000,
+                httpsAgent
+            });
+            return response.data;
+        } catch (error) {
+            const wxData = error.response?.data;
+            const code = wxData?.code;
+            const message = wxData?.message || error.message;
+            console.error('[WeChatPay] 商家转账失败:', { code, message, detail: wxData });
+            throw new Error(message || '商家转账失败');
+        }
+    }
+
+    /**
      * 验证支付回调签名
      * @param {Object} headers - 请求头
      * @param {string} body - 请求体

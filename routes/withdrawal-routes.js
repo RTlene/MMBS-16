@@ -5,6 +5,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { CommissionWithdrawal, Member } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const wechatPayService = require('../services/wechatPayService');
 
 const router = express.Router();
 
@@ -60,7 +61,7 @@ router.get('/', authenticateToken, async (req, res) => {
         memberPhone: m.phone,
         amount: w.amount,
         accountType: w.accountType,
-        accountTypeText: w.accountType === 'wechat' ? '微信' : w.accountType === 'alipay' ? '支付宝' : '银行卡',
+        accountTypeText: w.accountType === 'wechat' ? '微信钱包' : w.accountType === 'alipay' ? '支付宝' : '银行',
         accountName: w.accountName,
         accountNumber: w.accountNumber,
         bankName: w.bankName,
@@ -121,7 +122,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
           memberPhone: m.phone,
           amount: withdrawal.amount,
           accountType: withdrawal.accountType,
-          accountTypeText: withdrawal.accountType === 'wechat' ? '微信' : withdrawal.accountType === 'alipay' ? '支付宝' : '银行卡',
+          accountTypeText: withdrawal.accountType === 'wechat' ? '微信钱包' : withdrawal.accountType === 'alipay' ? '支付宝' : '银行',
           accountName: withdrawal.accountName,
           accountNumber: withdrawal.accountNumber,
           bankName: withdrawal.bankName,
@@ -144,6 +145,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 /**
  * 通过审核（待审核 -> 已通过）
+ * 若账户类型为微信钱包，通过时立即发起商家转账到零钱，成功后再扣减冻结佣金
  */
 router.put('/:id/approve', authenticateToken, async (req, res) => {
   try {
@@ -153,12 +155,45 @@ router.put('/:id/approve', authenticateToken, async (req, res) => {
     if (withdrawal.status !== 'pending') {
       return res.status(400).json({ code: 1, message: '只能审核待审核状态的申请' });
     }
+    const member = withdrawal.member;
+    if (!member) return res.status(500).json({ code: 1, message: '会员信息不存在' });
+    const amount = parseFloat(withdrawal.amount);
+
+    if (withdrawal.accountType === 'wechat') {
+      const openid = member.openid;
+      if (!openid || !openid.trim()) {
+        return res.status(400).json({ code: 1, message: '该会员未绑定微信 openid，无法发起微信转账' });
+      }
+      const amountCents = Math.round(amount * 100);
+      try {
+        await wechatPayService.transferToBalance({
+          outBatchNo: withdrawal.withdrawalNo,
+          openid: openid.trim(),
+          amountCents,
+          remark: '佣金提现'
+        });
+      } catch (err) {
+        console.error('[Withdrawal] 商家转账失败:', err);
+        return res.status(500).json({
+          code: 1,
+          message: err.message || '微信转账发起失败，请检查商户号是否开通商家转账及日限额'
+        });
+      }
+      await member.update({
+        frozenCommission: Math.max(0, parseFloat(member.frozenCommission || 0) - amount)
+      });
+    }
+
     await withdrawal.update({
       status: 'approved',
       processedBy: req.user.id,
       processedAt: new Date()
     });
-    res.json({ code: 0, message: '已通过审核', data: { withdrawal: { id: withdrawal.id, status: withdrawal.status } } });
+    res.json({
+      code: 0,
+      message: withdrawal.accountType === 'wechat' ? '已通过并已发起微信转账' : '已通过审核',
+      data: { withdrawal: { id: withdrawal.id, status: 'approved' } }
+    });
   } catch (error) {
     console.error('审核通过失败:', error);
     res.status(500).json({ code: 1, message: '操作失败', error: error.message });
@@ -198,7 +233,8 @@ router.put('/:id/reject', authenticateToken, async (req, res) => {
 });
 
 /**
- * 标记已完成（已通过/处理中 -> 已完成，扣减冻结佣金）
+ * 标记已完成（已通过/处理中 -> 已完成）
+ * 微信钱包：通过时已转账并已扣冻结，此处仅更新状态；银行：此处扣减冻结佣金并更新状态
  */
 router.put('/:id/complete', authenticateToken, async (req, res) => {
   try {
@@ -211,12 +247,16 @@ router.put('/:id/complete', authenticateToken, async (req, res) => {
     const member = withdrawal.member;
     if (!member) return res.status(500).json({ code: 1, message: '会员信息不存在' });
     const amount = parseFloat(withdrawal.amount);
+
+    if (withdrawal.accountType === 'bank') {
+      await member.update({
+        frozenCommission: Math.max(0, parseFloat(member.frozenCommission || 0) - amount)
+      });
+    }
+
     await withdrawal.update({
       status: 'completed',
       completedAt: new Date()
-    });
-    await member.update({
-      frozenCommission: Math.max(0, parseFloat(member.frozenCommission || 0) - amount)
     });
     res.json({ code: 0, message: '已标记为已完成', data: { withdrawal: { id: withdrawal.id, status: 'completed' } } });
   } catch (error) {

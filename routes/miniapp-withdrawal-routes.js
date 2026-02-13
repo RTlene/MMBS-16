@@ -39,10 +39,10 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        if (!accountType || !['wechat', 'alipay', 'bank'].includes(accountType)) {
+        if (!accountType || !['wechat', 'bank'].includes(accountType)) {
             return res.status(400).json({
                 code: 1,
-                message: '账户类型无效'
+                message: '账户类型无效（仅支持微信钱包、银行）'
             });
         }
 
@@ -179,7 +179,7 @@ router.get('/withdrawals', authenticateMiniappUser, async (req, res) => {
             withdrawalNo: w.withdrawalNo,
             amount: w.amount,
             accountType: w.accountType,
-            accountTypeText: w.accountType === 'wechat' ? '微信' : w.accountType === 'alipay' ? '支付宝' : '银行卡',
+            accountTypeText: w.accountType === 'wechat' ? '微信钱包' : '银行',
             accountName: w.accountName,
             accountNumber: w.accountNumber ? w.accountNumber.replace(/(\d{4})\d+(\d{4})/, '$1****$2') : '', // 脱敏处理
             bankName: w.bankName,
@@ -245,7 +245,7 @@ router.get('/withdrawals/:id', authenticateMiniappUser, async (req, res) => {
                     withdrawalNo: withdrawal.withdrawalNo,
                     amount: withdrawal.amount,
                     accountType: withdrawal.accountType,
-                    accountTypeText: withdrawal.accountType === 'wechat' ? '微信' : withdrawal.accountType === 'alipay' ? '支付宝' : '银行卡',
+                    accountTypeText: withdrawal.accountType === 'wechat' ? '微信钱包' : '银行',
                     accountName: withdrawal.accountName,
                     accountNumber: withdrawal.accountNumber,
                     bankName: withdrawal.bankName,

@@ -24,13 +24,13 @@
       <text class="label">账户类型</text>
       <picker 
         mode="selector" 
-        range="{{['微信', '支付宝', '银行卡']}}"
+        range="{{['微信钱包', '银行']}}"
         range-key=""
-        value="{{form.accountType === 'wechat' ? 0 : form.accountType === 'alipay' ? 1 : 2}}"
+        value="{{form.accountType === 'wechat' ? 0 : 1}}"
         bindchange="onAccountTypeChange"
       >
         <view class="picker">
-          {{form.accountType === 'wechat' ? '微信' : form.accountType === 'alipay' ? '支付宝' : '银行卡'}}
+          {{form.accountType === 'wechat' ? '微信钱包' : '银行'}}
           <text class="arrow">></text>
         </view>
       </picker>
