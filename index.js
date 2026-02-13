@@ -18,6 +18,7 @@ const memberRoutes = require('./routes/member-routes');
 const orderRoutes = require('./routes/order-routes');
 const returnRequestRoutes = require('./routes/return-request-routes');
 const refundRecordRoutes = require('./routes/refund-record-routes');
+const withdrawalRoutes = require('./routes/withdrawal-routes');
 const pointMallRoutes = require('./routes/point-mall-routes');
 const promotionRoutes = require('./routes/promotion-routes');
 const referralRewardRoutes = require('./routes/referral-reward-routes');
@@ -95,6 +96,8 @@ app.use('/api/orders', require('./middleware/auth').authenticateToken, orderRout
 app.use('/api/return-requests', require('./middleware/auth').authenticateToken, returnRequestRoutes);
 // 添加退款管理路由
 app.use('/api/refund-records', require('./middleware/auth').authenticateToken, refundRecordRoutes);
+// 添加佣金提现管理路由（后台）
+app.use('/api/withdrawals', require('./middleware/auth').authenticateToken, withdrawalRoutes);
 // 添加积分商城管理路由
 app.use('/api/point-mall', require('./middleware/auth').authenticateToken, pointMallRoutes);
 // 添加促销活动管理路由
@@ -116,8 +119,9 @@ const articleRoutes = require('./routes/article-routes');
 app.use('/api/articles', require('./middleware/auth').authenticateToken, articleRoutes);
 // 添加积分设置管理路由
 app.use('/api/point-settings', require('./middleware/auth').authenticateToken, pointSettingsRoutes);
-// 添加微信支付配置路由
+// 添加微信支付配置路由（含证书对象存储恢复）
 const paymentConfigRoutes = require('./routes/payment-config-routes');
+const ensureCertFromStorage = paymentConfigRoutes.ensureCertFromStorage;
 app.use('/api/payment-config', require('./middleware/auth').authenticateToken, paymentConfigRoutes);
 // 添加图片压缩管理路由
 app.use('/api/compress', compressRoutes);
@@ -222,6 +226,13 @@ function loadPaymentConfigIntoEnv() {
 
 async function bootstrap() {
   loadPaymentConfigIntoEnv();
+  if (typeof ensureCertFromStorage === 'function') {
+    try {
+      await ensureCertFromStorage();
+    } catch (e) {
+      console.warn('[Startup] 从对象存储恢复证书失败:', e.message);
+    }
+  }
   // 先启动 HTTP 服务（保证云托管存活/就绪探针通过），再在后台初始化数据库
   app.listen(port, () => {
     console.log(`[Startup] HTTP 已监听端口 ${port}，耗时 ${Date.now() - startupAt}ms`);

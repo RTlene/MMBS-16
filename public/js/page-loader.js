@@ -77,6 +77,11 @@ const pageInitFunctions = {
     },
     'wechat-payment-config': () => {
         if (typeof loadConfig === 'function') loadConfig();
+    },
+    'withdrawal-management': () => {
+        if (window.WithdrawalManagement && window.WithdrawalManagement.init) {
+            window.WithdrawalManagement.init();
+        }
     }
 };
 
