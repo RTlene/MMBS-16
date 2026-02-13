@@ -37,7 +37,6 @@ router.get('/', authenticateToken, async (req, res) => {
         { withdrawalNo: { [Op.like]: `%${searchTrim}%` } },
         { '$member.nickname$': { [Op.like]: `%${searchTrim}%` } },
         { '$member.phone$': { [Op.like]: `%${searchTrim}%` } },
-        { '$member.mobile$': { [Op.like]: `%${searchTrim}%` } },
         { accountName: { [Op.like]: `%${searchTrim}%` } },
         { accountNumber: { [Op.like]: `%${searchTrim}%` } }
       ];
@@ -45,7 +44,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const { count, rows } = await CommissionWithdrawal.findAndCountAll({
       where,
-      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'mobile', 'openid', 'availableCommission', 'frozenCommission'] }],
+      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission'] }],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset
@@ -58,7 +57,7 @@ router.get('/', authenticateToken, async (req, res) => {
         withdrawalNo: w.withdrawalNo,
         memberId: w.memberId,
         memberNickname: m.nickname,
-        memberPhone: m.phone || m.mobile,
+        memberPhone: m.phone,
         amount: w.amount,
         accountType: w.accountType,
         accountTypeText: w.accountType === 'wechat' ? '微信' : w.accountType === 'alipay' ? '支付宝' : '银行卡',
@@ -104,7 +103,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const withdrawal = await CommissionWithdrawal.findByPk(id, {
-      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'mobile', 'openid', 'availableCommission', 'frozenCommission', 'totalCommission'] }]
+      include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission', 'totalCommission'] }]
     });
     if (!withdrawal) {
       return res.status(404).json({ code: 1, message: '提现申请不存在' });
@@ -119,7 +118,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
           withdrawalNo: withdrawal.withdrawalNo,
           memberId: withdrawal.memberId,
           memberNickname: m.nickname,
-          memberPhone: m.phone || m.mobile,
+          memberPhone: m.phone,
           amount: withdrawal.amount,
           accountType: withdrawal.accountType,
           accountTypeText: withdrawal.accountType === 'wechat' ? '微信' : withdrawal.accountType === 'alipay' ? '支付宝' : '银行卡',
