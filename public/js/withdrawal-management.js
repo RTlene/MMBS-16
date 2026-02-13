@@ -132,13 +132,16 @@ window.WithdrawalManagement = {
     tbody.innerHTML = list.map(w => {
       const accountInfo = w.accountType === 'bank' ? (w.bankName || '') + ' ' + (w.accountNumber || '') : (w.accountNumber || '');
       const time = w.createdAt ? new Date(w.createdAt).toLocaleString() : '-';
+      const isAutoFail = (w.adminRemark || '').indexOf('[自动通过失败]') === 0;
+      const statusCell = '<span class="status-badge ' + this.statusClass(w.status) + '">' + (w.statusText || w.status) + '</span>' +
+        (isAutoFail ? '<br><small class="status-auto-fail">自动通过失败，待人工审核</small>' : '');
       return '<tr>' +
         '<td>' + (w.withdrawalNo || '-') + '</td>' +
         '<td>' + (w.memberNickname || '-') + '<br><small>' + (w.memberPhone || '') + '</small></td>' +
         '<td>¥' + (parseFloat(w.amount) || 0).toFixed(2) + '</td>' +
         '<td>' + (w.accountTypeText || w.accountType || '-') + '</td>' +
         '<td>' + (w.accountName || '') + ' ' + accountInfo + '</td>' +
-        '<td><span class="status-badge ' + this.statusClass(w.status) + '">' + (w.statusText || w.status) + '</span></td>' +
+        '<td>' + statusCell + '</td>' +
         '<td>' + time + '</td>' +
         '<td><button class="btn btn-primary btn-sm" onclick="window.WithdrawalManagement.openDetail(' + w.id + ')">查看</button></td>' +
         '</tr>';
@@ -203,6 +206,15 @@ window.WithdrawalManagement = {
       document.getElementById('dStatus').textContent = w.statusText || w.status || '-';
       document.getElementById('dCreatedAt').textContent = w.createdAt ? new Date(w.createdAt).toLocaleString() : '-';
       document.getElementById('dRemark').textContent = w.remark || '-';
+      const autoFailPrefix = '[自动通过失败] ';
+      const isAutoFailDetail = (w.adminRemark || '').indexOf(autoFailPrefix) === 0;
+      const autoFailRow = document.getElementById('dAutoFailReasonRow');
+      if (isAutoFailDetail) {
+        autoFailRow.style.display = 'flex';
+        document.getElementById('dAutoFailReason').textContent = w.adminRemark.slice(autoFailPrefix.length) || '未知原因';
+      } else {
+        autoFailRow.style.display = 'none';
+      }
       document.getElementById('dAdminRemark').textContent = w.adminRemark || '-';
       document.getElementById('adminRemarkInput').value = w.adminRemark || '';
 

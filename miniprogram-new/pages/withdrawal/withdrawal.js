@@ -179,9 +179,10 @@ Page({
       }, { needAuth: true });
 
       if (res.code === 0) {
+        const content = res.message || '提现申请已提交，请等待审核';
         wx.showModal({
           title: '提示',
-          content: '提现申请已提交，请等待审核',
+          content: content,
           showCancel: false,
           success: () => {
             wx.navigateBack();

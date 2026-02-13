@@ -315,12 +315,13 @@ class WeChatPayService {
 
     /**
      * 商家转账到零钱（单笔）
+     * 收款人以 openid 标识，不使用账户名；单笔金额>=2000元时微信要求传 userName 与 openid 对应真实姓名一致。
      * @param {Object} params
-     * @param {string} params.outBatchNo - 商户批次单号（唯一，仅数字字母）
-     * @param {string} params.openid - 收款用户 openid
+     * @param {string} params.outBatchNo - 商户批次单号（唯一，仅数字与字母，不能含下划线等）
+     * @param {string} params.openid - 收款用户 openid（必填）
      * @param {number} params.amountCents - 转账金额（单位：分）
      * @param {string} [params.remark] - 转账备注（用户可见，最多32字符）
-     * @param {string} [params.userName] - 收款用户姓名（>=2000元时必填，需与 openid 一致）
+     * @param {string} [params.userName] - 收款用户真实姓名（单笔>=2000元时必填，需与 openid 一致）
      * @returns {Promise<{ out_batch_no, batch_id, create_time, batch_status }>}
      */
     async transferToBalance(params) {
@@ -332,7 +333,9 @@ class WeChatPayService {
         if (!this.privateKey || !this.certSerialNo) throw new Error('商户证书/私钥未配置');
         if (!openid || amountCents == null || amountCents < 1) throw new Error('转账参数无效：openid 与金额（分）必填且金额大于 0');
 
-        const outDetailNo = (outBatchNo + '_1').substring(0, 32);
+        // 微信要求：商户批次单号、商户明细单号仅支持数字和字母，不能含下划线等
+        const batchNoAlnum = String(outBatchNo).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+        const outDetailNo = (batchNoAlnum + '1').substring(0, 32); // 批次内单笔时明细单号 = 批次号+1
         const batchName = '佣金提现';
         const batchRemark = (remark || '佣金提现').substring(0, 32);
         const transferRemark = (remark || '佣金提现').substring(0, 32);
@@ -349,7 +352,7 @@ class WeChatPayService {
 
         const requestBody = {
             appid: appId,
-            out_batch_no: String(outBatchNo).substring(0, 32),
+            out_batch_no: batchNoAlnum,
             batch_name: batchName,
             batch_remark: batchRemark,
             total_amount: totalAmount,

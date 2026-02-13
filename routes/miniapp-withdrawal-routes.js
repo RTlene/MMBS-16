@@ -134,21 +134,29 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
             && withdrawal.accountType === 'wechat'
             && withdrawalAmount <= (parseFloat(autoApprove.maxAmount) || 0);
         let finalWithdrawal = withdrawal;
+        let autoApproveFailed = false;
         if (autoApproved) {
             try {
                 const { withdrawal: updated } = await withdrawalService.performApprove(withdrawal.id, {});
                 finalWithdrawal = updated;
             } catch (err) {
                 console.error('[MiniappWithdrawal] 小额自动通过失败:', err.message);
-                // 不改变响应：仍返回“已提交请等待审核”，后台可手动审核
+                autoApproveFailed = true;
+                const failReason = '[自动通过失败] ' + (err.message || '未知原因');
+                await withdrawal.update({ adminRemark: failReason });
             }
+        }
+
+        let message = '提现申请已提交，请等待审核';
+        if (autoApproved && finalWithdrawal.status === 'approved') {
+            message = '提现申请已提交并自动通过，款项将打至微信零钱';
+        } else if (autoApproveFailed) {
+            message = '提现已提交，但自动打款未成功，请等待人工审核';
         }
 
         res.json({
             code: 0,
-            message: (autoApproved && finalWithdrawal.status === 'approved')
-                ? '提现申请已提交并自动通过，款项将打至微信零钱'
-                : '提现申请已提交，请等待审核',
+            message,
             data: {
                 withdrawal: {
                     id: finalWithdrawal.id,
@@ -156,7 +164,8 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
                     amount: finalWithdrawal.amount,
                     status: finalWithdrawal.status,
                     createdAt: finalWithdrawal.createdAt
-                }
+                },
+                autoApproveFailed: autoApproveFailed
             }
         });
     } catch (error) {
