@@ -1515,6 +1515,16 @@ const CommissionWithdrawal = sequelize.define('CommissionWithdrawal', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '完成时间'
+    },
+    transferBillNo: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+        comment: '微信转账单号（升级版商家转账返回）'
+    },
+    transferPackageInfo: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: '调起确认收款用 package，WAIT_USER_CONFIRM 时需用户在小程序内确认'
     }
 }, {
     tableName: 'commission_withdrawals',

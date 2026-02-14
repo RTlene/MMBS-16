@@ -14,7 +14,9 @@ Page({
       bankBranch: '',
       remark: ''
     },
-    loading: false
+    loading: false,
+    withdrawalList: [],
+    loadingList: false
   },
 
   onLoad() {
@@ -22,6 +24,7 @@ Page({
       auth.login().then(res => {
         if (res.success) {
           this.loadMemberInfo();
+          this.loadWithdrawalList();
         } else {
           wx.navigateBack();
         }
@@ -29,6 +32,85 @@ Page({
       return;
     }
     this.loadMemberInfo();
+    this.loadWithdrawalList();
+  },
+
+  onShow() {
+    if (auth.isLogin()) {
+      this.loadWithdrawalList();
+    }
+  },
+
+  async loadWithdrawalList() {
+    if (this.data.loadingList) return;
+    this.setData({ loadingList: true });
+    try {
+      const res = await request.get(API.WITHDRAWAL.LIST, { data: { page: 1, limit: 20 } }, { needAuth: true, showLoading: false });
+      if (res.code === 0) {
+        const list = (res.data.withdrawals || []).map(item => ({
+          ...item,
+          createdAtText: item.createdAt ? this.formatTime(item.createdAt) : ''
+        }));
+        this.setData({
+          withdrawalList: list,
+          loadingList: false
+        });
+      } else {
+        this.setData({ loadingList: false });
+      }
+    } catch (e) {
+      this.setData({ loadingList: false });
+    }
+  },
+
+  statusText(s) {
+    const map = { pending: '待审核', approved: '已通过', rejected: '已拒绝', processing: '处理中', completed: '已完成', cancelled: '已取消' };
+    return map[s] || s;
+  },
+
+  formatTime(time) {
+    if (!time) return '';
+    const date = new Date(time);
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+    const h = date.getHours();
+    const min = date.getMinutes();
+    return `${date.getFullYear()}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d} ${h < 10 ? '0' + h : h}:${min < 10 ? '0' + min : min}`;
+  },
+
+  async onConfirmReceipt(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!id) return;
+    if (typeof wx.requestMerchantTransfer !== 'function') {
+      wx.showToast({ title: '当前微信版本不支持，请升级后重试', icon: 'none' });
+      return;
+    }
+    try {
+      const res = await request.get(replaceUrlParams(API.WITHDRAWAL.DETAIL, { id }), {}, { needAuth: true, showLoading: true });
+      if (res.code !== 0 || !res.data || !res.data.withdrawal) {
+        wx.showToast({ title: res.message || '获取失败', icon: 'none' });
+        return;
+      }
+      const w = res.data.withdrawal;
+      if (!w.needConfirmReceipt || !w.transferPackage || !w.wxAppId || !w.wxMchId) {
+        wx.showToast({ title: '该笔无需确认或已过期', icon: 'none' });
+        return;
+      }
+      wx.requestMerchantTransfer({
+        mchId: w.wxMchId,
+        appId: w.wxAppId,
+        package: w.transferPackage,
+        success: () => {
+          wx.showToast({ title: '已确认收款', icon: 'success' });
+          this.loadWithdrawalList();
+        },
+        fail: (err) => {
+          wx.showToast({ title: err.errMsg || '调起失败，请稍后重试', icon: 'none' });
+        }
+      });
+    } catch (err) {
+      wx.showToast({ title: err.message || '网络错误', icon: 'none' });
+    }
   },
 
   /**

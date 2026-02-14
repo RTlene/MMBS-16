@@ -101,5 +101,20 @@
       {{loading ? '提交中...' : '提交提现申请'}}
     </button>
   </view>
+
+  <!-- 近期提现记录：含「待确认收款」时展示按钮，用户可稍后在此确认 -->
+  <view class="record-section" wx:if="{{withdrawalList.length > 0}}">
+    <view class="record-title">近期提现</view>
+    <view class="record-item" wx:for="{{withdrawalList}}" wx:key="id">
+      <view class="record-row">
+        <text class="record-amount">¥{{item.amount}}</text>
+        <text class="record-status status-{{item.status}}">{{item.statusText}}</text>
+      </view>
+      <view class="record-row record-meta">{{item.accountTypeText}} · {{item.createdAtText}}</view>
+      <view class="record-action" wx:if="{{item.needConfirmReceipt}}">
+        <button class="confirm-receipt-btn" data-id="{{item.id}}" bindtap="onConfirmReceipt">去微信确认收款</button>
+      </view>
+    </view>
+  </view>
 </view>
 

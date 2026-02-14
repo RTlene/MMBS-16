@@ -122,3 +122,64 @@
   color: #999;
 }
 
+.record-section {
+  margin: 24rpx 0 120rpx;
+  padding: 0 30rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  margin-left: 20rpx;
+  margin-right: 20rpx;
+}
+
+.record-title {
+  font-size: 30rpx;
+  color: #333;
+  padding: 24rpx 0 16rpx;
+  font-weight: 600;
+}
+
+.record-item {
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.record-item:last-child {
+  border-bottom: none;
+}
+
+.record-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 28rpx;
+}
+
+.record-amount {
+  font-weight: 600;
+  color: #333;
+}
+
+.record-status.approved { color: #3481B8; }
+.record-status.pending { color: #fa8c16; }
+.record-status.rejected { color: #ff4d4f; }
+.record-status.completed { color: #52c41a; }
+
+.record-meta {
+  margin-top: 8rpx;
+  color: #999;
+  font-size: 24rpx;
+}
+
+.record-action {
+  margin-top: 16rpx;
+}
+
+.confirm-receipt-btn {
+  font-size: 26rpx;
+  color: #3481B8;
+  padding: 12rpx 24rpx;
+  border: 1rpx solid #3481B8;
+  border-radius: 8rpx;
+  background: #fff;
+}
+

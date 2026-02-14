@@ -41,7 +41,11 @@ async function performApprove(withdrawalId, options = {}) {
     await withdrawal.update({
         status: 'approved',
         processedBy: options.processedBy || null,
-        processedAt: new Date()
+        processedAt: new Date(),
+        ...(transferResult && {
+            transferBillNo: transferResult.transfer_bill_no || null,
+            transferPackageInfo: transferResult.package_info || null
+        })
     });
     return { withdrawal, transferResult };
 }

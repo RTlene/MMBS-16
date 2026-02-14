@@ -219,24 +219,28 @@ router.get('/withdrawals', authenticateMiniappUser, async (req, res) => {
             offset: parseInt(offset)
         });
 
-        const withdrawals = rows.map(w => ({
-            id: w.id,
-            withdrawalNo: w.withdrawalNo,
-            amount: w.amount,
-            accountType: w.accountType,
-            accountTypeText: w.accountType === 'wechat' ? '微信钱包' : '银行',
-            accountName: w.accountName,
-            accountNumber: w.accountNumber ? w.accountNumber.replace(/(\d{4})\d+(\d{4})/, '$1****$2') : '', // 脱敏处理
-            bankName: w.bankName,
-            bankBranch: w.bankBranch,
-            status: w.status,
-            statusText: getStatusText(w.status),
-            remark: w.remark,
-            adminRemark: w.adminRemark,
-            createdAt: w.createdAt,
-            processedAt: w.processedAt,
-            completedAt: w.completedAt
-        }));
+        const withdrawals = rows.map(w => {
+            const needConfirm = w.accountType === 'wechat' && w.status === 'approved' && (w.transferPackageInfo || '').trim().length > 0;
+            return {
+                id: w.id,
+                withdrawalNo: w.withdrawalNo,
+                amount: w.amount,
+                accountType: w.accountType,
+                accountTypeText: w.accountType === 'wechat' ? '微信钱包' : '银行',
+                accountName: w.accountName,
+                accountNumber: w.accountNumber ? w.accountNumber.replace(/(\d{4})\d+(\d{4})/, '$1****$2') : '',
+                bankName: w.bankName,
+                bankBranch: w.bankBranch,
+                status: w.status,
+                statusText: getStatusText(w.status),
+                remark: w.remark,
+                adminRemark: w.adminRemark,
+                createdAt: w.createdAt,
+                processedAt: w.processedAt,
+                completedAt: w.completedAt,
+                needConfirmReceipt: needConfirm
+            };
+        });
 
         res.json({
             code: 0,
@@ -281,29 +285,36 @@ router.get('/withdrawals/:id', authenticateMiniappUser, async (req, res) => {
             });
         }
 
+        const needConfirmReceipt = withdrawal.accountType === 'wechat' && withdrawal.status === 'approved' && (withdrawal.transferPackageInfo || '').trim().length > 0;
+        const out = {
+            id: withdrawal.id,
+            withdrawalNo: withdrawal.withdrawalNo,
+            amount: withdrawal.amount,
+            accountType: withdrawal.accountType,
+            accountTypeText: withdrawal.accountType === 'wechat' ? '微信钱包' : '银行',
+            accountName: withdrawal.accountName,
+            accountNumber: withdrawal.accountNumber,
+            bankName: withdrawal.bankName,
+            bankBranch: withdrawal.bankBranch,
+            status: withdrawal.status,
+            statusText: getStatusText(withdrawal.status),
+            remark: withdrawal.remark,
+            adminRemark: withdrawal.adminRemark,
+            createdAt: withdrawal.createdAt,
+            processedAt: withdrawal.processedAt,
+            completedAt: withdrawal.completedAt,
+            needConfirmReceipt
+        };
+        if (needConfirmReceipt) {
+            out.transferPackage = withdrawal.transferPackageInfo;
+            out.wxAppId = process.env.WX_APPID || '';
+            out.wxMchId = process.env.WX_MCHID || '';
+        }
+
         res.json({
             code: 0,
             message: '获取成功',
-            data: {
-                withdrawal: {
-                    id: withdrawal.id,
-                    withdrawalNo: withdrawal.withdrawalNo,
-                    amount: withdrawal.amount,
-                    accountType: withdrawal.accountType,
-                    accountTypeText: withdrawal.accountType === 'wechat' ? '微信钱包' : '银行',
-                    accountName: withdrawal.accountName,
-                    accountNumber: withdrawal.accountNumber,
-                    bankName: withdrawal.bankName,
-                    bankBranch: withdrawal.bankBranch,
-                    status: withdrawal.status,
-                    statusText: getStatusText(withdrawal.status),
-                    remark: withdrawal.remark,
-                    adminRemark: withdrawal.adminRemark,
-                    createdAt: withdrawal.createdAt,
-                    processedAt: withdrawal.processedAt,
-                    completedAt: withdrawal.completedAt
-                }
-            }
+            data: { withdrawal: out }
         });
     } catch (error) {
         console.error('获取提现申请详情失败:', error);
