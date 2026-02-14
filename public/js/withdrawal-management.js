@@ -224,7 +224,8 @@ window.WithdrawalManagement = {
       const actions = document.getElementById('actionButtons');
       const canApproveReject = w.status === 'pending';
       const canComplete = w.status === 'approved' || w.status === 'processing';
-      const canCancelTransfer = w.accountType === 'wechat' && w.transferBillNo && (w.status === 'approved' || w.status === 'completed');
+      // 微信且已通过/已完成即显示「转账撤回」；无转账单号时点击会由后端提示无法撤销
+      const canCancelTransfer = w.accountType === 'wechat' && (w.status === 'approved' || w.status === 'completed');
       document.getElementById('btnApprove').style.display = canApproveReject ? 'inline-block' : 'none';
       document.getElementById('btnReject').style.display = canApproveReject ? 'inline-block' : 'none';
       document.getElementById('btnComplete').style.display = canComplete ? 'inline-block' : 'none';
