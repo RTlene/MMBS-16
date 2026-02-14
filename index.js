@@ -161,6 +161,30 @@ app.get('/health', (req, res) => {
   });
 });
 
+// 获取本机公网出口 IP（用于商户平台配置：微信支付-商家转账-接口安全-IP 白名单等）
+app.get('/api/outbound-ip', (req, res) => {
+  const axios = require('axios');
+  const urls = ['https://api.ipify.org?format=json', 'https://ifconfig.me/ip'];
+  let index = 0;
+  function tryNext() {
+    const url = urls[index];
+    axios.get(url, { timeout: 5000 })
+      .then((r) => {
+        const ip = r.data && (typeof r.data === 'string' ? r.data.trim() : r.data.ip);
+        if (ip) {
+          return res.json({ code: 0, outboundIp: ip, message: '当前服务出口 IP，可用于商户平台 IP 白名单配置' });
+        }
+        tryNext();
+      })
+      .catch(() => {
+        index++;
+        if (index < urls.length) tryNext();
+        else res.status(502).json({ code: 1, message: '无法获取出口 IP' });
+      });
+  }
+  tryNext();
+});
+
 // 就绪检查：数据库初始化完成后返回 200；否则返回 503（不建议作为存活探针）
 app.get('/ready', (req, res) => {
   if (dbReady) {

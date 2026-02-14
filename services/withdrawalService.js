@@ -20,13 +20,14 @@ async function performApprove(withdrawalId, options = {}) {
     if (!member) throw new Error('会员信息不存在');
     const amount = parseFloat(withdrawal.amount);
 
+    let transferResult = null;
     if (withdrawal.accountType === 'wechat') {
         const openid = member.openid;
         if (!openid || !openid.trim()) {
             throw new Error('该会员未绑定微信 openid，无法发起微信转账');
         }
         const amountCents = Math.round(amount * 100);
-        await wechatPayService.transferToBalance({
+        transferResult = await wechatPayService.transferToBalance({
             outBatchNo: withdrawal.withdrawalNo,
             openid: openid.trim(),
             amountCents,
@@ -42,7 +43,7 @@ async function performApprove(withdrawalId, options = {}) {
         processedBy: options.processedBy || null,
         processedAt: new Date()
     });
-    return { withdrawal };
+    return { withdrawal, transferResult };
 }
 
 module.exports = {

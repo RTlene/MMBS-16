@@ -180,14 +180,40 @@ Page({
 
       if (res.code === 0) {
         const content = res.message || '提现申请已提交，请等待审核';
-        wx.showModal({
-          title: '提示',
-          content: content,
-          showCancel: false,
-          success: () => {
-            wx.navigateBack();
-          }
-        });
+        const data = res.data || {};
+        // 升级版商家转账：需用户在小程序内确认收款才会到账，调起微信确认收款页
+        if (data.needConfirmReceipt && data.transferPackage && data.wxAppId && data.wxMchId && typeof wx.requestMerchantTransfer === 'function') {
+          wx.requestMerchantTransfer({
+            mchId: data.wxMchId,
+            appId: data.wxAppId,
+            package: data.transferPackage,
+            success: () => {
+              wx.showModal({
+                title: '提示',
+                content: '已确认收款，款项将打至微信零钱',
+                showCancel: false,
+                success: () => { wx.navigateBack(); }
+              });
+            },
+            fail: (err) => {
+              wx.showModal({
+                title: '提示',
+                content: (content + '\n\n若未弹出收款页，可在「微信-支付」中查看待确认的转账，或稍后重试。').trim(),
+                showCancel: false,
+                success: () => { wx.navigateBack(); }
+              });
+            }
+          });
+        } else {
+          wx.showModal({
+            title: '提示',
+            content: content,
+            showCancel: false,
+            success: () => {
+              wx.navigateBack();
+            }
+          });
+        }
       } else {
         wx.showToast({ title: res.message || '提交失败', icon: 'none' });
       }

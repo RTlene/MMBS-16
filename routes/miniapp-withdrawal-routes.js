@@ -135,10 +135,12 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
             && withdrawalAmount <= (parseFloat(autoApprove.maxAmount) || 0);
         let finalWithdrawal = withdrawal;
         let autoApproveFailed = false;
+        let transferResult = null;
         if (autoApproved) {
             try {
-                const { withdrawal: updated } = await withdrawalService.performApprove(withdrawal.id, {});
-                finalWithdrawal = updated;
+                const result = await withdrawalService.performApprove(withdrawal.id, {});
+                finalWithdrawal = result.withdrawal;
+                transferResult = result.transferResult || null;
             } catch (err) {
                 console.error('[MiniappWithdrawal] 小额自动通过失败:', err.message);
                 autoApproveFailed = true;
@@ -148,25 +150,38 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
         }
 
         let message = '提现申请已提交，请等待审核';
+        let needConfirmReceipt = false;
         if (autoApproved && finalWithdrawal.status === 'approved') {
-            message = '提现申请已提交并自动通过，款项将打至微信零钱';
+            message = '提现申请已提交并自动通过，请点击下方按钮在微信内确认收款后即可到账';
+            if (transferResult && (transferResult.state === 'WAIT_USER_CONFIRM' || transferResult.state === 'ACCEPTED') && transferResult.package_info) {
+                needConfirmReceipt = true;
+            }
         } else if (autoApproveFailed) {
             message = '提现已提交，但自动打款未成功，请等待人工审核';
+        }
+
+        const data = {
+            withdrawal: {
+                id: finalWithdrawal.id,
+                withdrawalNo: finalWithdrawal.withdrawalNo,
+                amount: finalWithdrawal.amount,
+                status: finalWithdrawal.status,
+                createdAt: finalWithdrawal.createdAt
+            },
+            autoApproveFailed: autoApproveFailed
+        };
+        if (needConfirmReceipt && transferResult) {
+            data.needConfirmReceipt = true;
+            data.transferPackage = transferResult.package_info;
+            data.transferState = transferResult.state;
+            data.wxAppId = process.env.WX_APPID || '';
+            data.wxMchId = process.env.WX_MCHID || '';
         }
 
         res.json({
             code: 0,
             message,
-            data: {
-                withdrawal: {
-                    id: finalWithdrawal.id,
-                    withdrawalNo: finalWithdrawal.withdrawalNo,
-                    amount: finalWithdrawal.amount,
-                    status: finalWithdrawal.status,
-                    createdAt: finalWithdrawal.createdAt
-                },
-                autoApproveFailed: autoApproveFailed
-            }
+            data
         });
     } catch (error) {
         console.error('创建提现申请失败:', error);

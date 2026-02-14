@@ -376,7 +376,13 @@ class WeChatPayService {
                 timeout: 15000,
                 httpsAgent
             });
-            return response.data;
+            const data = response.data;
+            const state = data.state || data.batch_status;
+            console.log('[WeChatPay] 商家转账已受理', { out_bill_no: outBillNo, transfer_bill_no: data.transfer_bill_no, state });
+            if (state === 'WAIT_USER_CONFIRM') {
+                console.log('[WeChatPay] 升级版转账需用户确认：用户需在微信内确认收款后才会到账，可引导用户点击「确认收款」');
+            }
+            return data;
         } catch (error) {
             const wxData = error.response?.data;
             const code = wxData?.code;
