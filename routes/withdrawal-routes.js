@@ -226,7 +226,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
           adminRemark: withdrawal.adminRemark,
           processedAt: withdrawal.processedAt,
           completedAt: withdrawal.completedAt,
-          createdAt: withdrawal.createdAt
+          createdAt: withdrawal.createdAt,
+          transferBillNo: withdrawal.transferBillNo || null
         }
       }
     });
@@ -339,6 +340,30 @@ router.put('/:id/remark', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('更新备注失败:', error);
     res.status(500).json({ code: 1, message: '操作失败', error: error.message });
+  }
+});
+
+/**
+ * 撤销转账（用户未确认收款前）：锁定资金退回商户，提现改为已取消，用户佣金退回可用余额
+ */
+router.post('/:id/cancel-transfer', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { withdrawal } = await withdrawalService.cancelTransfer(id);
+    res.json({
+      code: 0,
+      message: '已提交撤销，资金将退回商户，用户佣金已退回可用余额',
+      data: { withdrawal: { id: withdrawal.id, status: withdrawal.status } }
+    });
+  } catch (error) {
+    if (error.message === '提现申请不存在') {
+      return res.status(404).json({ code: 1, message: error.message });
+    }
+    if (error.message.includes('仅支持') || error.message.includes('只能撤销') || error.message.includes('撤销转账')) {
+      return res.status(400).json({ code: 1, message: error.message });
+    }
+    console.error('撤销转账失败:', error);
+    res.status(500).json({ code: 1, message: error.message || '操作失败' });
   }
 });
 

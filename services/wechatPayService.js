@@ -393,6 +393,41 @@ class WeChatPayService {
     }
 
     /**
+     * 撤销转账（用户确认收款前可调用，锁定资金将退回商户）
+     * @param {string} outBillNo - 商户单号（与发起转账时一致，仅数字与字母）
+     * @returns {Promise<{ out_bill_no, transfer_bill_no, state, update_time }>}
+     */
+    async cancelTransfer(outBillNo) {
+        if (!outBillNo || typeof outBillNo !== 'string') throw new Error('商户单号必填');
+        this.refreshFromEnv();
+        if (!this.privateKey || !this.certSerialNo) throw new Error('商户证书/私钥未配置');
+        const alnum = String(outBillNo).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+        if (!alnum) throw new Error('商户单号无效（需包含数字或字母）');
+        const urlPath = `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${encodeURIComponent(alnum)}/cancel`;
+        const baseUrl = 'https://api.mch.weixin.qq.com';
+        const authHeader = this.generateAuthHeader('POST', urlPath, '');
+        try {
+            const response = await axios.post(baseUrl + urlPath, null, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authHeader,
+                    'Accept': 'application/json',
+                    'User-Agent': 'WeChatPay-APIv3-NodeJS'
+                },
+                timeout: 10000,
+                httpsAgent
+            });
+            console.log('[WeChatPay] 撤销转账已受理', { out_bill_no: alnum, state: response.data.state });
+            return response.data;
+        } catch (error) {
+            const wxData = error.response?.data;
+            const message = wxData?.message || error.message;
+            console.error('[WeChatPay] 撤销转账失败:', { message, detail: wxData });
+            throw new Error(message || '撤销转账失败');
+        }
+    }
+
+    /**
      * 验证支付回调签名
      * @param {Object} headers - 请求头
      * @param {string} body - 请求体

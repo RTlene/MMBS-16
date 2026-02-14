@@ -220,7 +220,7 @@ router.get('/withdrawals', authenticateMiniappUser, async (req, res) => {
         });
 
         const withdrawals = rows.map(w => {
-            const needConfirm = w.accountType === 'wechat' && w.status === 'approved' && (w.transferPackageInfo || '').trim().length > 0;
+            const needConfirm = w.accountType === 'wechat' && (w.status === 'approved' || w.status === 'completed') && (w.transferPackageInfo || '').trim().length > 0;
             return {
                 id: w.id,
                 withdrawalNo: w.withdrawalNo,
@@ -285,7 +285,7 @@ router.get('/withdrawals/:id', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        const needConfirmReceipt = withdrawal.accountType === 'wechat' && withdrawal.status === 'approved' && (withdrawal.transferPackageInfo || '').trim().length > 0;
+        const needConfirmReceipt = withdrawal.accountType === 'wechat' && (withdrawal.status === 'approved' || withdrawal.status === 'completed') && (withdrawal.transferPackageInfo || '').trim().length > 0;
         const out = {
             id: withdrawal.id,
             withdrawalNo: withdrawal.withdrawalNo,

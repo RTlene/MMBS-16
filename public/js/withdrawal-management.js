@@ -35,6 +35,9 @@ window.WithdrawalManagement = {
     document.getElementById('btnComplete').addEventListener('click', function () {
       self.doComplete();
     });
+    document.getElementById('btnCancelTransfer').addEventListener('click', function () {
+      self.doCancelTransfer();
+    });
     document.getElementById('btnSaveWithdrawalConfig').addEventListener('click', function () {
       self.saveWithdrawalConfig();
     });
@@ -221,9 +224,11 @@ window.WithdrawalManagement = {
       const actions = document.getElementById('actionButtons');
       const canApproveReject = w.status === 'pending';
       const canComplete = w.status === 'approved' || w.status === 'processing';
+      const canCancelTransfer = w.accountType === 'wechat' && w.transferBillNo && (w.status === 'approved' || w.status === 'completed');
       document.getElementById('btnApprove').style.display = canApproveReject ? 'inline-block' : 'none';
       document.getElementById('btnReject').style.display = canApproveReject ? 'inline-block' : 'none';
       document.getElementById('btnComplete').style.display = canComplete ? 'inline-block' : 'none';
+      document.getElementById('btnCancelTransfer').style.display = canCancelTransfer ? 'inline-block' : 'none';
 
       document.getElementById('detailModal').classList.add('show');
     } catch (e) {
@@ -299,6 +304,30 @@ window.WithdrawalManagement = {
       const result = await res.json();
       if (result.code === 0) {
         alert('已标记为已完成');
+        this.closeDetailModal();
+        this.loadWithdrawals();
+      } else {
+        alert(result.message || '操作失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('网络错误');
+    }
+  },
+
+  async doCancelTransfer() {
+    const id = this.data.currentId;
+    if (!id) return;
+    if (!confirm('确认撤销该笔转账？仅限用户尚未在微信确认收款时有效，撤销后：锁定资金退回商户，用户佣金退回可用余额，提现状态改为已取消。')) return;
+    try {
+      const res = await fetch('/api/withdrawals/' + id + '/cancel-transfer', {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({})
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        alert(result.message || '已提交撤销');
         this.closeDetailModal();
         this.loadWithdrawals();
       } else {

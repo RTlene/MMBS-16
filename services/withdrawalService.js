@@ -50,6 +50,41 @@ async function performApprove(withdrawalId, options = {}) {
     return { withdrawal, transferResult };
 }
 
+/**
+ * 撤销转账（仅限微信升级版、用户未确认收款前）：调用微信撤销 API，资金退回商户，并更新提现为已取消、佣金退回用户
+ * @param {number} withdrawalId - 提现记录 ID
+ * @returns {Promise<{ withdrawal: object }>}
+ */
+async function cancelTransfer(withdrawalId) {
+    const withdrawal = await CommissionWithdrawal.findByPk(withdrawalId, {
+        include: [{ model: Member, as: 'member' }]
+    });
+    if (!withdrawal) throw new Error('提现申请不存在');
+    if (withdrawal.accountType !== 'wechat' || !withdrawal.transferBillNo) {
+        throw new Error('仅支持已发起微信转账（升级版）的提现撤销');
+    }
+    if (!['approved', 'completed'].includes(withdrawal.status)) {
+        throw new Error('只能撤销已通过或已标记完成的微信转账');
+    }
+    const member = withdrawal.member;
+    if (!member) throw new Error('会员信息不存在');
+    const amount = parseFloat(withdrawal.amount);
+
+    await wechatPayService.cancelTransfer(withdrawal.withdrawalNo);
+
+    const remarkSuffix = ' [已撤销转账，资金退回]';
+    const newAdminRemark = ((withdrawal.adminRemark || '').trim() + remarkSuffix).trim();
+    await withdrawal.update({
+        status: 'cancelled',
+        adminRemark: newAdminRemark
+    });
+    await member.update({
+        availableCommission: parseFloat(member.availableCommission || 0) + amount
+    });
+    return { withdrawal };
+}
+
 module.exports = {
-    performApprove
+    performApprove,
+    cancelTransfer
 };

@@ -45,7 +45,7 @@ Page({
     if (this.data.loadingList) return;
     this.setData({ loadingList: true });
     try {
-      const res = await request.get(API.WITHDRAWAL.LIST, { data: { page: 1, limit: 20 } }, { needAuth: true, showLoading: false });
+      const res = await request.get(API.WITHDRAWAL.LIST, { page: 1, limit: 20 }, { needAuth: true, showLoading: false });
       if (res.code === 0) {
         const list = (res.data.withdrawals || []).map(item => ({
           ...item,
