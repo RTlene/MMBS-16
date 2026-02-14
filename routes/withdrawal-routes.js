@@ -26,9 +26,24 @@ function isConnResetError(err) {
   return err.code === 'ECONNRESET' || (err.name === 'SequelizeDatabaseError' && err.original && /ECONNRESET/i.test(String(err.original)));
 }
 
+/** 遇 ECONNRESET 时重试，最多 maxAttempts 次（总尝试次数），间隔递增 */
+async function withRetryOnConnReset(fn, maxAttempts = 3) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isConnResetError(err) || attempt === maxAttempts) throw err;
+      await new Promise(r => setTimeout(r, 200 * attempt));
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * 获取提现申请列表（后台）
- * 遇 ECONNRESET 时自动重试一次
+ * 遇 ECONNRESET 时自动重试最多 3 次
  */
 router.get('/', authenticateToken, async (req, res) => {
   const { page = 1, limit = 10, status = '', search = '' } = req.query;
@@ -55,24 +70,12 @@ router.get('/', authenticateToken, async (req, res) => {
 
   let count, rows;
   try {
-    const result = await CommissionWithdrawal.findAndCountAll(queryOptions);
+    const result = await withRetryOnConnReset(() => CommissionWithdrawal.findAndCountAll(queryOptions));
     count = result.count;
     rows = result.rows;
   } catch (error) {
-    if (isConnResetError(error)) {
-      try {
-        await new Promise(r => setTimeout(r, 200));
-        const result = await CommissionWithdrawal.findAndCountAll(queryOptions);
-        count = result.count;
-        rows = result.rows;
-      } catch (retryErr) {
-        console.error('获取提现列表失败(重试后):', retryErr);
-        return res.status(500).json({ code: 1, message: '获取提现列表失败', error: retryErr.message });
-      }
-    } else {
-      console.error('获取提现列表失败:', error);
-      return res.status(500).json({ code: 1, message: '获取提现列表失败', error: error.message });
-    }
+    console.error('获取提现列表失败:', error);
+    return res.status(500).json({ code: 1, message: '获取提现列表失败', error: error.message });
   }
 
   try {
@@ -172,34 +175,23 @@ router.put('/config', authenticateToken, async (req, res) => {
 
 /**
  * 获取提现申请详情（后台）
- * 遇数据库连接重置(ECONNRESET)时自动重试一次
+ * 遇数据库连接重置(ECONNRESET)时自动重试最多 3 次
  */
 router.get('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const findDetail = async () =>
+  const findDetail = () =>
     CommissionWithdrawal.findByPk(id, {
       include: [{ model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'openid', 'availableCommission', 'frozenCommission'] }]
     });
-  let withdrawal = null;
+  let withdrawal;
   try {
-    withdrawal = await findDetail();
-    if (!withdrawal) {
-      return res.status(404).json({ code: 1, message: '提现申请不存在' });
-    }
+    withdrawal = await withRetryOnConnReset(findDetail);
   } catch (error) {
-    if (isConnResetError(error)) {
-      try {
-        await new Promise(r => setTimeout(r, 200));
-        withdrawal = await findDetail();
-      } catch (retryErr) {
-        console.error('获取提现详情失败(重试后):', retryErr);
-        return res.status(500).json({ code: 1, message: '获取提现详情失败', error: retryErr.message });
-      }
-    } else {
-      console.error('获取提现详情失败:', error);
-      return res.status(500).json({ code: 1, message: '获取提现详情失败', error: error.message });
-    }
-    if (!withdrawal) return res.status(404).json({ code: 1, message: '提现申请不存在' });
+    console.error('获取提现详情失败:', error);
+    return res.status(500).json({ code: 1, message: '获取提现详情失败', error: error.message });
+  }
+  if (!withdrawal) {
+    return res.status(404).json({ code: 1, message: '提现申请不存在' });
   }
   try {
     const m = withdrawal.member || {};
