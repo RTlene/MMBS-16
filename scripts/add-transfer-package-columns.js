@@ -1,7 +1,10 @@
 /**
  * 为 commission_withdrawals 表增加 transferBillNo、transferPackageInfo 字段
  * 用于保存升级版商家转账的微信单号与调起确认收款的 package，便于用户稍后在小程序内确认收款
- * 运行：node scripts/add-transfer-package-columns.js（需配置好 .env 数据库）
+ *
+ * 应用方式二选一：
+ * 1) 启用数据库同步：设置 DB_SYNC=true 且 DB_SYNC_ALTER=true 后启动一次服务，会自动为所有模型执行 alter 同步（含本表新字段）。完成后可关闭。
+ * 2) 本脚本：node scripts/add-transfer-package-columns.js（需配置好 .env 数据库）
  */
 const { DataTypes } = require('sequelize');
 require('dotenv').config();
