@@ -288,7 +288,7 @@ router.post('/test', async (req, res) => {
             orderId: order.id,
             operation: 'pay',
             operatorId: req.user ? req.user.id : null,
-            operatorType: 'user',
+            operatorType: 'admin',
             description: `后台创建测试订单并标记已支付（会员ID: ${member.id}，金额: ${total}），用于佣金验证`
         });
 
