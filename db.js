@@ -483,6 +483,17 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         allowNull: true,
         comment: '最高销售额限制'
     },
+    minFans: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '最低粉丝数要求'
+    },
+    maxFans: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '最高粉丝数限制'
+    },
     benefits: {
         type: DataTypes.TEXT,
         allowNull: true,
@@ -505,6 +516,36 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         allowNull: false,
         defaultValue: 0,
         comment: '间接佣金比例（%）'
+    },
+    procurementCost: {
+        type: DataTypes.DECIMAL(5, 4),
+        allowNull: true,
+        comment: '采购成本比例（0-1，分享模式可为0）'
+    },
+    sharerDirectCommissionRate: {
+        type: DataTypes.DECIMAL(5, 4),
+        allowNull: true,
+        comment: '分享者直接佣金比例（0-1）'
+    },
+    sharerIndirectCommissionRate: {
+        type: DataTypes.DECIMAL(5, 4),
+        allowNull: true,
+        comment: '分享者间接佣金比例（0-1）'
+    },
+    color: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        comment: '主题色'
+    },
+    icon: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        comment: '图标'
+    },
+    privileges: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: '特权配置'
     },
     sortOrder: {
         type: DataTypes.INTEGER,

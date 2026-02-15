@@ -1,7 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { DistributorLevel } = require('../db');
+const { DistributorLevel, Member } = require('../db');
 const { Op } = require('sequelize');
+
+function parseNum(v, defaultVal) {
+    if (v === undefined || v === null || v === '') return defaultVal;
+    const n = parseFloat(v);
+    return Number.isNaN(n) ? defaultVal : n;
+}
 
 // 获取分销等级列表（分页）
 router.get('/', async (req, res) => {
@@ -136,23 +142,27 @@ router.post('/', async (req, res) => {
             });
         }
 
+        const pc = parseNum(procurementCost, 0.5);
+        const sd = parseNum(sharerDirectCommissionRate, 0.05);
+        const si = parseNum(sharerIndirectCommissionRate, 0.02);
         const newLevel = await DistributorLevel.create({
             name,
             level,
-            minSales: minSales || 0,
-            maxSales: maxSales || null,
-            minFans: minFans || 0,
-            maxFans: maxFans || null,
-            procurementCost: procurementCost || 0.5,
-            sharerDirectCommissionRate: sharerDirectCommissionRate || 0.05,
-            sharerIndirectCommissionRate: sharerIndirectCommissionRate || 0.02,
+            minSales: minSales != null && minSales !== '' ? parseFloat(minSales) : 0,
+            maxSales: maxSales != null && maxSales !== '' ? parseFloat(maxSales) : null,
+            minFans: minFans != null && minFans !== '' ? parseInt(minFans, 10) : 0,
+            maxFans: maxFans != null && maxFans !== '' ? parseInt(maxFans, 10) : null,
+            procurementCost: pc,
+            sharerDirectCommissionRate: sd,
+            sharerIndirectCommissionRate: si,
             privileges: privileges || {},
             color: color || '#1890ff',
             icon: icon || '',
             description: description || '',
             status: status || 'active',
-            sortOrder: sortOrder || 0
+            sortOrder: sortOrder != null && sortOrder !== '' ? parseInt(sortOrder, 10) : 0
         });
+        console.log('[分销等级] 创建成功 id=%s name=%s procurementCost=%s sharerDirect=%s sharerIndirect=%s', newLevel.id, newLevel.name, newLevel.procurementCost, newLevel.sharerDirectCommissionRate, newLevel.sharerIndirectCommissionRate);
 
         res.json({
             code: 0,
@@ -215,26 +225,28 @@ router.put('/:id', async (req, res) => {
             }
         }
 
-        await levelRecord.update({
+        const upd = {
             name: name || levelRecord.name,
             level: level || levelRecord.level,
             minSales: minSales !== undefined ? minSales : levelRecord.minSales,
             maxSales: maxSales !== undefined ? maxSales : levelRecord.maxSales,
             minFans: minFans !== undefined ? minFans : levelRecord.minFans,
             maxFans: maxFans !== undefined ? maxFans : levelRecord.maxFans,
-            procurementCost: procurementCost !== undefined ? procurementCost : levelRecord.procurementCost,
+            procurementCost: procurementCost !== undefined ? parseNum(procurementCost, levelRecord.procurementCost) : levelRecord.procurementCost,
             directCommissionRate: directCommissionRate !== undefined ? directCommissionRate : levelRecord.directCommissionRate,
             indirectCommissionRate: indirectCommissionRate !== undefined ? indirectCommissionRate : levelRecord.indirectCommissionRate,
             differentialCommissionRate: differentialCommissionRate !== undefined ? differentialCommissionRate : levelRecord.differentialCommissionRate,
-            sharerDirectCommissionRate: sharerDirectCommissionRate !== undefined ? sharerDirectCommissionRate : levelRecord.sharerDirectCommissionRate,
-            sharerIndirectCommissionRate: sharerIndirectCommissionRate !== undefined ? sharerIndirectCommissionRate : levelRecord.sharerIndirectCommissionRate,
+            sharerDirectCommissionRate: sharerDirectCommissionRate !== undefined ? parseNum(sharerDirectCommissionRate, levelRecord.sharerDirectCommissionRate) : levelRecord.sharerDirectCommissionRate,
+            sharerIndirectCommissionRate: sharerIndirectCommissionRate !== undefined ? parseNum(sharerIndirectCommissionRate, levelRecord.sharerIndirectCommissionRate) : levelRecord.sharerIndirectCommissionRate,
             privileges: privileges !== undefined ? privileges : levelRecord.privileges,
             color: color || levelRecord.color,
             icon: icon !== undefined ? icon : levelRecord.icon,
             description: description !== undefined ? description : levelRecord.description,
             status: status || levelRecord.status,
             sortOrder: sortOrder !== undefined ? sortOrder : levelRecord.sortOrder
-        });
+        };
+        await levelRecord.update(upd);
+        console.log('[分销等级] 更新成功 id=%s name=%s procurementCost=%s sharerDirect=%s sharerIndirect=%s', levelRecord.id, levelRecord.name, levelRecord.procurementCost, levelRecord.sharerDirectCommissionRate, levelRecord.sharerIndirectCommissionRate);
 
         res.json({
             code: 0,
@@ -251,28 +263,36 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// 删除分销等级
+// 删除分销等级（仅当没有会员使用该等级时可删除）
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const level = await DistributorLevel.findByPk(id);
+        const levelId = parseInt(id, 10);
+        if (Number.isNaN(levelId)) {
+            console.log('[分销等级] 删除失败: id 无效', id);
+            return res.status(400).json({ code: 1, message: '等级 ID 无效' });
+        }
 
+        const level = await DistributorLevel.findByPk(levelId);
         if (!level) {
+            console.log('[分销等级] 删除失败: 等级不存在 id=%s', id);
             return res.status(404).json({
                 code: 1,
                 message: '分销等级不存在'
             });
         }
 
-        // 不允许删除等级1（最低等级）
-        if (level.level === 1) {
+        const memberCount = await Member.count({ where: { distributorLevelId: levelId } });
+        if (memberCount > 0) {
+            console.log('[分销等级] 删除拒绝: 该等级下还有会员 id=%s count=%s', id, memberCount);
             return res.status(400).json({
                 code: 1,
-                message: '不能删除最低等级'
+                message: `该等级下还有 ${memberCount} 个会员，无法删除。请先将这些会员改为其他等级或取消分销等级后再删除。`
             });
         }
 
         await level.destroy();
+        console.log('[分销等级] 删除成功 id=%s name=%s', id, level.name);
 
         res.json({
             code: 0,

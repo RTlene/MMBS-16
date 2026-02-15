@@ -1,4 +1,4 @@
-// 全局数据存储
+// 全局数据存储（控制台设置 distributorLevelsData.debugLog = true 可打开提交/编辑/删除的请求与响应日志）
 window.distributorLevelsData = {
     levels: [],
     currentPage: 1,
@@ -7,7 +7,8 @@ window.distributorLevelsData = {
     searchKeyword: '',
     statusFilter: '',
     editingLevel: null,
-    currentMode: 'distributor' // 当前模式：distributor 或 sharer
+    currentMode: 'distributor',
+    debugLog: false
 };
 
 // 页面初始化
@@ -121,25 +122,36 @@ async function loadLevels() {
     }
 }
 
+// 判断等级类型：采购成本 > 0 为分销商，否则为分享赚钱
+function getLevelType(level) {
+    return safeNum(level.procurementCost) > 0 ? 'distributor' : 'sharer';
+}
+
+function safeNum(v) {
+    if (v == null || v === '' || Number.isNaN(Number(v))) return 0;
+    return Number(v);
+}
+
 // 渲染等级列表
 function renderLevels() {
     const tbody = document.getElementById('levelTableBody');
     tbody.innerHTML = '';
 
     window.distributorLevelsData.levels.forEach(level => {
+        const type = getLevelType(level);
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${level.id}</td>
             <td>${level.name}</td>
             <td>${level.level}</td>
             <td>
-                <span class="level-type-badge level-type-distributor">
-                    分销商
+                <span class="level-type-badge level-type-${type}">
+                    ${type === 'sharer' ? '分享赚钱' : '分销商'}
                 </span>
-            </td>  <!-- 添加这一行 -->
+            </td>
             <td>${formatSalesRange(level.minSales, level.maxSales)}</td>
             <td>${formatFansRange(level.minFans, level.maxFans)}</td>
-            <td>${(level.procurementCost * 100).toFixed(2)}%</td>
+            <td>${formatProcurementCost(level.procurementCost)}</td>
             <td>${formatCommissionRates(level.sharerDirectCommissionRate, level.sharerIndirectCommissionRate)}</td>
             <td>
                 <span class="status-badge status-${level.status}">
@@ -267,8 +279,10 @@ async function editLevel(id) {
         const result = await response.json();
         
         if (result.code === 0) {
-            // 接口返回 data: { level }，需用 result.data.level 作为当前编辑对象
             const level = result.data.level || result.data;
+            if (window.distributorLevelsData.debugLog) {
+                console.log('[分销等级] 编辑加载 id=%s type=%s procurementCost=%s sharerDirect=%s', level.id, getLevelType(level), level.procurementCost, level.sharerDirectCommissionRate);
+            }
             window.distributorLevelsData.editingLevel = level;
             fillLevelForm(level);
             document.getElementById('levelModalTitle').textContent = '编辑分销等级';
@@ -280,85 +294,84 @@ async function editLevel(id) {
     }
 }
 
-// 填充等级表单
+// 填充等级表单（先填所有字段，再按类型切到对应模式）
 function fillLevelForm(level) {
     document.getElementById('name').value = level.name || '';
-    document.getElementById('level').value = level.level || '';
-    document.getElementById('minSales').value = level.minSales || '';
-    document.getElementById('maxSales').value = level.maxSales || '';
-    document.getElementById('minFans').value = level.minFans || '';
-    document.getElementById('maxFans').value = level.maxFans || '';
+    document.getElementById('level').value = level.level ?? '';
+    document.getElementById('minSales').value = level.minSales != null ? level.minSales : '';
+    document.getElementById('maxSales').value = level.maxSales != null ? level.maxSales : '';
+    document.getElementById('minFans').value = level.minFans != null ? level.minFans : '';
+    document.getElementById('maxFans').value = level.maxFans != null ? level.maxFans : '';
+    document.getElementById('procurementCost').value = level.procurementCost != null ? level.procurementCost : '';
+    document.getElementById('sharerDirectCommissionRate').value = level.sharerDirectCommissionRate != null ? level.sharerDirectCommissionRate : '';
+    document.getElementById('sharerIndirectCommissionRate').value = level.sharerIndirectCommissionRate != null ? level.sharerIndirectCommissionRate : '';
     document.getElementById('color').value = level.color || '#1890ff';
     document.getElementById('icon').value = level.icon || '';
     document.getElementById('description').value = level.description || '';
     document.getElementById('status').value = level.status || 'active';
-    document.getElementById('sortOrder').value = level.sortOrder || 0;
-    
-    // 根据数据判断模式并切换
-    if (level.procurementCost !== null && level.procurementCost !== undefined) {
-        // 有采购成本数据，切换到分销商模式
-        switchMode('distributor');
-        document.getElementById('procurementCost').value = level.procurementCost || '';
-    } else if (level.sharerDirectCommissionRate !== null && level.sharerDirectCommissionRate !== undefined) {
-        // 有分享佣金数据，切换到分享赚钱模式
+    document.getElementById('sortOrder').value = level.sortOrder ?? 0;
+    // 按类型切换到对应模式（采购成本>0 为分销商，否则为分享赚钱）
+    if (getLevelType(level) === 'sharer') {
         switchMode('sharer');
-        document.getElementById('sharerDirectCommissionRate').value = level.sharerDirectCommissionRate || '';
-        document.getElementById('sharerIndirectCommissionRate').value = level.sharerIndirectCommissionRate || '';
     } else {
-        // 默认分销商模式
         switchMode('distributor');
     }
-    
-    // 渲染特权
     renderPrivileges(level.privileges || {});
 }
 
-// 提交等级表单
+// 提交等级表单（按当前选中的模式提交：分享模式送 procurementCost=0，分销商模式送分享佣金=0）
 async function submitLevelForm(event) {
     event.preventDefault();
     
     const form = event.target;
     const formData = new FormData(form);
+    const isSharerMode = document.getElementById('sharerMode') && document.getElementById('sharerMode').classList.contains('active');
     
-    // 获取表单数据
     const levelData = {
         name: formData.get('name'),
-        level: parseInt(formData.get('level')),
+        level: parseInt(formData.get('level'), 10) || 0,
         minSales: parseFloat(formData.get('minSales')) || 0,
-        maxSales: parseFloat(formData.get('maxSales')) || null,
-        minFans: parseInt(formData.get('minFans')) || 0,
-        maxFans: parseInt(formData.get('maxFans')) || null,
-        procurementCost: parseFloat(formData.get('procurementCost')) || 0.5,
-        sharerDirectCommissionRate: parseFloat(formData.get('sharerDirectCommissionRate')) || 0.05,
-        sharerIndirectCommissionRate: parseFloat(formData.get('sharerIndirectCommissionRate')) || 0.02,
+        maxSales: formData.get('maxSales') === '' ? null : parseFloat(formData.get('maxSales')),
+        minFans: parseInt(formData.get('minFans'), 10) || 0,
+        maxFans: formData.get('maxFans') === '' ? null : parseInt(formData.get('maxFans'), 10),
         color: formData.get('color'),
         icon: formData.get('icon'),
-        sortOrder: parseInt(formData.get('sortOrder')) || 0,
+        sortOrder: parseInt(formData.get('sortOrder'), 10) || 0,
         status: formData.get('status'),
         description: formData.get('description'),
         privileges: getPrivileges()
     };
     
-    // 验证必填字段
+    if (isSharerMode) {
+        levelData.procurementCost = 0;
+        levelData.sharerDirectCommissionRate = parseFloat(formData.get('sharerDirectCommissionRate')) || 0;
+        levelData.sharerIndirectCommissionRate = parseFloat(formData.get('sharerIndirectCommissionRate')) || 0;
+    } else {
+        levelData.procurementCost = parseFloat(formData.get('procurementCost')) || 0;
+        levelData.sharerDirectCommissionRate = 0;
+        levelData.sharerIndirectCommissionRate = 0;
+    }
+    
     if (!levelData.name) {
         alert('等级名称不能为空');
         return;
     }
-    
     if (!levelData.level) {
         alert('等级数值不能为空');
         return;
     }
     
+    const editing = window.distributorLevelsData.editingLevel;
+    const editId = editing && (editing.id != null && editing.id !== '');
+    const url = editId ? `/api/distributor-levels/${editing.id}` : '/api/distributor-levels';
+    const method = editId ? 'PUT' : 'POST';
+    
+    if (window.distributorLevelsData.debugLog) {
+        console.log('[分销等级] 提交', { method, url, isSharerMode, levelData });
+    }
+    
     try {
         const token = localStorage.getItem('token');
-        const editing = window.distributorLevelsData.editingLevel;
-        const editId = editing && (editing.id != null && editing.id !== '');
-        const url = editId
-            ? `/api/distributor-levels/${editing.id}`
-            : '/api/distributor-levels';
-        const method = editId ? 'PUT' : 'POST';
-        
         const response = await fetch(url, {
             method: method,
             headers: {
@@ -370,12 +383,16 @@ async function submitLevelForm(event) {
         
         const result = await response.json();
         
+        if (window.distributorLevelsData.debugLog) {
+            console.log('[分销等级] 响应', { code: result.code, message: result.message, data: result.data });
+        }
+        
         if (result.code === 0) {
             alert(editId ? '等级更新成功' : '等级创建成功');
             closeLevelModal();
             loadLevels();
         } else {
-            alert((editId ? '更新失败' : '创建失败') + ': ' + result.message);
+            alert((editId ? '更新失败' : '创建失败') + ': ' + (result.message || ''));
         }
     } catch (error) {
         console.error('提交等级表单失败:', error);
@@ -399,11 +416,14 @@ async function deleteLevel(id) {
         });
         const result = await response.json();
         
+        if (window.distributorLevelsData.debugLog) {
+            console.log('[分销等级] 删除响应 id=%s code=%s message=%s', id, result.code, result.message);
+        }
         if (result.code === 0) {
             alert('等级删除成功');
             loadLevels();
         } else {
-            alert('删除失败: ' + result.message);
+            alert('删除失败: ' + (result.message || ''));
         }
     } catch (error) {
         console.error('删除等级失败:', error);
@@ -473,21 +493,32 @@ function getStatusText(status) {
 }
 
 function formatSalesRange(minSales, maxSales) {
-    if (minSales === 0 && !maxSales) return '无限制';
-    if (!maxSales) return `≥${minSales}`;
-    return `${minSales} - ${maxSales}`;
+    const min = safeNum(minSales);
+    const max = maxSales != null && maxSales !== '' && !Number.isNaN(Number(maxSales)) ? Number(maxSales) : null;
+    if (min === 0 && !max) return '无限制';
+    if (!max) return `≥${min}`;
+    return `${min} - ${max}`;
 }
 
 function formatFansRange(minFans, maxFans) {
-    if (minFans === 0 && !maxFans) return '无限制';
-    if (!maxFans) return `≥${minFans}`;
-    return `${minFans} - ${maxFans}`;
+    const min = safeNum(minFans);
+    const max = maxFans != null && maxFans !== '' && !Number.isNaN(Number(maxFans)) ? Number(maxFans) : null;
+    if (min === 0 && !max) return '无限制';
+    if (!max) return `≥${min}人`;
+    return `${min} - ${max}人`;
+}
+
+function formatProcurementCost(procurementCost) {
+    const v = safeNum(procurementCost);
+    if (v === 0) return '-';
+    return (v * 100).toFixed(2) + '%';
 }
 
 function formatCommissionRates(directRate, indirectRate) {
-    const direct = (directRate * 100).toFixed(2);
-    const indirect = (indirectRate * 100).toFixed(2);
-    return `直接${direct}% / 间接${indirect}%`;
+    const d = safeNum(directRate);
+    const i = safeNum(indirectRate);
+    if (d === 0 && i === 0) return '-';
+    return `直接${(d * 100).toFixed(2)}% / 间接${(i * 100).toFixed(2)}%`;
 }
 
 // 暴露函数到全局
