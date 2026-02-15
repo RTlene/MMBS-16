@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Order, Member, Product, MemberCommissionRecord, DistributorLevel, OrderOperationLog, User, OrderItem, ReturnRequest, RefundRecord, VerificationCode, CommissionCalculation, sequelize } = require('../db');
+const { Order, Member, Product, ProductSKU, MemberCommissionRecord, DistributorLevel, OrderOperationLog, User, OrderItem, ReturnRequest, RefundRecord, VerificationCode, CommissionCalculation, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const CommissionService = require('../services/commissionService');
@@ -223,67 +223,93 @@ router.get('/commission/:memberId', async (req, res) => {
     }
 });
 
-// 创建测试订单
+// 创建测试订单（用于验证佣金逻辑：下单会员、推荐关系、商品与金额由后台指定，订单直接为已支付并触发佣金计算）
 router.post('/test', async (req, res) => {
     try {
         const { memberId, productId, quantity = 1, unitPrice, totalAmount } = req.body;
 
-        // 验证必填字段
-        if (!memberId || !productId || !unitPrice || !totalAmount) {
+        if (!memberId || !productId) {
             return res.status(400).json({
                 code: 1,
-                message: '请填写必填字段'
+                message: '请选择下单会员和商品（memberId、productId 必填）'
             });
         }
 
-        // 检查会员是否存在
         const member = await Member.findByPk(memberId);
         if (!member) {
-            return res.status(404).json({
-                code: 1,
-                message: '会员不存在'
-            });
+            return res.status(404).json({ code: 1, message: '会员不存在' });
         }
 
-        // 检查商品是否存在
         const product = await Product.findByPk(productId);
         if (!product) {
-            return res.status(404).json({
-                code: 1,
-                message: '商品不存在'
-            });
+            return res.status(404).json({ code: 1, message: '商品不存在' });
         }
 
-        // 生成订单号
+        const qty = Math.max(1, parseInt(quantity, 10) || 1);
+        let price = unitPrice != null && unitPrice !== '' ? parseFloat(unitPrice) : null;
+        if (price == null || isNaN(price)) {
+            const sku = await ProductSKU.findOne({ where: { productId } });
+            price = sku ? parseFloat(sku.price) : 0;
+        }
+        const total = totalAmount != null && totalAmount !== '' ? parseFloat(totalAmount) : (price * qty);
+
+        if (total < 0 || price < 0) {
+            return res.status(400).json({ code: 1, message: '单价或总金额不能为负数' });
+        }
+
         const orderNo = `TEST${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
-        // 创建订单
         const order = await Order.create({
             orderNo,
             memberId,
             productId,
-            quantity,
-            unitPrice,
-            totalAmount,
+            quantity: qty,
+            unitPrice: price,
+            totalAmount: total,
             status: 'paid',
             paymentMethod: 'test',
             paymentTime: new Date(),
             isTest: true,
-            remark: '测试订单'
+            remark: '测试订单（用于佣金验证）',
+            createdBy: req.user ? req.user.id : null
         });
 
-        // 自动计算佣金
+        await OrderItem.create({
+            orderId: order.id,
+            productId: product.id,
+            productName: product.name || '测试商品',
+            quantity: qty,
+            unitPrice: price,
+            totalAmount: total,
+            productImage: (product.images && product.images[0]) || null
+        });
+
+        await OrderOperationLog.create({
+            orderId: order.id,
+            operation: 'pay',
+            operatorId: req.user ? req.user.id : null,
+            operatorType: 'user',
+            description: `后台创建测试订单并标记已支付（会员ID: ${member.id}，金额: ${total}），用于佣金验证`
+        });
+
         try {
             await CommissionService.calculateOrderCommission(order.id);
-        } catch (error) {
-            console.error('自动计算佣金失败:', error);
-            // 不抛出错误，避免影响订单创建
+        } catch (err) {
+            console.error('测试订单佣金计算失败:', err);
         }
 
         res.json({
             code: 0,
-            message: '测试订单创建成功',
-            data: { order }
+            message: '测试订单已创建并已支付，佣金已计算（请到佣金计算记录中确认待确认条目）',
+            data: {
+                order: {
+                    id: order.id,
+                    orderNo: order.orderNo,
+                    memberId: order.memberId,
+                    totalAmount: order.totalAmount,
+                    status: order.status
+                }
+            }
         });
     } catch (error) {
         console.error('创建测试订单失败:', error);

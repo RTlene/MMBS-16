@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建测试订单</title>
+    <style>
+        .test-order-container { padding: 20px; background: #f5f5f5; min-height: 100vh; }
+        .page-header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .page-title { font-size: 24px; font-weight: 600; color: #333; margin: 0 0 8px 0; }
+        .page-description { color: #666; margin: 0; font-size: 14px; }
+        .content-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
+        .card-body { padding: 24px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #333; margin-bottom: 6px; }
+        .form-control { width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; }
+        .form-control:focus { outline: none; border-color: #1890ff; }
+        .form-hint { font-size: 12px; color: #999; margin-top: 4px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
+        .btn-primary { background: #1890ff; color: white; }
+        .btn-primary:hover { background: #40a9ff; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .result-box { margin-top: 20px; padding: 16px; border-radius: 8px; display: none; }
+        .result-box.success { background: #f6ffed; border: 1px solid #b7eb8f; }
+        .result-box.error { background: #fff2f0; border: 1px solid #ffccc7; }
+        .result-box .order-id { font-weight: 600; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="test-order-container">
+        <div class="page-header">
+            <h1 class="page-title">创建测试订单</h1>
+            <p class="page-description">用于验证佣金计算逻辑：选择下单会员与商品，创建后订单状态为「已支付」并自动触发佣金计算。请确保该会员已设置推荐关系与等级。</p>
+        </div>
+        <div class="content-card">
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="memberId">下单会员 <span style="color:#f5222d;">*</span></label>
+                    <select id="memberId" class="form-control" required>
+                        <option value="">请选择会员</option>
+                    </select>
+                    <div class="form-hint">该会员作为买家，其 referrerId 对应的推荐人将参与佣金计算</div>
+                </div>
+                <div class="form-group">
+                    <label for="productId">商品 <span style="color:#f5222d;">*</span></label>
+                    <select id="productId" class="form-control" required>
+                        <option value="">请选择商品</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">数量</label>
+                    <input type="number" id="quantity" class="form-control" value="1" min="1" />
+                </div>
+                <div class="form-group">
+                    <label for="unitPrice">单价（元）</label>
+                    <input type="number" id="unitPrice" class="form-control" step="0.01" min="0" placeholder="不填则使用商品默认价" />
+                </div>
+                <div class="form-group">
+                    <label for="totalAmount">总金额（元）</label>
+                    <input type="number" id="totalAmount" class="form-control" step="0.01" min="0" placeholder="不填则按 单价×数量 计算" />
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary" id="btnCreate">创建并支付（测试订单）</button>
+                </div>
+                <div id="resultBox" class="result-box"></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

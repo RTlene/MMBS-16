@@ -82,6 +82,11 @@ const pageInitFunctions = {
         if (window.WithdrawalManagement && window.WithdrawalManagement.init) {
             window.WithdrawalManagement.init();
         }
+    },
+    'test-order': () => {
+        if (window.TestOrder && window.TestOrder.init) {
+            window.TestOrder.init();
+        }
     }
 };
 

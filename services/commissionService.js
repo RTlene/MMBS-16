@@ -1,9 +1,10 @@
 const { Op } = require('sequelize');
-const { 
-    Member, 
-    Order, 
-    MemberLevel, 
-    DistributorLevel, 
+const {
+    sequelize,
+    Member,
+    Order,
+    MemberLevel,
+    DistributorLevel,
     TeamExpansionLevel,
     CommissionCalculation,
     TeamIncentiveCalculation
