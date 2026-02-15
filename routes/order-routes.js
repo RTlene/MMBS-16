@@ -292,15 +292,17 @@ router.post('/test', async (req, res) => {
             description: `后台创建测试订单并标记已支付（会员ID: ${member.id}，金额: ${total}），用于佣金验证`
         });
 
+        let commissionCreated = 0;
         try {
-            await CommissionService.calculateOrderCommission(order.id);
+            const calc = await CommissionService.calculateOrderCommission(order.id);
+            commissionCreated = Array.isArray(calc) ? calc.length : 0;
         } catch (err) {
             console.error('测试订单佣金计算失败:', err);
         }
 
         res.json({
             code: 0,
-            message: '测试订单已创建并已支付，佣金已计算（请到佣金计算记录中确认待确认条目）',
+            message: '测试订单已创建并已支付（请到佣金记录中确认待确认条目）',
             data: {
                 order: {
                     id: order.id,
@@ -308,7 +310,8 @@ router.post('/test', async (req, res) => {
                     memberId: order.memberId,
                     totalAmount: order.totalAmount,
                     status: order.status
-                }
+                },
+                commissionCreated
             }
         });
     } catch (error) {

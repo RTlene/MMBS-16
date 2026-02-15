@@ -1,5 +1,5 @@
 /**
- * 佣金管理 - 概览、佣金计算记录、提现申请（合并）
+ * 佣金管理 - 概览、佣金记录、提现申请（合并）
  */
 window.CommissionManagement = {
   data: {
@@ -70,7 +70,7 @@ window.CommissionManagement = {
     }
   },
 
-  // ---------- 佣金计算记录 ----------
+  // ---------- 佣金记录 ----------
   bindCalcEvents() {
     const self = this;
     const q = document.getElementById('btnSearchCalc');

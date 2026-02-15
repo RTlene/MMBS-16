@@ -132,7 +132,14 @@ window.TestOrder = {
             if (result.code === 0) {
                 resultBox.className = 'result-box success';
                 const order = result.data && result.data.order;
-                resultBox.innerHTML = result.message + '<br><span class="order-id">订单号：' + (order && order.orderNo) + '，订单ID：' + (order && order.id) + '</span>';
+                const commissionCreated = result.data && result.data.commissionCreated;
+                let extra = '<br><span class="order-id">订单号：' + (order && order.orderNo) + '，订单ID：' + (order && order.id) + '</span>';
+                if (commissionCreated !== undefined) {
+                    extra += '<br>' + (commissionCreated > 0
+                        ? ('已生成 <strong>' + commissionCreated + '</strong> 条佣金记录，请到「佣金管理 → 佣金记录」中确认。')
+                        : '未生成佣金记录（该会员无推荐人或未满足等级条件）。');
+                }
+                resultBox.innerHTML = result.message + extra;
             } else {
                 resultBox.className = 'result-box error';
                 resultBox.innerHTML = result.message || '创建失败';

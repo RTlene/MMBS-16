@@ -39,7 +39,7 @@ class CommissionService {
             
             if (!referrer) {
                 console.log(`会员 ${member.id} 没有推荐人，跳过佣金计算`);
-                return;
+                return [];
             }
 
             const calculations = [];
@@ -83,12 +83,11 @@ class CommissionService {
                 calculations.push(networkDistributorCommission);
             }
 
-            // 保存所有佣金计算记录
+            // 保存所有佣金记录
             if (calculations.length > 0) {
                 await CommissionCalculation.bulkCreate(calculations);
                 console.log(`订单 ${orderId} 佣金计算完成，共 ${calculations.length} 条记录`);
             }
-
             return calculations;
 
         } catch (error) {

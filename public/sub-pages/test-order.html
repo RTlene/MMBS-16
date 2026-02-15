@@ -30,7 +30,8 @@
     <div class="test-order-container">
         <div class="page-header">
             <h1 class="page-title">创建测试订单</h1>
-            <p class="page-description">用于验证佣金计算逻辑：选择下单会员与商品，创建后订单状态为「已支付」并自动触发佣金计算。请确保该会员已设置推荐关系与等级。</p>
+            <p class="page-description">用于验证佣金计算逻辑：选择下单会员与商品，创建后订单状态为「已支付」并自动触发佣金计算。</p>
+            <p style="margin:8px 0 0 0; color:#fa8c16; font-size:13px;"><strong>重要：</strong>仅当所选会员已设置推荐人时才会生成佣金记录；若列表里看不到新条目，请到「会员管理」为该会员设置推荐人后再创建测试订单。</p>
         </div>
         <div class="content-card">
             <div class="card-body">
@@ -39,7 +40,7 @@
                     <select id="memberId" class="form-control" required>
                         <option value="">请选择会员</option>
                     </select>
-                    <div class="form-hint">该会员作为买家，其 referrerId 对应的推荐人将参与佣金计算</div>
+                    <div class="form-hint">该会员作为买家；其推荐人（referrerId）及等级将参与佣金计算，未设置推荐人则不会产生佣金记录</div>
                 </div>
                 <div class="form-group">
                     <label for="productId">商品 <span style="color:#f5222d;">*</span></label>
