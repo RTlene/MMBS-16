@@ -83,6 +83,11 @@ const pageInitFunctions = {
             window.WithdrawalManagement.init();
         }
     },
+    'commission-management': () => {
+        if (window.CommissionManagement && window.CommissionManagement.init) {
+            window.CommissionManagement.init();
+        }
+    },
     'test-order': () => {
         if (window.TestOrder && window.TestOrder.init) {
             window.TestOrder.init();

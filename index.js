@@ -19,6 +19,7 @@ const orderRoutes = require('./routes/order-routes');
 const returnRequestRoutes = require('./routes/return-request-routes');
 const refundRecordRoutes = require('./routes/refund-record-routes');
 const withdrawalRoutes = require('./routes/withdrawal-routes');
+const commissionRoutes = require('./routes/commission-routes');
 const pointMallRoutes = require('./routes/point-mall-routes');
 const promotionRoutes = require('./routes/promotion-routes');
 const referralRewardRoutes = require('./routes/referral-reward-routes');
@@ -98,6 +99,8 @@ app.use('/api/return-requests', require('./middleware/auth').authenticateToken, 
 app.use('/api/refund-records', require('./middleware/auth').authenticateToken, refundRecordRoutes);
 // 添加佣金提现管理路由（后台）
 app.use('/api/withdrawals', require('./middleware/auth').authenticateToken, withdrawalRoutes);
+// 添加佣金管理路由（计算记录、确认/取消、统计、团队拓展激励）
+app.use('/api/commission', require('./middleware/auth').authenticateToken, commissionRoutes);
 // 添加积分商城管理路由
 app.use('/api/point-mall', require('./middleware/auth').authenticateToken, pointMallRoutes);
 // 添加促销活动管理路由

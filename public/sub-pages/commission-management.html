@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>佣金管理</title>
+    <style>
+        .commission-container { padding: 20px; background: #f5f5f5; min-height: 100vh; }
+        .page-header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .page-title { font-size: 24px; font-weight: 600; color: #333; margin: 0 0 8px 0; }
+        .page-description { color: #666; margin: 0; font-size: 14px; }
+        .tabs { display: flex; gap: 4px; margin-bottom: 16px; background: white; padding: 8px 12px 0; border-radius: 8px 8px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+        .tab { padding: 10px 20px; cursor: pointer; border: none; background: transparent; font-size: 14px; color: #666; border-bottom: 2px solid transparent; }
+        .tab:hover { color: #1890ff; }
+        .tab.active { color: #1890ff; font-weight: 600; border-bottom-color: #1890ff; }
+        .tab-panel { display: none; background: white; padding: 20px; border-radius: 0 8px 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+        .tab-panel.active { display: block; }
+        .stats-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; min-width: 160px; }
+        .stat-card.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .stat-card.orange { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .stat-card.blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .stat-label { font-size: 13px; opacity: 0.9; }
+        .stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+        .content-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; }
+        .card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 13px; color: #333; font-weight: 500; }
+        .form-input, .form-select { padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; min-width: 120px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .btn-primary { background: #1890ff; color: white; }
+        .btn-success { background: #52c41a; color: white; }
+        .btn-danger { background: #ff4d4f; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; margin-left: 4px; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th { background: #fafafa; padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+        .table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+        .table tbody tr:hover { background: #fafafa; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .badge-pending { background: #fff2e8; color: #fa8c16; }
+        .badge-confirmed { background: #f6ffed; color: #52c41a; }
+        .badge-cancelled { background: #f5f5f5; color: #999; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 16px; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 18px; font-weight: 600; margin: 0; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+        .modal-body { padding: 20px; }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 10px; }
+        .detail-row { display: flex; margin-bottom: 8px; font-size: 14px; }
+        .detail-label { width: 100px; color: #666; flex-shrink: 0; }
+        .detail-value { color: #333; }
+        .form-textarea { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; resize: vertical; min-height: 60px; }
+        .action-buttons { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .status-pending { background: #fff2e8; color: #fa8c16; }
+        .status-approved { background: #e6f7ff; color: #1890ff; }
+        .status-rejected { background: #fff2f0; color: #ff4d4f; }
+        .status-completed { background: #f6ffed; color: #52c41a; }
+        .status-cancelled { background: #f5f5f5; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="commission-container">
+        <div class="page-header">
+            <h1 class="page-title">佣金管理</h1>
+            <p class="page-description">佣金计算记录确认/取消、提现申请审核、小额自动通过配置</p>
+        </div>
+
+        <div class="tabs">
+            <button type="button" class="tab active" data-tab="overview">概览</button>
+            <button type="button" class="tab" data-tab="calculations">佣金计算记录</button>
+            <button type="button" class="tab" data-tab="withdrawals">提现申请</button>
+        </div>
+
+        <!-- Tab 概览 -->
+        <div id="panel-overview" class="tab-panel active">
+            <div class="stats-row" id="statsRow">
+                <div class="stat-card"><div class="stat-label">待确认笔数</div><div class="stat-value" id="statPending">-</div></div>
+                <div class="stat-card green"><div class="stat-label">已确认总金额（元）</div><div class="stat-value" id="statConfirmedAmount">-</div></div>
+                <div class="stat-card orange"><div class="stat-label">计算记录总数</div><div class="stat-value" id="statTotal">-</div></div>
+                <div class="stat-card blue"><div class="stat-label">已确认笔数</div><div class="stat-value" id="statConfirmed">-</div></div>
+            </div>
+            <p style="color:#666; margin-bottom:12px;">确认后的佣金会进入会员「可用佣金」，会员可提现或下单抵扣。</p>
+            <a href="#" id="linkTestOrder" class="btn btn-primary">创建测试订单（验证佣金）</a>
+        </div>
+
+        <!-- Tab 佣金计算记录 -->
+        <div id="panel-calculations" class="tab-panel">
+            <p style="color:#666; margin-bottom:12px; font-size:13px;">订单支付后生成的佣金计算记录，确认后金额进入会员「可用佣金」。</p>
+            <div class="content-card">
+                <div class="card-header">
+                    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+                        <div class="form-group">
+                            <label>类型</label>
+                            <select id="calcTypeFilter" class="form-select">
+                                <option value="">全部</option>
+                                <option value="direct">直接佣金</option>
+                                <option value="indirect">间接佣金</option>
+                                <option value="distributor">分销商佣金</option>
+                                <option value="network_distributor">网络分销商</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>状态</label>
+                            <select id="calcStatusFilter" class="form-select">
+                                <option value="">全部</option>
+                                <option value="pending">待确认</option>
+                                <option value="confirmed">已确认</option>
+                                <option value="cancelled">已取消</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btnSearchCalc">查询</button>
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>订单号</th>
+                                <th>下单会员</th>
+                                <th>接收人</th>
+                                <th>类型</th>
+                                <th>订单金额</th>
+                                <th>比例</th>
+                                <th>佣金金额</th>
+                                <th>状态</th>
+                                <th>计算时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calcTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="calcPagination"></div>
+            </div>
+        </div>
+
+        <!-- Tab 提现申请 -->
+        <div id="panel-withdrawals" class="tab-panel">
+            <div class="content-card" style="margin-bottom:20px;">
+                <div class="card-header" style="flex-direction:column; align-items:stretch;">
+                    <div style="font-weight:600; margin-bottom:8px;">小额自动通过</div>
+                    <p style="color:#666; margin:0 0 12px 0; font-size:13px;">启用后，微信钱包提现且金额不超过下方金额时自动通过并发起转账。</p>
+                    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" id="autoApproveEnabled" />
+                            <span>启用</span>
+                        </label>
+                        <div class="form-group" style="margin:0;">
+                            <label>最大自动通过金额（元）</label>
+                            <input type="number" id="autoApproveMaxAmount" class="form-input" min="0" step="0.01" placeholder="如 100" style="width:120px;" />
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btnSaveWithdrawalConfig">保存配置</button>
+                    </div>
+                </div>
+            </div>
+            <div class="content-card">
+                <div class="card-header">
+                    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+                        <div class="form-group">
+                            <label>搜索</label>
+                            <input type="text" id="searchInput" class="form-input" placeholder="单号、会员、账户" />
+                        </div>
+                        <div class="form-group">
+                            <label>状态</label>
+                            <select id="statusFilter" class="form-select">
+                                <option value="">全部</option>
+                                <option value="pending">待审核</option>
+                                <option value="approved">已通过</option>
+                                <option value="rejected">已拒绝</option>
+                                <option value="completed">已完成</option>
+                                <option value="cancelled">已取消</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btnSearchWithdrawal">查询</button>
+                        <button type="button" class="btn btn-secondary" id="btnResetWithdrawal">重置</button>
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>提现单号</th>
+                                <th>会员</th>
+                                <th>金额</th>
+                                <th>账户类型</th>
+                                <th>状态</th>
+                                <th>申请时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="withdrawalTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提现详情弹窗 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">提现详情</h3>
+                <button class="modal-close" onclick="window.CommissionManagement.closeWithdrawalDetail()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row"><span class="detail-label">提现单号</span><span class="detail-value" id="dWithdrawalNo">-</span></div>
+                <div class="detail-row"><span class="detail-label">会员</span><span class="detail-value" id="dMember">-</span></div>
+                <div class="detail-row"><span class="detail-label">提现金额</span><span class="detail-value" id="dAmount">-</span></div>
+                <div class="detail-row"><span class="detail-label">账户类型</span><span class="detail-value" id="dAccountType">-</span></div>
+                <div class="detail-row"><span class="detail-label">账户姓名</span><span class="detail-value" id="dAccountName">-</span></div>
+                <div class="detail-row"><span class="detail-label">账户号码</span><span class="detail-value" id="dAccountNumber">-</span></div>
+                <div class="detail-row" id="dBankRow" style="display:none;"><span class="detail-label">银行</span><span class="detail-value" id="dBankName">-</span></div>
+                <div class="detail-row"><span class="detail-label">状态</span><span class="detail-value" id="dStatus">-</span></div>
+                <div class="detail-row"><span class="detail-label">申请时间</span><span class="detail-value" id="dCreatedAt">-</span></div>
+                <div class="detail-row"><span class="detail-label">用户备注</span><span class="detail-value" id="dRemark">-</span></div>
+                <div class="detail-row" id="dAutoFailReasonRow" style="display:none;"><span class="detail-label">自动通过失败</span><span class="detail-value" id="dAutoFailReason" style="color:#fa8c16;"></span></div>
+                <div class="detail-row"><span class="detail-label">管理员备注</span><span class="detail-value" id="dAdminRemark">-</span></div>
+                <div style="margin-top:16px;">
+                    <label style="font-size:13px; font-weight:600;">管理员备注（拒绝时填写）</label>
+                    <textarea id="adminRemarkInput" class="form-textarea" placeholder="选填"></textarea>
+                </div>
+                <div class="action-buttons" id="actionButtons">
+                    <button class="btn btn-success btn-sm" id="btnApprove">通过</button>
+                    <button class="btn btn-danger btn-sm" id="btnReject">拒绝</button>
+                    <button class="btn btn-primary btn-sm" id="btnComplete">标记已完成</button>
+                    <button class="btn btn-secondary btn-sm" id="btnCancelTransfer" title="用户未确认收款时可撤回">转账撤回</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="window.CommissionManagement.closeWithdrawalDetail()">关闭</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -4,42 +4,46 @@ let sourceConfigs = [];
 let multiplierConfigs = [];
 let ruleConfigs = [];
 
-// 页面初始化
-document.addEventListener('DOMContentLoaded', function() {
+function getAuthHeaders() {
+    var token = localStorage.getItem('token');
+    return { 'Authorization': 'Bearer ' + (token || ''), 'Content-Type': 'application/json' };
+}
+
+function runInit() {
     initializePage();
     bindEvents();
     loadData();
-});
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runInit);
+} else {
+    runInit();
+}
 
-// 初始化页面
+// 初始化页面（与佣金管理等一致的 Tab 切换）
 function initializePage() {
-    // 设置默认标签页
-    const tabButtons = document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]');
+    const tabButtons = document.querySelectorAll('.tab[data-tab]');
     tabButtons.forEach(button => {
         button.addEventListener('click', function() {
-            currentTab = this.getAttribute('data-bs-target').replace('#', '');
-            loadData();
+            const t = this.getAttribute('data-tab');
+            currentTab = t;
+            document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+            const panel = document.getElementById('panel-' + t);
+            if (panel) panel.classList.add('active');
         });
     });
 }
 
 // 绑定事件
 function bindEvents() {
-    // 表单提交事件
-    document.getElementById('sourceConfigForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        saveSourceConfig();
-    });
-
-    document.getElementById('multiplierConfigForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        saveMultiplierConfig();
-    });
-
-    document.getElementById('ruleConfigForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        saveRuleConfig();
-    });
+    var form = document.getElementById('sourceConfigForm');
+    if (form) form.addEventListener('submit', function(e) { e.preventDefault(); saveSourceConfig(); });
+    form = document.getElementById('multiplierConfigForm');
+    if (form) form.addEventListener('submit', function(e) { e.preventDefault(); saveMultiplierConfig(); });
+    form = document.getElementById('ruleConfigForm');
+    if (form) form.addEventListener('submit', function(e) { e.preventDefault(); saveRuleConfig(); });
 }
 
 // 加载数据
@@ -60,7 +64,7 @@ async function loadData() {
 // 加载积分来源配置
 async function loadSourceConfigs() {
     try {
-        const response = await fetch('/api/point-settings/source-configs');
+        const response = await fetch('/api/point-settings/source-configs', { headers: getAuthHeaders() });
         const result = await response.json();
         
         if (result.code === 0) {
@@ -78,7 +82,7 @@ async function loadSourceConfigs() {
 // 加载倍率配置
 async function loadMultiplierConfigs() {
     try {
-        const response = await fetch('/api/point-settings/multiplier-configs');
+        const response = await fetch('/api/point-settings/multiplier-configs', { headers: getAuthHeaders() });
         const result = await response.json();
         
         if (result.code === 0) {
@@ -96,7 +100,7 @@ async function loadMultiplierConfigs() {
 // 加载规则配置
 async function loadRuleConfigs() {
     try {
-        const response = await fetch('/api/point-settings/rule-configs');
+        const response = await fetch('/api/point-settings/rule-configs', { headers: getAuthHeaders() });
         const result = await response.json();
         
         if (result.code === 0) {
@@ -114,7 +118,7 @@ async function loadRuleConfigs() {
 // 加载统计信息
 async function loadStats() {
     try {
-        const response = await fetch('/api/point-settings/stats');
+        const response = await fetch('/api/point-settings/stats', { headers: getAuthHeaders() });
         const result = await response.json();
         
         if (result.code === 0) {
@@ -369,9 +373,7 @@ async function saveSourceConfig() {
 
         const response = await fetch(url, {
             method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(formData)
         });
 
@@ -409,9 +411,7 @@ async function saveMultiplierConfig() {
 
         const response = await fetch(url, {
             method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(formData)
         });
 
@@ -455,9 +455,7 @@ async function saveRuleConfig() {
 
         const response = await fetch(url, {
             method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(formData)
         });
 
@@ -508,7 +506,8 @@ async function deleteSourceConfig(id) {
 
     try {
         const response = await fetch(`/api/point-settings/source-configs/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
         });
 
         const result = await response.json();
@@ -533,7 +532,8 @@ async function deleteMultiplierConfig(id) {
 
     try {
         const response = await fetch(`/api/point-settings/multiplier-configs/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
         });
 
         const result = await response.json();
@@ -558,7 +558,8 @@ async function deleteRuleConfig(id) {
 
     try {
         const response = await fetch(`/api/point-settings/rule-configs/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
         });
 
         const result = await response.json();
