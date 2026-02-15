@@ -293,9 +293,16 @@ router.post('/test', async (req, res) => {
         });
 
         let commissionCreated = 0;
+        let commissionReason = null; // 'no_referrer' | 'referrer_not_found' | 'level_not_met'
         try {
-            const calc = await CommissionService.calculateOrderCommission(order.id);
-            commissionCreated = Array.isArray(calc) ? calc.length : 0;
+            const result = await CommissionService.calculateOrderCommission(order.id);
+            const calculations = result && result.calculations ? result.calculations : [];
+            commissionCreated = calculations.length;
+            if (commissionCreated === 0 && result) {
+                if (result.noReferrer) commissionReason = 'no_referrer';
+                else if (result.referrerNotFound) commissionReason = 'referrer_not_found';
+                else commissionReason = 'level_not_met';
+            }
         } catch (err) {
             console.error('测试订单佣金计算失败:', err);
         }
@@ -311,7 +318,8 @@ router.post('/test', async (req, res) => {
                     totalAmount: order.totalAmount,
                     status: order.status
                 },
-                commissionCreated
+                commissionCreated,
+                commissionReason
             }
         });
     } catch (error) {

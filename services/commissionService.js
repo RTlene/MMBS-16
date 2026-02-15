@@ -34,12 +34,17 @@ class CommissionService {
             const member = order.member;
             const orderAmount = parseFloat(order.totalAmount);
 
+            // 未设置推荐人
+            if (member.referrerId == null || member.referrerId === '') {
+                console.log(`会员 ${member.id} 未设置推荐人，跳过佣金计算`);
+                return { calculations: [], noReferrer: true };
+            }
+
             // 获取推荐人信息
             const referrer = await this.getReferrerWithLevels(member.referrerId);
-            
             if (!referrer) {
-                console.log(`会员 ${member.id} 没有推荐人，跳过佣金计算`);
-                return [];
+                console.log(`会员 ${member.id} 的推荐人 ID ${member.referrerId} 不存在或已删除，跳过佣金计算`);
+                return { calculations: [], referrerNotFound: true };
             }
 
             const calculations = [];
@@ -88,7 +93,7 @@ class CommissionService {
                 await CommissionCalculation.bulkCreate(calculations);
                 console.log(`订单 ${orderId} 佣金计算完成，共 ${calculations.length} 条记录`);
             }
-            return calculations;
+            return { calculations, noReferrer: false, referrerNotFound: false };
 
         } catch (error) {
             console.error('计算订单佣金失败:', error);

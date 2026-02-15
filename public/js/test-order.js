@@ -133,11 +133,18 @@ window.TestOrder = {
                 resultBox.className = 'result-box success';
                 const order = result.data && result.data.order;
                 const commissionCreated = result.data && result.data.commissionCreated;
+                const commissionReason = result.data && result.data.commissionReason;
                 let extra = '<br><span class="order-id">订单号：' + (order && order.orderNo) + '，订单ID：' + (order && order.id) + '</span>';
                 if (commissionCreated !== undefined) {
-                    extra += '<br>' + (commissionCreated > 0
-                        ? ('已生成 <strong>' + commissionCreated + '</strong> 条佣金记录，请到「佣金管理 → 佣金记录」中确认。')
-                        : '未生成佣金记录（该会员无推荐人或未满足等级条件）。');
+                    if (commissionCreated > 0) {
+                        extra += '<br>已生成 <strong>' + commissionCreated + '</strong> 条佣金记录，请到「佣金管理 → 佣金记录」中确认。';
+                    } else {
+                        var reasonMsg = '未生成佣金记录。';
+                        if (commissionReason === 'no_referrer') reasonMsg = '未生成佣金记录（该会员未设置推荐人）。';
+                        else if (commissionReason === 'referrer_not_found') reasonMsg = '未生成佣金记录（推荐人 ID 已设置但该会员不存在或已删除，请检查会员管理）。';
+                        else if (commissionReason === 'level_not_met') reasonMsg = '未生成佣金记录（推荐人未满足等级条件：需为「分享赚钱」或分销商等，请在会员/等级中配置）。';
+                        extra += '<br>' + reasonMsg;
+                    }
                 }
                 resultBox.innerHTML = result.message + extra;
             } else {

@@ -128,8 +128,8 @@ router.post('/calculate/:orderId', authenticateToken, async (req, res) => {
     try {
         const { orderId } = req.params;
         
-        const calculations = await CommissionService.calculateOrderCommission(orderId);
-        
+        const result = await CommissionService.calculateOrderCommission(orderId);
+        const calculations = result && result.calculations ? result.calculations : [];
         res.json({
             code: 0,
             message: '佣金计算完成',
