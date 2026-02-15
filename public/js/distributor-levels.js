@@ -267,8 +267,10 @@ async function editLevel(id) {
         const result = await response.json();
         
         if (result.code === 0) {
-            window.distributorLevelsData.editingLevel = result.data;
-            fillLevelForm(result.data);
+            // 接口返回 data: { level }，需用 result.data.level 作为当前编辑对象
+            const level = result.data.level || result.data;
+            window.distributorLevelsData.editingLevel = level;
+            fillLevelForm(level);
             document.getElementById('levelModalTitle').textContent = '编辑分销等级';
             document.getElementById('levelModal').style.display = 'flex';
         }
@@ -350,10 +352,12 @@ async function submitLevelForm(event) {
     
     try {
         const token = localStorage.getItem('token');
-        const url = window.distributorLevelsData.editingLevel 
-            ? `/api/distributor-levels/${window.distributorLevelsData.editingLevel.id}`
+        const editing = window.distributorLevelsData.editingLevel;
+        const editId = editing && (editing.id != null && editing.id !== '');
+        const url = editId
+            ? `/api/distributor-levels/${editing.id}`
             : '/api/distributor-levels';
-        const method = window.distributorLevelsData.editingLevel ? 'PUT' : 'POST';
+        const method = editId ? 'PUT' : 'POST';
         
         const response = await fetch(url, {
             method: method,
@@ -367,11 +371,11 @@ async function submitLevelForm(event) {
         const result = await response.json();
         
         if (result.code === 0) {
-            alert(window.distributorLevelsData.editingLevel ? '等级更新成功' : '等级创建成功');
+            alert(editId ? '等级更新成功' : '等级创建成功');
             closeLevelModal();
             loadLevels();
         } else {
-            alert((window.distributorLevelsData.editingLevel ? '更新失败' : '创建失败') + ': ' + result.message);
+            alert((editId ? '更新失败' : '创建失败') + ': ' + result.message);
         }
     } catch (error) {
         console.error('提交等级表单失败:', error);
