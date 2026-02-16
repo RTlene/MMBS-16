@@ -20,6 +20,8 @@
         .btn-primary { background: #1890ff; color: white; }
         .btn-primary:hover { background: #40a9ff; }
         .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; }
         .result-box { margin-top: 20px; padding: 16px; border-radius: 8px; display: none; }
         .result-box.success { background: #f6ffed; border: 1px solid #b7eb8f; }
         .result-box.error { background: #fff2f0; border: 1px solid #ffccc7; }
@@ -29,9 +31,14 @@
 <body>
     <div class="test-order-container">
         <div class="page-header">
-            <h1 class="page-title">创建测试订单</h1>
-            <p class="page-description">用于验证佣金计算逻辑：选择下单会员与商品，创建后订单状态为「已支付」并自动触发佣金计算。</p>
-            <p style="margin:8px 0 0 0; color:#fa8c16; font-size:13px;"><strong>重要：</strong>仅当所选会员已设置推荐人时才会生成佣金记录；若列表里看不到新条目，请到「会员管理」为该会员设置推荐人后再创建测试订单。</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h1 class="page-title">创建测试订单</h1>
+                    <p class="page-description">用于验证佣金计算逻辑：选择下单会员与商品，创建后订单状态为「已支付」并自动触发佣金计算。</p>
+                    <p style="margin:8px 0 0 0; color:#fa8c16; font-size:13px;"><strong>重要：</strong>仅当所选会员已设置推荐人时才会生成佣金记录；推荐人需为「分享赚钱」会员或已设置分销等级（含分享佣金率）。</p>
+                </div>
+                <button type="button" id="btnBackToCommission" class="btn btn-secondary">返回佣金管理</button>
+            </div>
         </div>
         <div class="content-card">
             <div class="card-body">

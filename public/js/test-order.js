@@ -81,6 +81,8 @@ window.TestOrder = {
         if (btn) btn.addEventListener('click', () => this.createTestOrder());
         const productId = document.getElementById('productId');
         if (productId) productId.addEventListener('change', () => this.onProductChange());
+        const btnBack = document.getElementById('btnBackToCommission');
+        if (btnBack && window.PageLoader) btnBack.addEventListener('click', () => window.PageLoader.loadSubPage('commission-management'));
     },
 
     onProductChange() {

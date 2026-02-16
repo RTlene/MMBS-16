@@ -294,6 +294,7 @@ router.post('/test', async (req, res) => {
 
         let commissionCreated = 0;
         let commissionReason = null; // 'no_referrer' | 'referrer_not_found' | 'level_not_met'
+        console.log(`[测试订单] 订单已创建 orderId=${order.id} orderNo=${order.orderNo} memberId=${order.memberId} totalAmount=${order.totalAmount}，开始计算佣金`);
         try {
             const result = await CommissionService.calculateOrderCommission(order.id);
             const calculations = result && result.calculations ? result.calculations : [];
@@ -303,8 +304,9 @@ router.post('/test', async (req, res) => {
                 else if (result.referrerNotFound) commissionReason = 'referrer_not_found';
                 else commissionReason = 'level_not_met';
             }
+            console.log(`[测试订单] 佣金计算结束 orderId=${order.id} commissionCreated=${commissionCreated} commissionReason=${commissionReason || '-'}`);
         } catch (err) {
-            console.error('测试订单佣金计算失败:', err);
+            console.error('[测试订单] 佣金计算失败 orderId=%s error=%s', order.id, err.message, err);
         }
 
         res.json({

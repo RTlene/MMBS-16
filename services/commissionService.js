@@ -34,49 +34,76 @@ class CommissionService {
             const member = order.member;
             const orderAmount = parseFloat(order.totalAmount);
 
+            console.log(`[佣金] 订单 orderId=${orderId} 下单会员 memberId=${member.id} referrerId=${member.referrerId} 订单金额=${orderAmount}`);
+
             // 未设置推荐人
             if (member.referrerId == null || member.referrerId === '') {
-                console.log(`会员 ${member.id} 未设置推荐人，跳过佣金计算`);
+                console.log(`[佣金] 跳过：会员 ${member.id} 未设置推荐人`);
                 return { calculations: [], noReferrer: true };
             }
 
             // 获取推荐人信息
             const referrer = await this.getReferrerWithLevels(member.referrerId);
             if (!referrer) {
-                console.log(`会员 ${member.id} 的推荐人 ID ${member.referrerId} 不存在或已删除，跳过佣金计算`);
+                console.log(`[佣金] 跳过：推荐人 ID ${member.referrerId} 不存在或已删除`);
                 return { calculations: [], referrerNotFound: true };
             }
 
+            const ml = referrer.memberLevel;
+            const dl = referrer.distributorLevel;
+            const sharerDirect = dl ? parseFloat(dl.sharerDirectCommissionRate) : 0;
+            const sharerIndirect = dl ? parseFloat(dl.sharerIndirectCommissionRate) : 0;
+            console.log(`[佣金] 推荐人 referrerId=${referrer.id} 会员等级=${ml ? ml.name : '无'} isSharingEarner=${!!(ml && ml.isSharingEarner)} 分销等级=${dl ? dl.name : '无'} sharerDirectRate=${sharerDirect} sharerIndirectRate=${sharerIndirect}`);
+
             const calculations = [];
 
-            // 1. 计算直接佣金
-            if (referrer.memberLevel && referrer.memberLevel.isSharingEarner) {
+            // 1. 计算直接佣金（会员等级「分享赚钱」或 分销等级 的分享直接佣金率 > 0 均可）
+            const canDirect = (ml && ml.isSharingEarner) || (dl && sharerDirect > 0);
+            console.log(`[佣金] 直接佣金 条件满足=${canDirect} (会员等级分享赚钱=${!!(ml && ml.isSharingEarner)} 或 分销分享直接率>0=${sharerDirect > 0})`);
+            if (canDirect) {
                 const directCommission = await this.calculateDirectCommission(
                     orderId, member.id, referrer.id, orderAmount, referrer
                 );
                 if (directCommission) {
                     calculations.push(directCommission);
+                    console.log(`[佣金] 直接佣金 已生成 比例=${directCommission.commissionRate}% 金额=${directCommission.commissionAmount}`);
+                } else {
+                    console.log(`[佣金] 直接佣金 未生成（比例<=0或计算为0）`);
                 }
             }
 
-            // 2. 计算间接佣金
+            // 2. 计算间接佣金（同上：会员等级分享赚钱或分销等级分享间接佣金率 > 0）
             const indirectReferrer = await this.getReferrerWithLevels(referrer.referrerId);
-            if (indirectReferrer && indirectReferrer.memberLevel && indirectReferrer.memberLevel.isSharingEarner) {
+            const indirectMl = indirectReferrer && indirectReferrer.memberLevel;
+            const indirectDl = indirectReferrer && indirectReferrer.distributorLevel;
+            const indirectSharerInd = indirectDl ? parseFloat(indirectDl.sharerIndirectCommissionRate) : 0;
+            const canIndirect = indirectReferrer &&
+                ((indirectMl && indirectMl.isSharingEarner) || (indirectDl && indirectSharerInd > 0));
+            console.log(`[佣金] 间接佣金 有间接推荐人=${!!indirectReferrer} 条件满足=${canIndirect} (分享赚钱=${!!(indirectMl && indirectMl.isSharingEarner)} 或 分销分享间接率>0=${indirectSharerInd > 0})`);
+            if (canIndirect) {
                 const indirectCommission = await this.calculateIndirectCommission(
                     orderId, member.id, indirectReferrer.id, orderAmount, indirectReferrer
                 );
                 if (indirectCommission) {
                     calculations.push(indirectCommission);
+                    console.log(`[佣金] 间接佣金 已生成 比例=${indirectCommission.commissionRate}% 金额=${indirectCommission.commissionAmount}`);
+                } else {
+                    console.log(`[佣金] 间接佣金 未生成（比例<=0或计算为0）`);
                 }
             }
 
             // 3. 计算分销商佣金
-            if (referrer.distributorLevel) {
+            const hasDistributorLevel = !!referrer.distributorLevel;
+            console.log(`[佣金] 分销商佣金 有分销等级=${hasDistributorLevel}`);
+            if (hasDistributorLevel) {
                 const distributorCommission = await this.calculateDistributorCommission(
                     orderId, member.id, referrer.id, orderAmount, referrer
                 );
                 if (distributorCommission) {
                     calculations.push(distributorCommission);
+                    console.log(`[佣金] 分销商佣金 已生成 costRate=${distributorCommission.costRate}% 金额=${distributorCommission.commissionAmount}`);
+                } else {
+                    console.log(`[佣金] 分销商佣金 未生成（costRate<=0）`);
                 }
             }
 
@@ -86,12 +113,17 @@ class CommissionService {
             );
             if (networkDistributorCommission) {
                 calculations.push(networkDistributorCommission);
+                console.log(`[佣金] 网络分销商佣金 已生成 金额=${networkDistributorCommission.commissionAmount}`);
+            } else {
+                console.log(`[佣金] 网络分销商佣金 未生成`);
             }
 
             // 保存所有佣金记录
             if (calculations.length > 0) {
                 await CommissionCalculation.bulkCreate(calculations);
-                console.log(`订单 ${orderId} 佣金计算完成，共 ${calculations.length} 条记录`);
+                console.log(`[佣金] 订单 ${orderId} 完成 共 ${calculations.length} 条记录`);
+            } else {
+                console.log(`[佣金] 订单 ${orderId} 无任何佣金记录生成（推荐人存在但各类型均未满足或比例为0）`);
             }
             return { calculations, noReferrer: false, referrerNotFound: false };
 
@@ -116,13 +148,25 @@ class CommissionService {
     }
 
     /**
-     * 计算直接佣金
+     * 计算直接佣金（比例 0-100。来源：个人 > 会员等级直接佣金 > 分销等级分享直接佣金率*100）
      */
     static async calculateDirectCommission(orderId, memberId, referrerId, orderAmount, referrer) {
-        const commissionRate = referrer.personalDirectCommissionRate || 
-                              (referrer.memberLevel ? referrer.memberLevel.directCommissionRate : 0);
-        
-        if (commissionRate <= 0) return null;
+        let commissionRate = referrer.personalDirectCommissionRate;
+        let rateSource = 'personal';
+        if (commissionRate == null || commissionRate <= 0) {
+            if (referrer.memberLevel && referrer.memberLevel.isSharingEarner) {
+                commissionRate = referrer.memberLevel.directCommissionRate;
+                rateSource = 'memberLevel';
+            } else if (referrer.distributorLevel && referrer.distributorLevel.sharerDirectCommissionRate != null) {
+                commissionRate = parseFloat(referrer.distributorLevel.sharerDirectCommissionRate) * 100;
+                rateSource = 'distributorLevel.sharerDirect';
+            }
+        }
+        if (commissionRate == null || commissionRate <= 0) {
+            console.log(`[佣金] 直接佣金 比例无效 rate=${commissionRate} source=${rateSource}`);
+            return null;
+        }
+        console.log(`[佣金] 直接佣金 使用比例 source=${rateSource} rate=${commissionRate}%`);
 
         const commissionAmount = (orderAmount * commissionRate / 100).toFixed(2);
 
@@ -141,13 +185,25 @@ class CommissionService {
     }
 
     /**
-     * 计算间接佣金
+     * 计算间接佣金（比例 0-100。来源：个人 > 会员等级间接佣金 > 分销等级分享间接佣金率*100）
      */
     static async calculateIndirectCommission(orderId, memberId, indirectReferrerId, orderAmount, indirectReferrer) {
-        const commissionRate = indirectReferrer.personalIndirectCommissionRate || 
-                              (indirectReferrer.memberLevel ? indirectReferrer.memberLevel.indirectCommissionRate : 0);
-        
-        if (commissionRate <= 0) return null;
+        let commissionRate = indirectReferrer.personalIndirectCommissionRate;
+        let rateSource = 'personal';
+        if (commissionRate == null || commissionRate <= 0) {
+            if (indirectReferrer.memberLevel && indirectReferrer.memberLevel.isSharingEarner) {
+                commissionRate = indirectReferrer.memberLevel.indirectCommissionRate;
+                rateSource = 'memberLevel';
+            } else if (indirectReferrer.distributorLevel && indirectReferrer.distributorLevel.sharerIndirectCommissionRate != null) {
+                commissionRate = parseFloat(indirectReferrer.distributorLevel.sharerIndirectCommissionRate) * 100;
+                rateSource = 'distributorLevel.sharerIndirect';
+            }
+        }
+        if (commissionRate == null || commissionRate <= 0) {
+            console.log(`[佣金] 间接佣金 比例无效 rate=${commissionRate} source=${rateSource}`);
+            return null;
+        }
+        console.log(`[佣金] 间接佣金 使用比例 source=${rateSource} rate=${commissionRate}%`);
 
         const commissionAmount = (orderAmount * commissionRate / 100).toFixed(2);
 
