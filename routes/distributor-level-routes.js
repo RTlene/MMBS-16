@@ -145,6 +145,8 @@ router.post('/', async (req, res) => {
         const pc = parseNum(procurementCost, 0.5);
         const sd = parseNum(sharerDirectCommissionRate, 0.05);
         const si = parseNum(sharerIndirectCommissionRate, 0.02);
+        // 佣金计算服务使用 distributorLevel.costRate（0-100），这里将 procurementCost（0-1）同步过去
+        const costRate = pc > 0 ? (pc * 100) : 0;
         const newLevel = await DistributorLevel.create({
             name,
             level,
@@ -153,6 +155,7 @@ router.post('/', async (req, res) => {
             minFans: minFans != null && minFans !== '' ? parseInt(minFans, 10) : 0,
             maxFans: maxFans != null && maxFans !== '' ? parseInt(maxFans, 10) : null,
             procurementCost: pc,
+            costRate,
             sharerDirectCommissionRate: sd,
             sharerIndirectCommissionRate: si,
             privileges: privileges || {},
@@ -162,7 +165,7 @@ router.post('/', async (req, res) => {
             status: status || 'active',
             sortOrder: sortOrder != null && sortOrder !== '' ? parseInt(sortOrder, 10) : 0
         });
-        console.log('[分销等级] 创建成功 id=%s name=%s procurementCost=%s sharerDirect=%s sharerIndirect=%s', newLevel.id, newLevel.name, newLevel.procurementCost, newLevel.sharerDirectCommissionRate, newLevel.sharerIndirectCommissionRate);
+        console.log('[分销等级] 创建成功 id=%s name=%s procurementCost=%s costRate=%s sharerDirect=%s sharerIndirect=%s', newLevel.id, newLevel.name, newLevel.procurementCost, newLevel.costRate, newLevel.sharerDirectCommissionRate, newLevel.sharerIndirectCommissionRate);
 
         res.json({
             code: 0,
@@ -245,8 +248,13 @@ router.put('/:id', async (req, res) => {
             status: status || levelRecord.status,
             sortOrder: sortOrder !== undefined ? sortOrder : levelRecord.sortOrder
         };
+        // procurementCost 更新时同步 costRate（0-100）。分享模式 procurementCost=0 → costRate=0
+        if (procurementCost !== undefined) {
+            const pc2 = upd.procurementCost;
+            upd.costRate = pc2 > 0 ? (pc2 * 100) : 0;
+        }
         await levelRecord.update(upd);
-        console.log('[分销等级] 更新成功 id=%s name=%s procurementCost=%s sharerDirect=%s sharerIndirect=%s', levelRecord.id, levelRecord.name, levelRecord.procurementCost, levelRecord.sharerDirectCommissionRate, levelRecord.sharerIndirectCommissionRate);
+        console.log('[分销等级] 更新成功 id=%s name=%s procurementCost=%s costRate=%s sharerDirect=%s sharerIndirect=%s', levelRecord.id, levelRecord.name, levelRecord.procurementCost, levelRecord.costRate, levelRecord.sharerDirectCommissionRate, levelRecord.sharerIndirectCommissionRate);
 
         res.json({
             code: 0,
