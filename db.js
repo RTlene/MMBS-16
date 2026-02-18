@@ -3174,7 +3174,10 @@ async function init() {
       ['CommissionCalculations', CommissionCalculation],
       ['TeamIncentiveCalculations', TeamIncentiveCalculation],
       ['OrderItems', OrderItem],
-      ['OrderOperationLogs', OrderOperationLog]
+      ['OrderOperationLogs', OrderOperationLog],
+      ['PointSettings', PointSettings],
+      ['PointSourceConfig', PointSourceConfig],
+      ['PointMultiplierConfig', PointMultiplierConfig]
     ];
 
     const failed = [];
