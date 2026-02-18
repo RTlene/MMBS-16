@@ -72,17 +72,18 @@ class CommissionService {
                 }
             }
 
-            // 2. 计算间接佣金（同上：会员等级分享赚钱或分销等级分享间接佣金率 > 0）
+            // 2. 计算间接佣金（有间接推荐人即可；比例优先用间接推荐人自己的，若无则用直接推荐人等级的 sharerIndirectRate）
             const indirectReferrer = await this.getReferrerWithLevels(referrer.referrerId);
             const indirectMl = indirectReferrer && indirectReferrer.memberLevel;
             const indirectDl = indirectReferrer && indirectReferrer.distributorLevel;
             const indirectSharerInd = indirectDl ? parseFloat(indirectDl.sharerIndirectCommissionRate) : 0;
+            const directHasIndirectRate = dl && sharerIndirect > 0;
             const canIndirect = indirectReferrer &&
-                ((indirectMl && indirectMl.isSharingEarner) || (indirectDl && indirectSharerInd > 0));
-            console.log(`[佣金] 间接佣金 有间接推荐人=${!!indirectReferrer} 条件满足=${canIndirect} (分享赚钱=${!!(indirectMl && indirectMl.isSharingEarner)} 或 分销分享间接率>0=${indirectSharerInd > 0})`);
+                ((indirectMl && indirectMl.isSharingEarner) || (indirectDl && indirectSharerInd > 0) || directHasIndirectRate);
+            console.log(`[佣金] 间接佣金 有间接推荐人=${!!indirectReferrer} 条件满足=${canIndirect} (间接方分享/间接率 或 直接方sharerIndirect=${sharerIndirect})`);
             if (canIndirect) {
                 const indirectCommission = await this.calculateIndirectCommission(
-                    orderId, member.id, indirectReferrer.id, orderAmount, indirectReferrer
+                    orderId, member.id, indirectReferrer.id, orderAmount, indirectReferrer, referrer
                 );
                 if (indirectCommission) {
                     calculations.push(indirectCommission);
@@ -107,7 +108,7 @@ class CommissionService {
                 }
             }
 
-            // 4. 计算网络分销商佣金（仅当推荐人本人不是分销商时：推荐人网络中的最近分销商才与「分销商佣金」不同，否则会与第3步重复）
+            // 4. 网络分销商 / 上级分销商级差
             if (!referrer.distributorLevel) {
                 const networkDistributorCommission = await this.calculateNetworkDistributorCommission(
                     orderId, member.id, referrer.id, orderAmount, referrer
@@ -120,6 +121,33 @@ class CommissionService {
                 }
             } else {
                 console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是分销商，已计分销商佣金，避免重复）`);
+                // 4b. 推荐人已是分销商时：为上级链上的分销商计算级差佣金（下游成本率 - 当前成本率）
+                const referrerCostRate = this.getDistributorCostRate(referrer.distributorLevel);
+                if (referrerCostRate > 0) {
+                    const uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.id, referrer.id);
+                    let downstreamCostRate = referrerCostRate;
+                    for (const upline of uplineDistributors) {
+                        const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
+                        const diffRate = downstreamCostRate - uplineCostRate;
+                        if (diffRate > 0) {
+                            const commissionAmount = (orderAmount * diffRate / 100).toFixed(2);
+                            calculations.push({
+                                orderId,
+                                memberId: member.id,
+                                referrerId: referrer.id,
+                                commissionType: 'network_distributor',
+                                recipientId: upline.id,
+                                orderAmount,
+                                commissionRate: diffRate,
+                                commissionAmount: parseFloat(commissionAmount),
+                                status: 'pending',
+                                description: `上级分销商级差：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
+                            });
+                            console.log(`[佣金] 上级分销商级差 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${commissionAmount}`);
+                        }
+                        downstreamCostRate = uplineCostRate;
+                    }
+                }
             }
 
             // 保存所有佣金记录
@@ -189,9 +217,10 @@ class CommissionService {
     }
 
     /**
-     * 计算间接佣金（比例 0-100。来源：个人 > 会员等级间接佣金 > 分销等级分享间接佣金率*100）
+     * 计算间接佣金（比例 0-100。来源：间接推荐人个人/等级 > 直接推荐人等级的 sharerIndirectCommissionRate*100）
+     * @param {object} [directReferrer] - 直接推荐人，当其等级有间接率而间接推荐人无比例时使用
      */
-    static async calculateIndirectCommission(orderId, memberId, indirectReferrerId, orderAmount, indirectReferrer) {
+    static async calculateIndirectCommission(orderId, memberId, indirectReferrerId, orderAmount, indirectReferrer, directReferrer) {
         let commissionRate = indirectReferrer.personalIndirectCommissionRate;
         let rateSource = 'personal';
         if (commissionRate == null || commissionRate <= 0) {
@@ -201,6 +230,12 @@ class CommissionService {
             } else if (indirectReferrer.distributorLevel && indirectReferrer.distributorLevel.sharerIndirectCommissionRate != null) {
                 commissionRate = parseFloat(indirectReferrer.distributorLevel.sharerIndirectCommissionRate) * 100;
                 rateSource = 'distributorLevel.sharerIndirect';
+            } else if (directReferrer && directReferrer.distributorLevel && directReferrer.distributorLevel.sharerIndirectCommissionRate != null) {
+                const r = parseFloat(directReferrer.distributorLevel.sharerIndirectCommissionRate);
+                if (r > 0) {
+                    commissionRate = r * 100;
+                    rateSource = 'directReferrer.sharerIndirect';
+                }
             }
         }
         if (commissionRate == null || commissionRate <= 0) {
