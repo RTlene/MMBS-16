@@ -222,13 +222,29 @@ class CommissionService {
     }
 
     /**
+     * 从分销等级取成本率（0-100）。优先 costRate，若为 0 或未设则用 procurementCost（0-1）* 100
+     */
+    static getDistributorCostRate(distributorLevel) {
+        if (!distributorLevel) return 0;
+        const cr = distributorLevel.costRate;
+        if (cr != null && parseFloat(cr) > 0) return parseFloat(cr);
+        const pc = distributorLevel.procurementCost;
+        if (pc != null && parseFloat(pc) > 0) return parseFloat(pc) * 100;
+        return 0;
+    }
+
+    /**
      * 计算分销商佣金
      */
     static async calculateDistributorCommission(orderId, memberId, referrerId, orderAmount, referrer) {
-        const costRate = referrer.personalCostRate || 
-                        (referrer.distributorLevel ? referrer.distributorLevel.costRate : 0);
-        
+        const costRate = referrer.personalCostRate ||
+                        (referrer.distributorLevel ? this.getDistributorCostRate(referrer.distributorLevel) : 0);
+
         if (costRate <= 0) return null;
+        const dl = referrer.distributorLevel;
+        if (dl && (dl.costRate == null || parseFloat(dl.costRate) <= 0) && dl.procurementCost > 0) {
+            console.log(`[佣金] 分销商佣金 使用 procurementCost 回退 等级=${dl.name} procurementCost=${dl.procurementCost} => costRate=${costRate}%`);
+        }
 
         const costAmount = (orderAmount * costRate / 100).toFixed(2);
         const commissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
@@ -263,9 +279,9 @@ class CommissionService {
         
         if (otherDistributors.length === 0) {
             // 只有一个分销商，按提货成本计算
-            const costRate = networkDistributor.personalCostRate || 
-                           (networkDistributor.distributorLevel ? networkDistributor.distributorLevel.costRate : 0);
-            
+            const costRate = networkDistributor.personalCostRate ||
+                           (networkDistributor.distributorLevel ? this.getDistributorCostRate(networkDistributor.distributorLevel) : 0);
+
             if (costRate <= 0) return null;
 
             const costAmount = (orderAmount * costRate / 100).toFixed(2);
@@ -287,13 +303,13 @@ class CommissionService {
             };
         } else {
             // 多个分销商，按成本差计算
-            const nearestCostRate = networkDistributor.personalCostRate || 
-                                  (networkDistributor.distributorLevel ? networkDistributor.distributorLevel.costRate : 0);
-            
+            const nearestCostRate = networkDistributor.personalCostRate ||
+                                  (networkDistributor.distributorLevel ? this.getDistributorCostRate(networkDistributor.distributorLevel) : 0);
+
             let maxCostRate = 0;
             for (const distributor of otherDistributors) {
-                const costRate = distributor.personalCostRate || 
-                               (distributor.distributorLevel ? distributor.distributorLevel.costRate : 0);
+                const costRate = distributor.personalCostRate ||
+                               (distributor.distributorLevel ? this.getDistributorCostRate(distributor.distributorLevel) : 0);
                 if (costRate > maxCostRate) {
                     maxCostRate = costRate;
                 }
