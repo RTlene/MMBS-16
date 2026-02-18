@@ -107,15 +107,19 @@ class CommissionService {
                 }
             }
 
-            // 4. 计算网络分销商佣金
-            const networkDistributorCommission = await this.calculateNetworkDistributorCommission(
-                orderId, member.id, referrer.id, orderAmount, referrer
-            );
-            if (networkDistributorCommission) {
-                calculations.push(networkDistributorCommission);
-                console.log(`[佣金] 网络分销商佣金 已生成 金额=${networkDistributorCommission.commissionAmount}`);
+            // 4. 计算网络分销商佣金（仅当推荐人本人不是分销商时：推荐人网络中的最近分销商才与「分销商佣金」不同，否则会与第3步重复）
+            if (!referrer.distributorLevel) {
+                const networkDistributorCommission = await this.calculateNetworkDistributorCommission(
+                    orderId, member.id, referrer.id, orderAmount, referrer
+                );
+                if (networkDistributorCommission) {
+                    calculations.push(networkDistributorCommission);
+                    console.log(`[佣金] 网络分销商佣金 已生成 金额=${networkDistributorCommission.commissionAmount}`);
+                } else {
+                    console.log(`[佣金] 网络分销商佣金 未生成`);
+                }
             } else {
-                console.log(`[佣金] 网络分销商佣金 未生成`);
+                console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是分销商，已计分销商佣金，避免重复）`);
             }
 
             // 保存所有佣金记录
