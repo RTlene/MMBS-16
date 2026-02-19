@@ -402,7 +402,8 @@
                     </select>
                     <button id="searchBtn" class="btn btn-primary">搜索</button>
                 </div>
-                <div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="recalcUpgradesBtn" class="btn btn-outline-primary">重算等级自动升级</button>
                     <button id="addLevelBtn" class="btn btn-primary">添加等级</button>
                 </div>
             </div>
@@ -415,6 +416,7 @@
                         <th>折扣率</th>
                         <th>积分倍率</th>
                         <th>特权数量</th>
+                        <th>自动升级</th>
                         <th>状态</th>
                         <th>排序</th>
                         <th>操作</th>
@@ -496,6 +498,13 @@
                             <option value="active">正常</option>
                             <option value="inactive">停用</option>
                         </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="enableAutoUpgrade" name="enableAutoUpgrade" value="1">
+                        <label class="form-label" for="enableAutoUpgrade" style="margin: 0;">启用自动升级</label>
+                        <small style="color: #666;">满足本等级积分条件时，自动将会员升级到此等级</small>
                     </div>
                 </div>
 

@@ -308,6 +308,12 @@ router.post('/test', async (req, res) => {
         } catch (err) {
             console.error('[测试订单] 佣金计算失败 orderId=%s error=%s', order.id, err.message, err);
         }
+        try {
+            const LevelUpgradeService = require('../services/levelUpgradeService');
+            await LevelUpgradeService.tryUpgradeMember(order.memberId);
+        } catch (e) {
+            console.error('[测试订单] 等级自动升级检查失败:', e);
+        }
 
         res.json({
             code: 0,

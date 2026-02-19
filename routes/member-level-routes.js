@@ -1,5 +1,6 @@
 const express = require('express');
 const { MemberLevel } = require('../db');
+const LevelUpgradeService = require('../services/levelUpgradeService');
 const router = express.Router();
 
 // 获取会员等级列表
@@ -78,6 +79,24 @@ router.get('/all', async (req, res) => {
     }
 });
 
+// 全量重算等级自动升级（会员等级+分销等级）
+router.post('/recalc-upgrades', async (req, res) => {
+    try {
+        const result = await LevelUpgradeService.runForAllMembers();
+        res.json({
+            code: 0,
+            message: '已按「启用自动升级」的等级条件重算完成',
+            data: result
+        });
+    } catch (error) {
+        console.error('重算等级自动升级失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: '重算失败: ' + error.message
+        });
+    }
+});
+
 // 获取单个会员等级
 router.get('/:id', async (req, res) => {
     try {
@@ -122,7 +141,8 @@ router.post('/', async (req, res) => {
             icon,
             description,
             status,
-            sortOrder
+            sortOrder,
+            enableAutoUpgrade
         } = req.body;
         
         // 验证必填字段
@@ -177,7 +197,8 @@ router.post('/', async (req, res) => {
             icon: icon || '',
             description: description || '',
             status: status || 'active',
-            sortOrder: parseInt(sortOrder) || 0
+            sortOrder: parseInt(sortOrder) || 0,
+            enableAutoUpgrade: !!enableAutoUpgrade
         });
         
         console.log('会员等级创建成功:', newLevel.toJSON());
@@ -212,7 +233,8 @@ router.put('/:id', async (req, res) => {
             icon,
             description,
             status,
-            sortOrder
+            sortOrder,
+            enableAutoUpgrade
         } = req.body;
         
         const existingLevel = await MemberLevel.findByPk(id);
@@ -281,7 +303,8 @@ router.put('/:id', async (req, res) => {
             icon: icon || '',
             description: description || '',
             status: status || 'active',
-            sortOrder: parseInt(sortOrder) || 0
+            sortOrder: parseInt(sortOrder) || 0,
+            enableAutoUpgrade: enableAutoUpgrade !== undefined ? !!enableAutoUpgrade : existingLevel.enableAutoUpgrade
         });
         
         res.json({

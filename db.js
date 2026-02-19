@@ -436,6 +436,12 @@ const MemberLevel = sequelize.define("MemberLevel", {
     defaultValue: 'active',
     comment: '状态'
   },
+  enableAutoUpgrade: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    comment: '是否启用自动升级（满足本等级条件时自动将会员升级到此等级）'
+  },
     createdAt: {
         type: DataTypes.DATE,
     allowNull: false,
@@ -558,6 +564,12 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         allowNull: false,
         defaultValue: 'active',
         comment: '状态'
+    },
+    enableAutoUpgrade: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '是否启用自动升级（满足本等级条件时自动将分销商升级到此等级）'
     },
     createdAt: {
         type: DataTypes.DATE,

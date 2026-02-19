@@ -1224,7 +1224,12 @@ router.put('/:id/points', authenticateToken, async (req, res) => {
             availablePoints: newAvailablePoints,
             frozenPoints: newFrozenPoints
         });
-        
+        try {
+            const LevelUpgradeService = require('../services/levelUpgradeService');
+            await LevelUpgradeService.tryUpgradeMember(member.id);
+        } catch (e) {
+            console.error('积分调整后等级自动升级检查失败:', e);
+        }
         // 重新加载会员数据以确保返回最新数据
         await member.reload();
         

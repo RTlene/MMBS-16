@@ -283,6 +283,13 @@ router.post('/wechat/notify', async (req, res) => {
                 } catch (error) {
                     console.error('[Payment] 佣金计算失败:', error);
                 }
+                // 等级自动升级检查（会员等级/分销等级）
+                try {
+                    const LevelUpgradeService = require('../services/levelUpgradeService');
+                    await LevelUpgradeService.tryUpgradeMember(order.memberId);
+                } catch (error) {
+                    console.error('[Payment] 等级自动升级检查失败:', error);
+                }
 
                 console.log('[Payment] 订单支付成功:', order.orderNo);
             }
@@ -367,6 +374,12 @@ router.get('/wechat/query/:orderId', authenticateMiniappUser, async (req, res) =
                         await CommissionService.calculateOrderCommission(order.id);
                     } catch (error) {
                         console.error('[Payment] 佣金计算失败:', error);
+                    }
+                    try {
+                        const LevelUpgradeService = require('../services/levelUpgradeService');
+                        await LevelUpgradeService.tryUpgradeMember(order.memberId);
+                    } catch (error) {
+                        console.error('[Payment] 等级自动升级检查失败:', error);
                     }
 
                     return res.json({

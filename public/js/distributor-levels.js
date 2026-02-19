@@ -154,6 +154,11 @@ function renderLevels() {
             <td>${formatProcurementCost(level.procurementCost)}</td>
             <td>${formatCommissionRates(level.sharerDirectCommissionRate, level.sharerIndirectCommissionRate)}</td>
             <td>
+                <span class="status-badge status-${level.enableAutoUpgrade ? 'active' : 'inactive'}">
+                    ${level.enableAutoUpgrade ? '启用' : '关闭'}
+                </span>
+            </td>
+            <td>
                 <span class="status-badge status-${level.status}">
                     ${getStatusText(level.status)}
                 </span>
@@ -310,6 +315,8 @@ function fillLevelForm(level) {
     document.getElementById('description').value = level.description || '';
     document.getElementById('status').value = level.status || 'active';
     document.getElementById('sortOrder').value = level.sortOrder ?? 0;
+    const autoUpgradeEl = document.getElementById('enableAutoUpgrade');
+    if (autoUpgradeEl) autoUpgradeEl.checked = !!level.enableAutoUpgrade;
     // 按类型切换到对应模式（采购成本>0 为分销商，否则为分享赚钱）
     if (getLevelType(level) === 'sharer') {
         switchMode('sharer');
@@ -339,7 +346,8 @@ async function submitLevelForm(event) {
         sortOrder: parseInt(formData.get('sortOrder'), 10) || 0,
         status: formData.get('status'),
         description: formData.get('description'),
-        privileges: getPrivileges()
+        privileges: getPrivileges(),
+        enableAutoUpgrade: document.getElementById('enableAutoUpgrade') && document.getElementById('enableAutoUpgrade').checked
     };
     
     if (isSharerMode) {

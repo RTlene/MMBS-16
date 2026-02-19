@@ -122,7 +122,8 @@ router.post('/', async (req, res) => {
             icon,
             description,
             status,
-            sortOrder
+            sortOrder,
+            enableAutoUpgrade
         } = req.body;
 
         // 验证必填字段
@@ -163,7 +164,8 @@ router.post('/', async (req, res) => {
             icon: icon || '',
             description: description || '',
             status: status || 'active',
-            sortOrder: sortOrder != null && sortOrder !== '' ? parseInt(sortOrder, 10) : 0
+            sortOrder: sortOrder != null && sortOrder !== '' ? parseInt(sortOrder, 10) : 0,
+            enableAutoUpgrade: !!enableAutoUpgrade
         });
         console.log('[分销等级] 创建成功 id=%s name=%s procurementCost=%s costRate=%s sharerDirect=%s sharerIndirect=%s', newLevel.id, newLevel.name, newLevel.procurementCost, newLevel.costRate, newLevel.sharerDirectCommissionRate, newLevel.sharerIndirectCommissionRate);
 
@@ -204,7 +206,8 @@ router.put('/:id', async (req, res) => {
             icon,
             description,
             status,
-            sortOrder
+            sortOrder,
+            enableAutoUpgrade
         } = req.body;
 
         const levelRecord = await DistributorLevel.findByPk(id);
@@ -246,7 +249,8 @@ router.put('/:id', async (req, res) => {
             icon: icon !== undefined ? icon : levelRecord.icon,
             description: description !== undefined ? description : levelRecord.description,
             status: status || levelRecord.status,
-            sortOrder: sortOrder !== undefined ? sortOrder : levelRecord.sortOrder
+            sortOrder: sortOrder !== undefined ? sortOrder : levelRecord.sortOrder,
+            enableAutoUpgrade: enableAutoUpgrade !== undefined ? !!enableAutoUpgrade : levelRecord.enableAutoUpgrade
         };
         // procurementCost 更新时同步 costRate（0-100）。分享模式 procurementCost=0 → costRate=0
         if (procurementCost !== undefined) {

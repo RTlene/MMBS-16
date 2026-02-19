@@ -32,7 +32,7 @@ function bindEvents() {
     // 筛选器变化事件
     document.getElementById('statusFilter').addEventListener('change', searchLevels);
 
-    // 添加等级按钮
+    document.getElementById('recalcUpgradesBtn').addEventListener('click', recalcLevelUpgrades);
     document.getElementById('addLevelBtn').addEventListener('click', openAddLevelModal);
 
     // 表单提交事件
@@ -136,7 +136,7 @@ function renderLevels() {
     if (window.memberLevelsData.levels.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+                <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
                     暂无数据
                 </td>
             </tr>
@@ -188,6 +188,11 @@ function renderLevels() {
                         <span style="font-weight: 500;">${privilegeCount}</span>
                         <span style="font-size: 12px; color: #666;">特权</span>
                     </div>
+                </td>
+                <td>
+                    <span class="status-badge status-${level.enableAutoUpgrade ? 'active' : 'inactive'}">
+                        ${level.enableAutoUpgrade ? '启用' : '关闭'}
+                    </span>
                 </td>
                 <td>
                     <span class="status-badge status-${level.status}">
@@ -256,6 +261,32 @@ function searchLevels() {
     loadLevels();
 }
 
+// 重算等级自动升级（按所有「启用自动升级」的等级条件重算会员/分销等级）
+async function recalcLevelUpgrades() {
+    if (!confirm('将按当前「启用自动升级」的会员等级与分销等级条件，对所有会员重新计算等级。是否继续？')) return;
+    const btn = document.getElementById('recalcUpgradesBtn');
+    btn.disabled = true;
+    try {
+        const response = await fetch('/api/member-levels/recalc-upgrades', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+        if (result.code === 0) {
+            alert(`重算完成。共 ${result.data.total} 名会员，会员等级变更 ${result.data.memberUpgraded} 人，分销等级变更 ${result.data.distributorUpgraded} 人。`);
+            loadLevels();
+            loadStats();
+        } else {
+            alert('重算失败: ' + (result.message || '未知错误'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('重算失败: ' + e.message);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 // 打开添加等级模态框
 function openAddLevelModal() {
     document.getElementById('levelModalTitle').textContent = '添加会员等级';
@@ -298,6 +329,7 @@ function fillLevelForm(level) {
     document.getElementById('levelDescription').value = level.description || '';
     document.getElementById('levelStatus').value = level.status || 'active';
     document.getElementById('sortOrder').value = level.sortOrder || 0;
+    document.getElementById('enableAutoUpgrade').checked = !!level.enableAutoUpgrade;
     
     // 渲染特权
     renderPrivileges(level.privileges || {});
@@ -320,7 +352,8 @@ async function submitLevelForm(event) {
             icon: document.getElementById('levelIcon').value.trim(),
             description: document.getElementById('levelDescription').value.trim(),
             status: document.getElementById('levelStatus').value,
-            sortOrder: parseInt(document.getElementById('sortOrder').value)
+            sortOrder: parseInt(document.getElementById('sortOrder').value),
+            enableAutoUpgrade: document.getElementById('enableAutoUpgrade').checked
         };
 
         // 收集特权配置

@@ -426,6 +426,7 @@
                         <th>粉丝数要求</th>
                         <th>采购成本</th>
                         <th>分享佣金</th>
+                        <th>自动升级</th>
                         <th>状态</th>
                         <th>排序</th>
                         <th>操作</th>
@@ -546,6 +547,13 @@
                             <option value="active">正常</option>
                             <option value="inactive">停用</option>
                         </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="enableAutoUpgrade" name="enableAutoUpgrade" value="1">
+                        <label class="form-label" for="enableAutoUpgrade" style="margin: 0;">启用自动升级</label>
+                        <small style="color: #666;">满足本等级销售额/粉丝数条件时，自动将分销商升级到此等级</small>
                     </div>
                 </div>
 

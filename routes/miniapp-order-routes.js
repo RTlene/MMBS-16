@@ -389,6 +389,12 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             } catch (error) {
                 console.error('自动计算佣金或生成核销码失败:', error);
             }
+            try {
+                const LevelUpgradeService = require('../services/levelUpgradeService');
+                await LevelUpgradeService.tryUpgradeMember(order.memberId);
+            } catch (e) {
+                console.error('等级自动升级检查失败:', e);
+            }
         }
 
         res.json({
