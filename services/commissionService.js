@@ -93,12 +93,17 @@ class CommissionService {
                 }
             }
 
-            // 3. 计算分销商佣金
+            // 直接/间接佣金金额（用于第一级分销商“毛利佣金”中扣减）
+            const directAmount = calculations.find(c => c.commissionType === 'direct')?.commissionAmount ?? 0;
+            const indirectAmount = calculations.find(c => c.commissionType === 'indirect')?.commissionAmount ?? 0;
+            console.log(`[佣金] 直接/间接金额 订单=${orderAmount} 直接=${directAmount} 间接=${indirectAmount}`);
+
+            // 3. 计算分销商佣金（同一订单基数：分销毛利佣金 - 直接 - 间接）
             const hasDistributorLevel = !!referrer.distributorLevel;
             console.log(`[佣金] 分销商佣金 有分销等级=${hasDistributorLevel}`);
             if (hasDistributorLevel) {
                 const distributorCommission = await this.calculateDistributorCommission(
-                    orderId, member.id, referrer.id, orderAmount, referrer
+                    orderId, member.id, referrer.id, orderAmount, referrer, directAmount, indirectAmount
                 );
                 if (distributorCommission) {
                     calculations.push(distributorCommission);
@@ -112,7 +117,7 @@ class CommissionService {
             const referrerCostRate = referrer.distributorLevel ? this.getDistributorCostRate(referrer.distributorLevel) : 0;
             if (!referrer.distributorLevel) {
                 const networkDistributorCommission = await this.calculateNetworkDistributorCommission(
-                    orderId, member.id, referrer.id, orderAmount, referrer
+                    orderId, member.id, referrer.id, orderAmount, referrer, directAmount, indirectAmount
                 );
                 if (networkDistributorCommission) {
                     calculations.push(networkDistributorCommission);
@@ -140,9 +145,9 @@ class CommissionService {
                             commissionRate: diffRate,
                             commissionAmount: parseFloat(commissionAmount),
                             status: 'pending',
-                            description: `上级分销商级差：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
+                            description: `级差分销佣金：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
                         });
-                        console.log(`[佣金] 上级分销商级差 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${commissionAmount}`);
+                        console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${commissionAmount}`);
                     }
                     downstreamCostRate = uplineCostRate;
                 }
@@ -153,12 +158,16 @@ class CommissionService {
                 if (nearestCost) {
                     const costRate = this.getDistributorCostRate(nearestCost.distributorLevel);
                     const costAmount = (orderAmount * costRate / 100).toFixed(2);
-                    const commissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+                    const grossCommissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+                    const commissionAmount = Math.max(
+                        0,
+                        parseFloat((parseFloat(grossCommissionAmount) - directAmount - indirectAmount).toFixed(2))
+                    ).toFixed(2);
                     calculations.push({
                         orderId,
                         memberId: member.id,
                         referrerId: referrer.id,
-                        commissionType: 'network_distributor',
+                        commissionType: 'distributor',
                         recipientId: nearestCost.id,
                         orderAmount,
                         commissionRate: costRate,
@@ -166,9 +175,9 @@ class CommissionService {
                         costRate,
                         costAmount: parseFloat(costAmount),
                         status: 'pending',
-                        description: `网络分销商佣金：${nearestCost.nickname} 按 ${costRate}% 成本计算（推荐人为分享模式，上家首个成本分销商）`
+                        description: `分销佣金（同一订单基数按差额：毛利佣金-直接-间接）：${nearestCost.nickname} 按 ${costRate}% 成本计算`
                     });
-                    console.log(`[佣金] 网络分销商佣金 已生成(上家首个成本分销) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`);
+                    console.log(`[佣金] 分销佣金 已生成(上家首个成本分销商，毛利-直-间) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`);
                     const uplineDistributors = await this.findOtherDistributorsInNetwork(nearestCost.id, nearestCost.id);
                     let downstreamCostRate = costRate;
                     for (const upline of uplineDistributors) {
@@ -186,9 +195,9 @@ class CommissionService {
                                 commissionRate: diffRate,
                                 commissionAmount: parseFloat(diffAmount),
                                 status: 'pending',
-                                description: `上级分销商级差：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
+                                description: `级差分销佣金：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
                             });
-                            console.log(`[佣金] 上级分销商级差 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${diffAmount}`);
+                            console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${diffAmount}`);
                         }
                         downstreamCostRate = uplineCostRate;
                     }
@@ -320,9 +329,12 @@ class CommissionService {
     }
 
     /**
-     * 计算分销商佣金
+     * 计算分销商佣金（同一订单基数按差额：分销毛利佣金 - 直接 - 间接）
+     * @param {number} orderAmount - 原始订单金额
+     * @param {number} directAmount - 直接佣金金额（不存在则为 0）
+     * @param {number} indirectAmount - 间接佣金金额（不存在则为 0）
      */
-    static async calculateDistributorCommission(orderId, memberId, referrerId, orderAmount, referrer) {
+    static async calculateDistributorCommission(orderId, memberId, referrerId, orderAmount, referrer, directAmount = 0, indirectAmount = 0) {
         const costRate = referrer.personalCostRate ||
                         (referrer.distributorLevel ? this.getDistributorCostRate(referrer.distributorLevel) : 0);
 
@@ -333,7 +345,11 @@ class CommissionService {
         }
 
         const costAmount = (orderAmount * costRate / 100).toFixed(2);
-        const commissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+        const grossCommissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+        const commissionAmount = Math.max(
+            0,
+            parseFloat((parseFloat(grossCommissionAmount) - directAmount - indirectAmount).toFixed(2))
+        ).toFixed(2);
 
         return {
             orderId,
@@ -347,31 +363,32 @@ class CommissionService {
             costRate,
             costAmount: parseFloat(costAmount),
             status: 'pending',
-            description: `分销商佣金：分销商 ${referrer.nickname} 按 ${costRate}% 成本计算`
+            description: `分销佣金（同一订单基数按差额：毛利佣金-直接-间接）：${referrer.nickname} 按 ${costRate}% 成本计算`
         };
     }
 
     /**
-     * 计算网络分销商佣金
+     * 计算网络分销商佣金（同一订单基数按差额：分销毛利佣金 - 直接 - 间接）
      */
-    static async calculateNetworkDistributorCommission(orderId, memberId, referrerId, orderAmount, referrer) {
-        // 查找推荐人网络中最近的分销商
+    static async calculateNetworkDistributorCommission(orderId, memberId, referrerId, orderAmount, referrer, directAmount = 0, indirectAmount = 0) {
         const networkDistributor = await this.findNearestDistributorInNetwork(referrerId);
         
         if (!networkDistributor) return null;
 
-        // 查找网络中的其他分销商
         const otherDistributors = await this.findOtherDistributorsInNetwork(referrerId, networkDistributor.id);
         
         if (otherDistributors.length === 0) {
-            // 只有一个分销商，按提货成本计算
             const costRate = networkDistributor.personalCostRate ||
                            (networkDistributor.distributorLevel ? this.getDistributorCostRate(networkDistributor.distributorLevel) : 0);
 
             if (costRate <= 0) return null;
 
             const costAmount = (orderAmount * costRate / 100).toFixed(2);
-            const commissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+            const grossCommissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+            const commissionAmount = Math.max(
+                0,
+                parseFloat((parseFloat(grossCommissionAmount) - directAmount - indirectAmount).toFixed(2))
+            ).toFixed(2);
 
             return {
                 orderId,
@@ -385,24 +402,21 @@ class CommissionService {
                 costRate,
                 costAmount: parseFloat(costAmount),
                 status: 'pending',
-                description: `网络分销商佣金：分销商 ${networkDistributor.nickname} 按 ${costRate}% 成本计算`
+                description: `网络分销商佣金（同一订单基数按差额：毛利佣金-直接-间接）：${networkDistributor.nickname} 按 ${costRate}% 成本计算`
             };
         } else {
-            // 多个分销商，按成本差计算
             const nearestCostRate = networkDistributor.personalCostRate ||
                                   (networkDistributor.distributorLevel ? this.getDistributorCostRate(networkDistributor.distributorLevel) : 0);
 
             let maxCostRate = 0;
             for (const distributor of otherDistributors) {
-                const costRate = distributor.personalCostRate ||
+                const cr = distributor.personalCostRate ||
                                (distributor.distributorLevel ? this.getDistributorCostRate(distributor.distributorLevel) : 0);
-                if (costRate > maxCostRate) {
-                    maxCostRate = costRate;
-                }
+                if (cr > maxCostRate) maxCostRate = cr;
             }
 
             const costDifference = nearestCostRate - maxCostRate;
-            if (costDifference <= 0) return null; // 差值为负数，无佣金
+            if (costDifference <= 0) return null;
 
             const commissionAmount = (orderAmount * costDifference / 100).toFixed(2);
 
