@@ -309,6 +309,11 @@ router.post('/test', async (req, res) => {
             console.error('[测试订单] 佣金计算失败 orderId=%s error=%s', order.id, err.message, err);
         }
         try {
+            await CommissionService.updateSalesOnOrderPaid(order.id);
+        } catch (e) {
+            console.error('[测试订单] 销售额累加失败:', e);
+        }
+        try {
             const LevelUpgradeService = require('../services/levelUpgradeService');
             await LevelUpgradeService.tryUpgradeMember(order.memberId);
         } catch (e) {

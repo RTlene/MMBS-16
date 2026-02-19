@@ -107,6 +107,7 @@ router.post('/members', async (req, res) => {
             totalSales: 0,
             directSales: 0,
             indirectSales: 0,
+            distributorSales: 0,
             lastActiveAt: new Date()
         });
 
@@ -128,6 +129,7 @@ router.post('/members', async (req, res) => {
             totalCommission: member.totalCommission,
             availableCommission: member.availableCommission,
             totalSales: member.totalSales,
+            distributorSales: member.distributorSales || 0,
             lastActiveAt: member.lastActiveAt,
             createdAt: member.createdAt,
             createdAt: member.createdAt
@@ -407,7 +409,7 @@ router.put('/members/profile', authenticateMiniappUser, async (req, res) => {
                 'id', 'openid', 'nickname', 'avatar', 'phone', 'realName',
                 'idCard', 'gender', 'birthday', 'address', 'memberCode',
                 'status', 'totalCommission', 'availableCommission',
-                'totalSales', 'directSales', 'indirectSales', 'lastActiveAt',
+                'totalSales', 'directSales', 'indirectSales', 'distributorSales', 'lastActiveAt',
                 'createdAt', 'updatedAt'
             ]
         });
@@ -503,6 +505,7 @@ router.get('/members/team', authenticateMiniappUser, async (req, res) => {
             distributorLevelId: member.distributorLevelId,
             totalCommission: member.totalCommission,
             totalSales: member.totalSales,
+            distributorSales: member.distributorSales || 0,
             createdAt: member.createdAt,
             lastActiveAt: member.lastActiveAt
         }));
@@ -596,6 +599,7 @@ router.get('/members/stats', authenticateMiniappUser, async (req, res) => {
                 totalSales: member.totalSales || 0,
                 directSales: member.directSales || 0,
                 indirectSales: member.indirectSales || 0,
+                distributorSales: member.distributorSales || 0,
                 memberLevel: memberWithLevels && memberWithLevels.memberLevel ? {
                     id: memberWithLevels.memberLevel.id,
                     name: memberWithLevels.memberLevel.name,

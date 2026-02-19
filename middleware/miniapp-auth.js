@@ -149,6 +149,7 @@ async function miniappLogin(req, res) {
         totalSales: 0,
         directSales: 0,
         indirectSales: 0,
+        distributorSales: 0,
         availablePoints: 0,
         lastActiveAt: new Date()
       });

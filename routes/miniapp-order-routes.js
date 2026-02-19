@@ -390,6 +390,11 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 console.error('自动计算佣金或生成核销码失败:', error);
             }
             try {
+                await CommissionService.updateSalesOnOrderPaid(order.id);
+            } catch (e) {
+                console.error('销售额累加失败:', e);
+            }
+            try {
                 const LevelUpgradeService = require('../services/levelUpgradeService');
                 await LevelUpgradeService.tryUpgradeMember(order.memberId);
             } catch (e) {

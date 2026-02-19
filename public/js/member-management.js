@@ -749,6 +749,7 @@ function renderMemberDetail(member) {
         setElementText('detailTotalSales', member.totalSales || 0);
         setElementText('detailDirectSales', member.directSales || 0);
         setElementText('detailIndirectSales', member.indirectSales || 0);
+        setElementText('detailDistributorSales', member.distributorSales || 0);
         
         // 粉丝信息
         setElementText('detailDirectFans', member.directFans || 0);

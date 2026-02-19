@@ -198,6 +198,7 @@ router.get('/export', authenticateToken, async (req, res) => {
             'totalSales',
             'directSales',
             'indirectSales',
+            'distributorSales',
             'totalCommission',
             'availableCommission',
             'frozenCommission',
@@ -429,6 +430,7 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
                 totalSales: safeDecimal(r.totalSales) ?? undefined,
                 directSales: safeDecimal(r.directSales) ?? undefined,
                 indirectSales: safeDecimal(r.indirectSales) ?? undefined,
+                distributorSales: safeDecimal(r.distributorSales) ?? undefined,
                 totalCommission: safeDecimal(r.totalCommission) ?? undefined,
                 availableCommission: safeDecimal(r.availableCommission) ?? undefined,
                 frozenCommission: safeDecimal(r.frozenCommission) ?? undefined,
@@ -584,6 +586,7 @@ router.post('/', authenticateToken, async (req, res) => {
             totalSales: memberData.totalSales || 0,
             directSales: memberData.directSales || 0,
             indirectSales: memberData.indirectSales || 0,
+            distributorSales: memberData.distributorSales || 0,
             totalCommission: memberData.totalCommission || 0,
             availableCommission: memberData.availableCommission || 0,
             frozenCommission: memberData.frozenCommission || 0,
@@ -752,6 +755,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             totalSales: memberData.totalSales || 0,
             directSales: memberData.directSales || 0,
             indirectSales: memberData.indirectSales || 0,
+            distributorSales: memberData.distributorSales || 0,
             totalCommission: memberData.totalCommission || 0,
             availableCommission: memberData.availableCommission || 0,
             frozenCommission: memberData.frozenCommission || 0,
@@ -1023,7 +1027,8 @@ router.get('/stats/overview', authenticateToken, async (req, res) => {
             attributes: [
                 [Member.sequelize.fn('SUM', Member.sequelize.col('totalSales')), 'totalSales'],
                 [Member.sequelize.fn('SUM', Member.sequelize.col('directSales')), 'directSales'],
-                [Member.sequelize.fn('SUM', Member.sequelize.col('indirectSales')), 'indirectSales']
+                [Member.sequelize.fn('SUM', Member.sequelize.col('indirectSales')), 'indirectSales'],
+                [Member.sequelize.fn('SUM', Member.sequelize.col('distributorSales')), 'distributorSales']
             ]
         });
 

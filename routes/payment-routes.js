@@ -283,6 +283,13 @@ router.post('/wechat/notify', async (req, res) => {
                 } catch (error) {
                     console.error('[Payment] 佣金计算失败:', error);
                 }
+                // 销售额累加（仅直接/间接推荐人，非下单本人）
+                try {
+                    const CommissionService = require('../services/commissionService');
+                    await CommissionService.updateSalesOnOrderPaid(order.id);
+                } catch (error) {
+                    console.error('[Payment] 销售额累加失败:', error);
+                }
                 // 等级自动升级检查（会员等级/分销等级）
                 try {
                     const LevelUpgradeService = require('../services/levelUpgradeService');
@@ -374,6 +381,11 @@ router.get('/wechat/query/:orderId', authenticateMiniappUser, async (req, res) =
                         await CommissionService.calculateOrderCommission(order.id);
                     } catch (error) {
                         console.error('[Payment] 佣金计算失败:', error);
+                    }
+                    try {
+                        await CommissionService.updateSalesOnOrderPaid(order.id);
+                    } catch (error) {
+                        console.error('[Payment] 销售额累加失败:', error);
                     }
                     try {
                         const LevelUpgradeService = require('../services/levelUpgradeService');

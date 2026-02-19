@@ -820,6 +820,12 @@ const Member = sequelize.define('Member', {
         defaultValue: 0,
         comment: '间接销售额'
     },
+    distributorSales: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0,
+        comment: '分销销售额（分销商时推荐网络下消费统一计入，不含直接/间接拆分）'
+    },
     totalCommission: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
@@ -1272,6 +1278,11 @@ const Order = sequelize.define('Order', {
         allowNull: false,
         defaultValue: false,
         comment: '是否为测试订单'
+    },
+    salesUpdatedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '销售额已累加到推荐人时间（防重复累加）'
     },
     // 操作记录
     createdBy: {
