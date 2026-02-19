@@ -109,6 +109,7 @@ class CommissionService {
             }
 
             // 4. 网络分销商 / 上级分销商级差
+            const referrerCostRate = referrer.distributorLevel ? this.getDistributorCostRate(referrer.distributorLevel) : 0;
             if (!referrer.distributorLevel) {
                 const networkDistributorCommission = await this.calculateNetworkDistributorCommission(
                     orderId, member.id, referrer.id, orderAmount, referrer
@@ -119,18 +120,62 @@ class CommissionService {
                 } else {
                     console.log(`[佣金] 网络分销商佣金 未生成`);
                 }
+            } else if (referrerCostRate > 0) {
+                console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是成本分销商，已计分销商佣金，避免重复）`);
+                // 4b. 推荐人本人有成本率：为上级链上的分销商计算级差
+                const uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.id, referrer.id);
+                let downstreamCostRate = referrerCostRate;
+                for (const upline of uplineDistributors) {
+                    const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
+                    const diffRate = downstreamCostRate - uplineCostRate;
+                    if (diffRate > 0) {
+                        const commissionAmount = (orderAmount * diffRate / 100).toFixed(2);
+                        calculations.push({
+                            orderId,
+                            memberId: member.id,
+                            referrerId: referrer.id,
+                            commissionType: 'network_distributor',
+                            recipientId: upline.id,
+                            orderAmount,
+                            commissionRate: diffRate,
+                            commissionAmount: parseFloat(commissionAmount),
+                            status: 'pending',
+                            description: `上级分销商级差：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
+                        });
+                        console.log(`[佣金] 上级分销商级差 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${commissionAmount}`);
+                    }
+                    downstreamCostRate = uplineCostRate;
+                }
             } else {
-                console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是分销商，已计分销商佣金，避免重复）`);
-                // 4b. 推荐人已是分销商时：为上级链上的分销商计算级差佣金（下游成本率 - 当前成本率）
-                const referrerCostRate = this.getDistributorCostRate(referrer.distributorLevel);
-                if (referrerCostRate > 0) {
-                    const uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.id, referrer.id);
-                    let downstreamCostRate = referrerCostRate;
+                // 4c. 推荐人有分销等级但成本率为 0（分享模式）：从推荐人上家链找第一个有成本率的分销商，给其「分销佣金」+ 再往上算级差
+                console.log(`[佣金] 推荐人为分享模式(costRate=0)，向上查找有成本率的分销商`);
+                const nearestCost = await this.findNearestCostDistributorInNetwork(referrer.id);
+                if (nearestCost) {
+                    const costRate = this.getDistributorCostRate(nearestCost.distributorLevel);
+                    const costAmount = (orderAmount * costRate / 100).toFixed(2);
+                    const commissionAmount = (orderAmount - parseFloat(costAmount)).toFixed(2);
+                    calculations.push({
+                        orderId,
+                        memberId: member.id,
+                        referrerId: referrer.id,
+                        commissionType: 'network_distributor',
+                        recipientId: nearestCost.id,
+                        orderAmount,
+                        commissionRate: costRate,
+                        commissionAmount: parseFloat(commissionAmount),
+                        costRate,
+                        costAmount: parseFloat(costAmount),
+                        status: 'pending',
+                        description: `网络分销商佣金：${nearestCost.nickname} 按 ${costRate}% 成本计算（推荐人为分享模式，上家首个成本分销商）`
+                    });
+                    console.log(`[佣金] 网络分销商佣金 已生成(上家首个成本分销) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`);
+                    const uplineDistributors = await this.findOtherDistributorsInNetwork(nearestCost.id, nearestCost.id);
+                    let downstreamCostRate = costRate;
                     for (const upline of uplineDistributors) {
                         const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
                         const diffRate = downstreamCostRate - uplineCostRate;
                         if (diffRate > 0) {
-                            const commissionAmount = (orderAmount * diffRate / 100).toFixed(2);
+                            const diffAmount = (orderAmount * diffRate / 100).toFixed(2);
                             calculations.push({
                                 orderId,
                                 memberId: member.id,
@@ -139,14 +184,16 @@ class CommissionService {
                                 recipientId: upline.id,
                                 orderAmount,
                                 commissionRate: diffRate,
-                                commissionAmount: parseFloat(commissionAmount),
+                                commissionAmount: parseFloat(diffAmount),
                                 status: 'pending',
                                 description: `上级分销商级差：${upline.nickname} 级差 ${diffRate}%（下游${downstreamCostRate}% - 本等级${uplineCostRate}%）`
                             });
-                            console.log(`[佣金] 上级分销商级差 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${commissionAmount}`);
+                            console.log(`[佣金] 上级分销商级差 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${diffAmount}`);
                         }
                         downstreamCostRate = uplineCostRate;
                     }
+                } else {
+                    console.log(`[佣金] 推荐人上家链中无有成本率的分销商`);
                 }
             }
 
@@ -375,23 +422,35 @@ class CommissionService {
     }
 
     /**
-     * 查找推荐人网络中最近的分销商
+     * 查找推荐人网络中最近的分销商（任意有分销等级的）
      */
     static async findNearestDistributorInNetwork(referrerId) {
         let currentId = referrerId;
-        
         while (currentId) {
             const member = await Member.findByPk(currentId, {
                 include: [{ model: DistributorLevel, as: 'distributorLevel' }]
             });
-            
-            if (member && member.distributorLevel) {
-                return member;
-            }
-            
+            if (member && member.distributorLevel) return member;
             currentId = member ? member.referrerId : null;
         }
-        
+        return null;
+    }
+
+    /**
+     * 从 referrerId 开始向上找第一个「有成本率」的分销商（用于推荐人本人是分享模式、成本率为 0 时）
+     */
+    static async findNearestCostDistributorInNetwork(referrerId) {
+        let currentId = referrerId;
+        while (currentId) {
+            const member = await Member.findByPk(currentId, {
+                include: [{ model: DistributorLevel, as: 'distributorLevel' }]
+            });
+            if (member && member.distributorLevel) {
+                const costRate = this.getDistributorCostRate(member.distributorLevel);
+                if (costRate > 0) return member;
+            }
+            currentId = member ? member.referrerId : null;
+        }
         return null;
     }
 
