@@ -7,6 +7,77 @@ const { Member, MemberLevel, DistributorLevel, MemberLevelChangeRecord } = requi
 
 class LevelUpgradeService {
     /**
+     * 按推荐关系重算某会员的 directFans（直接推荐人数）与 totalFans（直接+间接人数），并写回数据库
+     */
+    static async updateMemberFans(memberId) {
+        const member = await Member.findByPk(memberId, { attributes: ['id'] });
+        if (!member) return;
+        const directFans = await Member.count({ where: { referrerId: memberId } });
+        const directIds = await Member.findAll({
+            where: { referrerId: memberId },
+            attributes: ['id'],
+            raw: true
+        }).then(rows => rows.map(r => r.id));
+        const indirectCount = directIds.length > 0
+            ? await Member.count({ where: { referrerId: { [Op.in]: directIds } } })
+            : 0;
+        const totalFans = directFans + indirectCount;
+        await Member.update(
+            { directFans, totalFans },
+            { where: { id: memberId } }
+        );
+    }
+
+    /**
+     * 获取从某会员起向上整条推荐链的 ID 列表（不含本人）
+     */
+    static async getUplineChain(memberId) {
+        const chain = [];
+        let currentId = memberId ? parseInt(memberId, 10) : null;
+        while (currentId) {
+            const m = await Member.findByPk(currentId, { attributes: ['id', 'referrerId'] });
+            if (!m) break;
+            const nextId = m.referrerId ? parseInt(m.referrerId, 10) : null;
+            if (nextId) chain.push(nextId);
+            currentId = nextId;
+        }
+        return chain;
+    }
+
+    /**
+     * 对某会员及其整条上级链：先重算粉丝数，再执行等级升级检查（用于推荐关系变更后，从该会员起向上整链）
+     */
+    static async updateFansAndUpgradeUpline(memberId) {
+        await this.updateMemberFans(memberId);
+        await this.tryUpgradeMember(memberId);
+        const chain = await this.getUplineChain(memberId);
+        for (const id of chain) {
+            await this.updateMemberFans(id);
+            await this.tryUpgradeMember(id);
+        }
+    }
+
+    /**
+     * 会员信息变更后：对该会员做升级检查；若推荐人变更则对旧/新推荐人整条上级链重算粉丝并做升级检查
+     */
+    static async onMemberDataChanged(memberId, options = {}) {
+        const { oldReferrerId, newReferrerId } = options;
+        try {
+            await this.tryUpgradeMember(memberId);
+        } catch (e) {
+            console.error('[等级升级] 该会员检查失败:', e);
+        }
+        if (oldReferrerId !== undefined && newReferrerId !== undefined && oldReferrerId !== newReferrerId) {
+            try {
+                if (oldReferrerId) await this.updateFansAndUpgradeUpline(oldReferrerId);
+                if (newReferrerId) await this.updateFansAndUpgradeUpline(newReferrerId);
+            } catch (e) {
+                console.error('[等级升级] 上级链粉丝/升级检查失败:', e);
+            }
+        }
+    }
+
+    /**
      * 获取会员当前积分应匹配的会员等级（仅考虑启用自动升级的等级，按 level 降序取最高满足的）
      */
     static async getEligibleMemberLevel(totalPoints) {

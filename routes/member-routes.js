@@ -13,6 +13,7 @@ const {
 const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
+const LevelUpgradeService = require('../services/levelUpgradeService');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -700,7 +701,13 @@ router.post('/', authenticateToken, async (req, res) => {
         }
 
         const member = await Member.create(cleanedData);
-        
+        if (cleanedData.referrerId) {
+            try {
+                await LevelUpgradeService.updateFansAndUpgradeUpline(cleanedData.referrerId);
+            } catch (e) {
+                console.error('创建会员后更新推荐人链粉丝/等级失败:', e);
+            }
+        }
         res.json({
             code: 0,
             message: '会员创建成功',
@@ -871,8 +878,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
             }
         }
 
+        const oldReferrerId = member.referrerId ? parseInt(member.referrerId, 10) : null;
+        const newReferrerId = cleanedData.referrerId ? parseInt(cleanedData.referrerId, 10) : null;
         await member.update(cleanedData);
-        
+        try {
+            await LevelUpgradeService.onMemberDataChanged(member.id, { oldReferrerId, newReferrerId });
+        } catch (e) {
+            console.error('会员信息变更后等级/粉丝检查失败:', e);
+        }
         res.json({
             code: 0,
             message: '会员更新成功',
