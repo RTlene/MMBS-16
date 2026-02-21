@@ -117,14 +117,23 @@ class LevelUpgradeService {
         });
         const sales = parseFloat(totalSales) || 0;
         const fans = parseInt(totalFans, 10) || 0;
+        if (levels.length === 0) {
+            console.log('[等级升级] 无启用自动升级的分销等级，totalSales=%s totalFans=%s', sales, fans);
+            return null;
+        }
         for (const lv of levels) {
             const minS = parseFloat(lv.minSales) || 0;
             const maxS = lv.maxSales != null ? parseFloat(lv.maxSales) : null;
             const minF = parseInt(lv.minFans, 10) || 0;
             const maxF = lv.maxFans != null ? parseInt(lv.maxFans, 10) : null;
-            if (sales >= minS && (maxS == null || sales <= maxS) &&
-                fans >= minF && (maxF == null || fans <= maxF)) return lv;
+            const ok = sales >= minS && (maxS == null || sales <= maxS) &&
+                fans >= minF && (maxF == null || fans <= maxF);
+            if (ok) {
+                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s -> 等级「%s」minFans=%s', sales, fans, lv.name, minF);
+                return lv;
+            }
         }
+        console.log('[等级升级] 未匹配任何分销等级 totalSales=%s totalFans=%s（已查 %s 个启用自动升级等级）', sales, fans, levels.length);
         return null;
     }
 
@@ -164,10 +173,15 @@ class LevelUpgradeService {
         if (!member) return { changed: false };
         const totalSales = override && override.totalSales !== undefined ? override.totalSales : member.totalSales;
         const totalFans = override && override.totalFans !== undefined ? override.totalFans : member.totalFans;
+        console.log('[等级升级] 分销等级检查 memberId=%s totalSales=%s totalFans=%s (override=%s)', memberId, totalSales, totalFans, override ? '是' : '否');
         const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans);
         const currentId = member.distributorLevelId ? parseInt(member.distributorLevelId, 10) : null;
         const newId = eligible ? eligible.id : null;
-        if (newId === currentId) return { changed: false };
+        if (newId === currentId) {
+            console.log('[等级升级] 分销等级未变更 memberId=%s 当前已是 levelId=%s', memberId, currentId);
+            return { changed: false };
+        }
+        console.log('[等级升级] 执行分销等级变更 memberId=%s %s -> %s', memberId, currentId, newId);
         await member.update({ distributorLevelId: newId });
         if (newId != null) {
             await MemberLevelChangeRecord.create({
