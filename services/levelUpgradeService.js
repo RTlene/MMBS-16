@@ -169,6 +169,7 @@ class LevelUpgradeService {
 
     /**
      * 尝试将分销等级更新为「满足条件的最高等级」
+     * 销售额条件使用「总销售额」totalSales。
      * @param {number} memberId
      * @param {{ totalSales?: number, totalFans?: number }} [override] 若在刚重算粉丝后调用，可传入避免读库拿到旧值
      */
@@ -196,7 +197,7 @@ class LevelUpgradeService {
                 oldLevelId: currentId,
                 newLevelId: newId,
                 reason: 'auto_upgrade',
-                description: `自动升级：销售额 ${totalSales}、粉丝 ${totalFans} 满足等级「${eligible.name}」条件`
+                description: `自动升级：总销售额 ${totalSales}、粉丝 ${totalFans} 满足等级「${eligible.name}」条件`
             });
         }
         return { changed: true, newLevelId: newId, newLevelName: eligible ? eligible.name : null };

@@ -588,16 +588,19 @@ class CommissionService {
             return;
         }
         const directReferrer = await Member.findByPk(directReferrerId, { attributes: ['id', 'referrerId', 'distributorLevelId'] });
+        const memberIdsToUpgrade = [];
         if (directReferrer) {
             const isDistributor = directReferrer.distributorLevelId != null;
             if (isDistributor) {
                 await directReferrer.increment('distributorSales', { by: orderAmount });
-                console.log(`[销售额] 订单 ${orderId} 直接推荐人(分销商) ${directReferrerId} +${orderAmount} distributorSales`);
+                await directReferrer.increment('directSales', { by: orderAmount }); // 直接推荐订单同时计入直接销售额，供等级判定用
+                console.log(`[销售额] 订单 ${orderId} 直接推荐人(分销商) ${directReferrerId} +${orderAmount} distributorSales + directSales`);
             } else {
                 await directReferrer.increment('directSales', { by: orderAmount });
                 console.log(`[销售额] 订单 ${orderId} 直接推荐人 ${directReferrerId} +${orderAmount} directSales`);
             }
             await directReferrer.increment('totalSales', { by: orderAmount });
+            memberIdsToUpgrade.push(directReferrerId);
 
             const indirectReferrerId = directReferrer.referrerId ? parseInt(directReferrer.referrerId, 10) : null;
             if (indirectReferrerId) {
@@ -606,12 +609,14 @@ class CommissionService {
                     const isIndirectDistributor = indirectReferrer.distributorLevelId != null;
                     if (isIndirectDistributor) {
                         await indirectReferrer.increment('distributorSales', { by: orderAmount });
-                        console.log(`[销售额] 订单 ${orderId} 间接推荐人(分销商) ${indirectReferrerId} +${orderAmount} distributorSales`);
+                        await indirectReferrer.increment('indirectSales', { by: orderAmount }); // 间接推荐订单同时计入间接销售额，供等级判定用
+                        console.log(`[销售额] 订单 ${orderId} 间接推荐人(分销商) ${indirectReferrerId} +${orderAmount} distributorSales + indirectSales`);
                     } else {
                         await indirectReferrer.increment('indirectSales', { by: orderAmount });
                         console.log(`[销售额] 订单 ${orderId} 间接推荐人 ${indirectReferrerId} +${orderAmount} indirectSales`);
                     }
                     await indirectReferrer.increment('totalSales', { by: orderAmount });
+                    memberIdsToUpgrade.push(indirectReferrerId);
                 }
                 // 推荐链上更上层的分销商：网络下非直接/间接的消费也计入其分销销售额（从间接推荐人的上家起）
                 let currentId = indirectReferrer.referrerId ? parseInt(indirectReferrer.referrerId, 10) : null;
@@ -622,12 +627,23 @@ class CommissionService {
                         await upline.increment('distributorSales', { by: orderAmount });
                         await upline.increment('totalSales', { by: orderAmount });
                         console.log(`[销售额] 订单 ${orderId} 上层分销商 ${upline.id} +${orderAmount} distributorSales`);
+                        memberIdsToUpgrade.push(upline.id);
                     }
                     currentId = upline.referrerId ? parseInt(upline.referrerId, 10) : null;
                 }
             }
         }
         await order.update({ salesUpdatedAt: new Date() });
+
+        // 销售额变更后触发等级检查（按直接+间接销售额判定的等级）
+        const LevelUpgradeService = require('./levelUpgradeService');
+        for (const mid of memberIdsToUpgrade) {
+            try {
+                await LevelUpgradeService.tryUpgradeMember(mid);
+            } catch (e) {
+                console.error('[销售额] 订单', orderId, '推荐人', mid, '等级检查失败:', e.message);
+            }
+        }
     }
 
     /**
