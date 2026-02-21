@@ -868,15 +868,17 @@ async function loadMemberNetwork() {
         const token = localStorage.getItem('token');
         
         // 获取下级会员
-        const response = await fetch(`/api/members/network/${member.id}`, {
+        const response = await fetch(`/api/members/${member.id}/network`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
         const result = await response.json();
         
-        if (result.code === 0) {
+        if (result.code === 0 && result.data && result.data.network) {
             renderMemberNetwork(result.data.network);
+        } else {
+            console.warn('关系网数据为空或请求失败', result.message || result);
         }
     } catch (error) {
         console.error('加载会员关系网失败:', error);

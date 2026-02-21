@@ -878,10 +878,16 @@ router.put('/:id', authenticateToken, async (req, res) => {
             }
         }
 
-        const oldReferrerId = member.referrerId ? parseInt(member.referrerId, 10) : null;
-        const newReferrerId = cleanedData.referrerId ? parseInt(cleanedData.referrerId, 10) : null;
+        const toRefId = (v) => {
+            if (v == null || v === '') return null;
+            const n = parseInt(v, 10);
+            return (!Number.isNaN(n) && n >= 1) ? n : null;
+        };
+        const oldReferrerId = toRefId(member.referrerId);
+        const newReferrerId = toRefId(cleanedData.referrerId);
         await member.update(cleanedData);
         try {
+            console.log('[会员更新] 触发等级/粉丝检查 memberId=%s oldReferrerId=%s newReferrerId=%s', member.id, oldReferrerId, newReferrerId);
             await LevelUpgradeService.onMemberDataChanged(member.id, { oldReferrerId, newReferrerId });
         } catch (e) {
             console.error('会员信息变更后等级/粉丝检查失败:', e);
@@ -1489,6 +1495,8 @@ router.get('/:id/network', authenticateToken, async (req, res) => {
         const member = await Member.findByPk(id, {
             include: [
                 { model: Member, as: 'referrer' },
+                { model: MemberLevel, as: 'memberLevel' },
+                { model: DistributorLevel, as: 'distributorLevel' },
                 { 
                     model: Member, 
                     as: 'referrals',
@@ -1507,6 +1515,17 @@ router.get('/:id/network', authenticateToken, async (req, res) => {
             });
         }
 
+        const toNode = (m) => ({
+            id: m.id,
+            nickname: m.nickname,
+            memberCode: m.memberCode,
+            memberLevelName: (m.memberLevel && m.memberLevel.name) ? m.memberLevel.name : '普通会员',
+            distributorLevelName: (m.distributorLevel && m.distributorLevel.name) ? m.distributorLevel.name : '无',
+            children: (m.referrals || []).map(toNode)
+        });
+
+        const network = toNode(member);
+
         res.json({
             code: 0,
             message: '获取会员关系网成功',
@@ -1518,7 +1537,8 @@ router.get('/:id/network', authenticateToken, async (req, res) => {
                     memberCode: member.memberCode,
                     referrer: member.referrer
                 },
-                referrals: member.referrals
+                referrals: member.referrals,
+                network
             }
         });
     } catch (error) {

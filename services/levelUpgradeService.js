@@ -62,15 +62,23 @@ class LevelUpgradeService {
      */
     static async onMemberDataChanged(memberId, options = {}) {
         const { oldReferrerId, newReferrerId } = options;
+        const oldId = oldReferrerId != null && oldReferrerId >= 1 ? oldReferrerId : null;
+        const newId = newReferrerId != null && newReferrerId >= 1 ? newReferrerId : null;
         try {
             await this.tryUpgradeMember(memberId);
         } catch (e) {
             console.error('[等级升级] 该会员检查失败:', e);
         }
-        if (oldReferrerId !== undefined && newReferrerId !== undefined && oldReferrerId !== newReferrerId) {
+        if (oldId !== newId) {
             try {
-                if (oldReferrerId) await this.updateFansAndUpgradeUpline(oldReferrerId);
-                if (newReferrerId) await this.updateFansAndUpgradeUpline(newReferrerId);
+                if (oldId) {
+                    console.log('[等级升级] 旧推荐人链 fans+升级 memberId=%s', oldId);
+                    await this.updateFansAndUpgradeUpline(oldId);
+                }
+                if (newId) {
+                    console.log('[等级升级] 新推荐人链 fans+升级 memberId=%s', newId);
+                    await this.updateFansAndUpgradeUpline(newId);
+                }
             } catch (e) {
                 console.error('[等级升级] 上级链粉丝/升级检查失败:', e);
             }
