@@ -85,6 +85,8 @@ class LevelUpgradeService {
             } catch (e) {
                 console.error('[等级升级] 上级链粉丝/升级检查失败:', e);
             }
+        } else {
+            console.log('[等级升级] 推荐人未变化 oldReferrerId=%s newReferrerId=%s 跳过上级链', oldId, newId);
         }
     }
 
