@@ -125,9 +125,11 @@ class LevelUpgradeService {
         }
         for (const lv of levels) {
             const minS = parseFloat(lv.minSales) || 0;
-            const maxS = lv.maxSales != null ? parseFloat(lv.maxSales) : null;
+            let maxS = lv.maxSales != null && lv.maxSales !== '' ? parseFloat(lv.maxSales) : null;
+            if (maxS !== null && maxS <= 0) maxS = null; // 0 或未填表示无上限
             const minF = parseInt(lv.minFans, 10) || 0;
-            const maxF = lv.maxFans != null ? parseInt(lv.maxFans, 10) : null;
+            let maxF = lv.maxFans != null && lv.maxFans !== '' ? parseInt(lv.maxFans, 10) : null;
+            if (maxF !== null && maxF <= 0) maxF = null; // 0 或未填表示无上限
             const okSales = sales >= minS && (maxS == null || sales <= maxS);
             const okFans = fans >= minF && (maxF == null || fans <= maxF);
             const ok = okSales && okFans;
