@@ -310,6 +310,22 @@
                 overflow-y: auto;
             }
 
+            /* 会员详情弹窗：固定尺寸，不随内容变化，内容在内部滚动 */
+            #memberDetailModal .modal-content {
+                width: 1000px;
+                max-width: 95vw;
+                height: 85vh;
+                max-height: 85vh;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            #memberDetailModal .modal-body {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+
             .modal-header {
                 padding: 20px;
                 border-bottom: 1px solid #f0f0f0;
@@ -856,7 +872,7 @@
         
             <!-- 会员详情模态框 -->
         <div class="modal" id="memberDetailModal">
-            <div class="modal-content" style="max-width: 1200px;">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h3 class="modal-title">会员详情</h3>
                     <button class="modal-close" onclick="closeMemberDetailModal()">&times;</button>

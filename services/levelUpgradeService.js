@@ -8,10 +8,11 @@ const { Member, MemberLevel, DistributorLevel, MemberLevelChangeRecord } = requi
 class LevelUpgradeService {
     /**
      * 按推荐关系重算某会员的 directFans（直接推荐人数）与 totalFans（直接+间接人数），并写回数据库
+     * @returns {{ directFans: number, totalFans: number } | null}
      */
     static async updateMemberFans(memberId) {
         const member = await Member.findByPk(memberId, { attributes: ['id'] });
-        if (!member) return;
+        if (!member) return null;
         const directFans = await Member.count({ where: { referrerId: memberId } });
         const directIds = await Member.findAll({
             where: { referrerId: memberId },
@@ -26,6 +27,7 @@ class LevelUpgradeService {
             { directFans, totalFans },
             { where: { id: memberId } }
         );
+        return { directFans, totalFans };
     }
 
     /**
@@ -46,14 +48,15 @@ class LevelUpgradeService {
 
     /**
      * 对某会员及其整条上级链：先重算粉丝数，再执行等级升级检查（用于推荐关系变更后，从该会员起向上整链）
+     * 使用刚写入的粉丝数做升级判断，避免同一请求内读库拿到旧快照导致不升级
      */
     static async updateFansAndUpgradeUpline(memberId) {
-        await this.updateMemberFans(memberId);
-        await this.tryUpgradeMember(memberId);
+        const fans = await this.updateMemberFans(memberId);
+        await this.tryUpgradeMember(memberId, fans ? { totalFans: fans.totalFans } : undefined);
         const chain = await this.getUplineChain(memberId);
         for (const id of chain) {
-            await this.updateMemberFans(id);
-            await this.tryUpgradeMember(id);
+            const nextFans = await this.updateMemberFans(id);
+            await this.tryUpgradeMember(id, nextFans ? { totalFans: nextFans.totalFans } : undefined);
         }
     }
 
@@ -151,13 +154,17 @@ class LevelUpgradeService {
 
     /**
      * 尝试将分销等级更新为「满足条件的最高等级」
+     * @param {number} memberId
+     * @param {{ totalSales?: number, totalFans?: number }} [override] 若在刚重算粉丝后调用，可传入避免读库拿到旧值
      */
-    static async tryUpgradeDistributorLevel(memberId) {
+    static async tryUpgradeDistributorLevel(memberId, override) {
         const member = await Member.findByPk(memberId, {
             attributes: ['id', 'distributorLevelId', 'totalSales', 'totalFans']
         });
         if (!member) return { changed: false };
-        const eligible = await this.getEligibleDistributorLevel(member.totalSales, member.totalFans);
+        const totalSales = override && override.totalSales !== undefined ? override.totalSales : member.totalSales;
+        const totalFans = override && override.totalFans !== undefined ? override.totalFans : member.totalFans;
+        const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans);
         const currentId = member.distributorLevelId ? parseInt(member.distributorLevelId, 10) : null;
         const newId = eligible ? eligible.id : null;
         if (newId === currentId) return { changed: false };
@@ -169,7 +176,7 @@ class LevelUpgradeService {
                 oldLevelId: currentId,
                 newLevelId: newId,
                 reason: 'auto_upgrade',
-                description: `自动升级：销售额 ${member.totalSales}、粉丝 ${member.totalFans} 满足等级「${eligible.name}」条件`
+                description: `自动升级：销售额 ${totalSales}、粉丝 ${totalFans} 满足等级「${eligible.name}」条件`
             });
         }
         return { changed: true, newLevelId: newId, newLevelName: eligible ? eligible.name : null };
@@ -177,8 +184,10 @@ class LevelUpgradeService {
 
     /**
      * 对指定会员执行会员等级 + 分销等级自动升级检查
+     * @param {number} memberId
+     * @param {{ totalFans?: number, totalSales?: number }} [override] 刚重算粉丝后传入，避免读库拿到旧值
      */
-    static async tryUpgradeMember(memberId) {
+    static async tryUpgradeMember(memberId, override) {
         const results = { memberLevel: { changed: false }, distributorLevel: { changed: false } };
         try {
             results.memberLevel = await this.tryUpgradeMemberLevel(memberId);
@@ -186,7 +195,7 @@ class LevelUpgradeService {
             console.error('[等级自动升级] 会员等级检查失败 memberId=%s:', memberId, e.message);
         }
         try {
-            results.distributorLevel = await this.tryUpgradeDistributorLevel(memberId);
+            results.distributorLevel = await this.tryUpgradeDistributorLevel(memberId, override);
         } catch (e) {
             console.error('[等级自动升级] 分销等级检查失败 memberId=%s:', memberId, e.message);
         }
