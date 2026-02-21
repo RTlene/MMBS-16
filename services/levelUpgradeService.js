@@ -128,10 +128,12 @@ class LevelUpgradeService {
             const maxS = lv.maxSales != null ? parseFloat(lv.maxSales) : null;
             const minF = parseInt(lv.minFans, 10) || 0;
             const maxF = lv.maxFans != null ? parseInt(lv.maxFans, 10) : null;
-            const ok = sales >= minS && (maxS == null || sales <= maxS) &&
-                fans >= minF && (maxF == null || fans <= maxF);
+            const okSales = sales >= minS && (maxS == null || sales <= maxS);
+            const okFans = fans >= minF && (maxF == null || fans <= maxF);
+            const ok = okSales && okFans;
+            console.log('[等级升级] 等级「%s」minSales=%s maxSales=%s minFans=%s maxFans=%s -> salesOk=%s fansOk=%s', lv.name, minS, maxS, minF, maxF, okSales, okFans);
             if (ok) {
-                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s -> 等级「%s」minFans=%s', sales, fans, lv.name, minF);
+                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s -> 等级「%s」', sales, fans, lv.name);
                 return lv;
             }
         }
