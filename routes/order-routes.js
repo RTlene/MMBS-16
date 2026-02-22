@@ -292,9 +292,12 @@ router.post('/test', async (req, res) => {
             description: `后台创建测试订单并标记已支付（会员ID: ${member.id}，金额: ${total}），用于佣金验证`
         });
 
+        // 佣金仅订单完成时产生：测试订单直接标记为已完成以触发佣金计算
+        await order.update({ status: 'completed', completedAt: new Date() });
+
         let commissionCreated = 0;
         let commissionReason = null; // 'no_referrer' | 'referrer_not_found' | 'level_not_met'
-        console.log(`[测试订单] 订单已创建 orderId=${order.id} orderNo=${order.orderNo} memberId=${order.memberId} totalAmount=${order.totalAmount}，开始计算佣金`);
+        console.log(`[测试订单] 订单已创建并标记已完成 orderId=${order.id}，开始计算佣金`);
         try {
             const result = await CommissionService.calculateOrderCommission(order.id);
             const calculations = result && result.calculations ? result.calculations : [];
@@ -393,14 +396,7 @@ router.post('/', async (req, res) => {
             remark: '正式订单'
         });
 
-        // 自动计算佣金
-        try {
-            await CommissionService.calculateOrderCommission(order.id);
-        } catch (error) {
-            console.error('自动计算佣金失败:', error);
-            // 不抛出错误，避免影响订单创建
-        }
-
+        // 佣金在订单完成（确认收货/核销）时再计算
         res.json({
             code: 0,
             message: '订单创建成功',
@@ -435,13 +431,12 @@ router.put('/:id/status', async (req, res) => {
             ...(status === 'paid' && { paymentTime: new Date() })
         });
 
-        // 如果订单状态变更为已支付，触发佣金计算
-        if (status === 'paid') {
+        // 订单完成（已收货/已完成）时触发佣金计算
+        if (status === 'delivered' || status === 'completed') {
             try {
                 await CommissionService.calculateOrderCommission(order.id);
             } catch (error) {
-                console.error('自动计算佣金失败:', error);
-                // 不抛出错误，避免影响订单状态更新
+                console.error('订单完成佣金计算失败:', error);
             }
         }
 
@@ -977,6 +972,13 @@ router.put('/:id/deliver', async (req, res) => {
             description: '订单已确认收货'
         });
 
+        // 订单完成时触发佣金计算
+        try {
+            await CommissionService.calculateOrderCommission(order.id);
+        } catch (error) {
+            console.error('订单完成佣金计算失败:', error);
+        }
+
         res.json({
             code: 0,
             message: '确认收货成功',
@@ -1343,6 +1345,13 @@ router.put('/:id/verify', async (req, res) => {
             description: `核销订单，核销码：${String(verificationCode).trim()}`,
             data: { verificationCode: String(verificationCode).trim() }
         });
+
+        // 订单完成（核销）时触发佣金计算
+        try {
+            await CommissionService.calculateOrderCommission(order.id);
+        } catch (error) {
+            console.error('订单完成佣金计算失败:', error);
+        }
 
         res.json({
             code: 0,

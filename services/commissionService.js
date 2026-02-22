@@ -12,12 +12,13 @@ const {
 
 class CommissionService {
     /**
-     * 计算订单佣金
+     * 计算订单佣金（仅订单完成时产生：状态为 delivered 或 completed 才写入，否则仅可预览）
      * @param {number} orderId - 订单ID
+     * @param {Object} [opts] - { preview: true } 仅预览，不写入
      */
-    static async calculateOrderCommission(orderId) {
+    static async calculateOrderCommission(orderId, opts = {}) {
+        const preview = !!opts.preview;
         try {
-            // 获取订单信息
             const order = await Order.findByPk(orderId, {
                 include: [
                     { model: Member, as: 'member', include: [
@@ -31,8 +32,66 @@ class CommissionService {
                 throw new Error('订单不存在');
             }
 
-            const member = order.member;
-            const orderAmount = parseFloat(order.totalAmount);
+            const status = order.status || '';
+            if (!preview && status !== 'delivered' && status !== 'completed') {
+                console.log(`[佣金] 订单未完成，不生成佣金 orderId=${orderId} status=${status}`);
+                return { calculations: [], orderNotCompleted: true };
+            }
+
+            if (!preview) {
+                const existingCount = await CommissionCalculation.count({ where: { orderId } });
+                if (existingCount > 0) {
+                    console.log(`[佣金] 订单已计算过佣金，跳过 orderId=${orderId}`);
+                    return { calculations: [], alreadyCalculated: true };
+                }
+            }
+
+            const result = await this._computeOrderCommissionCalculations(order);
+            if (!preview && result.calculations.length > 0) {
+                await CommissionCalculation.bulkCreate(result.calculations);
+                console.log(`[佣金] 订单 ${orderId} 完成 共 ${result.calculations.length} 条记录`);
+            }
+            return result;
+        } catch (error) {
+            console.error('计算订单佣金失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 订单佣金预览（不写入库，仅返回预计佣金明细）
+     * @param {number} orderId - 订单ID
+     */
+    static async previewOrderCommission(orderId) {
+        try {
+            const order = await Order.findByPk(orderId, {
+                include: [
+                    { model: Member, as: 'member', include: [
+                        { model: MemberLevel, as: 'memberLevel' },
+                        { model: DistributorLevel, as: 'distributorLevel' }
+                    ]}
+                ]
+            });
+            if (!order) return { calculations: [], message: '订单不存在' };
+            return await this._computeOrderCommissionCalculations(order);
+        } catch (error) {
+            console.error('订单佣金预览失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 内部：根据订单计算佣金明细（不写库）
+     * @param {Object} order - 已包含 member 的订单
+     */
+    static async _computeOrderCommissionCalculations(order) {
+        const orderId = order.id;
+        const member = order.member;
+        const orderAmount = parseFloat(order.totalAmount);
+
+        if (!member) {
+            return { calculations: [], noReferrer: false, referrerNotFound: false };
+        }
 
             console.log(`[佣金] 订单 orderId=${orderId} 下单会员 memberId=${member.id} referrerId=${member.referrerId} 订单金额=${orderAmount}`);
 
@@ -206,19 +265,10 @@ class CommissionService {
                 }
             }
 
-            // 保存所有佣金记录
-            if (calculations.length > 0) {
-                await CommissionCalculation.bulkCreate(calculations);
-                console.log(`[佣金] 订单 ${orderId} 完成 共 ${calculations.length} 条记录`);
-            } else {
+            if (calculations.length === 0) {
                 console.log(`[佣金] 订单 ${orderId} 无任何佣金记录生成（推荐人存在但各类型均未满足或比例为0）`);
             }
             return { calculations, noReferrer: false, referrerNotFound: false };
-
-        } catch (error) {
-            console.error('计算订单佣金失败:', error);
-            throw error;
-        }
     }
 
     /**

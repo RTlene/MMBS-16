@@ -123,17 +123,46 @@ router.get('/team-incentives', authenticateToken, async (req, res) => {
     }
 });
 
-// 手动触发订单佣金计算
+// 订单佣金预览（不写入，仅返回预计佣金明细；订单未完成也可预览）
+router.get('/preview/:orderId', authenticateToken, async (req, res) => {
+    try {
+        const orderId = req.params.orderId;
+        const result = await CommissionService.previewOrderCommission(orderId);
+        res.json({
+            code: 0,
+            message: '预览成功',
+            data: {
+                calculations: result.calculations || [],
+                noReferrer: result.noReferrer,
+                referrerNotFound: result.referrerNotFound
+            }
+        });
+    } catch (error) {
+        console.error('订单佣金预览失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: error.message || '订单佣金预览失败'
+        });
+    }
+});
+
+// 手动触发订单佣金计算（仅当订单状态为已收货/已完成时才会写入）
 router.post('/calculate/:orderId', authenticateToken, async (req, res) => {
     try {
         const { orderId } = req.params;
         
         const result = await CommissionService.calculateOrderCommission(orderId);
         const calculations = result && result.calculations ? result.calculations : [];
+        let message = '佣金计算完成';
+        if (result.orderNotCompleted) {
+            message = '订单未完成（需已收货或已核销），未生成佣金，请使用预览接口查看预计佣金';
+        } else if (result.alreadyCalculated) {
+            message = '该订单已计算过佣金，未重复生成';
+        }
         res.json({
             code: 0,
-            message: '佣金计算完成',
-            data: calculations
+            message,
+            data: { calculations, orderNotCompleted: result.orderNotCompleted, alreadyCalculated: result.alreadyCalculated }
         });
     } catch (error) {
         console.error('计算订单佣金失败:', error);

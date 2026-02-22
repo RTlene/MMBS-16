@@ -276,13 +276,7 @@ router.post('/wechat/notify', async (req, res) => {
                     transactionId: transaction_id
                 });
 
-                // 触发佣金计算
-                try {
-                    const CommissionService = require('../services/commissionService');
-                    await CommissionService.calculateOrderCommission(order.id);
-                } catch (error) {
-                    console.error('[Payment] 佣金计算失败:', error);
-                }
+                // 佣金在订单完成（确认收货/核销）时再计算，此处不触发
                 // 销售额累加（仅直接/间接推荐人，非下单本人）
                 try {
                     const CommissionService = require('../services/commissionService');
@@ -296,6 +290,13 @@ router.post('/wechat/notify', async (req, res) => {
                     await LevelUpgradeService.tryUpgradeMember(order.memberId);
                 } catch (error) {
                     console.error('[Payment] 等级自动升级检查失败:', error);
+                }
+                // 订单完成发放会员积分
+                try {
+                    const { grantPointsForOrderPaid } = require('../services/orderPointsService');
+                    await grantPointsForOrderPaid(order.id);
+                } catch (error) {
+                    console.error('[Payment] 订单积分发放失败:', error);
                 }
 
                 console.log('[Payment] 订单支付成功:', order.orderNo);
@@ -375,14 +376,9 @@ router.get('/wechat/query/:orderId', authenticateMiniappUser, async (req, res) =
                         transactionId: wechatOrder.transaction_id
                     });
 
-                    // 触发佣金计算
+                    // 佣金在订单完成（确认收货/核销）时再计算，此处不触发
                     try {
                         const CommissionService = require('../services/commissionService');
-                        await CommissionService.calculateOrderCommission(order.id);
-                    } catch (error) {
-                        console.error('[Payment] 佣金计算失败:', error);
-                    }
-                    try {
                         await CommissionService.updateSalesOnOrderPaid(order.id);
                     } catch (error) {
                         console.error('[Payment] 销售额累加失败:', error);
@@ -392,6 +388,12 @@ router.get('/wechat/query/:orderId', authenticateMiniappUser, async (req, res) =
                         await LevelUpgradeService.tryUpgradeMember(order.memberId);
                     } catch (error) {
                         console.error('[Payment] 等级自动升级检查失败:', error);
+                    }
+                    try {
+                        const { grantPointsForOrderPaid } = require('../services/orderPointsService');
+                        await grantPointsForOrderPaid(order.id);
+                    } catch (error) {
+                        console.error('[Payment] 订单积分发放失败:', error);
                     }
 
                     return res.json({

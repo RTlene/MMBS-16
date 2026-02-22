@@ -344,11 +344,9 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             }
         });
 
-        // 如果订单已支付，触发佣金计算和核销码生成
+        // 如果订单已支付，仅触发核销码生成与销售额累加；佣金在订单完成（确认收货/核销）时再计算
         if (orderStatus === 'paid') {
             try {
-                await CommissionService.calculateOrderCommission(order.id);
-                
                 // 如果是服务商品订单，确保核销码已生成
                 const orderItems = await OrderItem.findAll({
                     where: { orderId: order.id },
@@ -409,6 +407,12 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 await LevelUpgradeService.tryUpgradeMember(order.memberId);
             } catch (e) {
                 console.error('等级自动升级检查失败:', e);
+            }
+            try {
+                const { grantPointsForOrderPaid } = require('../services/orderPointsService');
+                await grantPointsForOrderPaid(order.id);
+            } catch (e) {
+                console.error('订单积分发放失败:', e);
             }
         }
 
@@ -904,11 +908,18 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
             }
         });
 
-        // 如果订单状态变更为已支付，触发佣金计算和核销码生成
-        if (status === 'paid') {
+        // 订单完成（确认收货）时触发佣金计算
+        if (status === 'delivered') {
             try {
                 await CommissionService.calculateOrderCommission(order.id);
-                
+            } catch (e) {
+                console.error('订单完成佣金计算失败:', e);
+            }
+        }
+
+        // 如果订单状态变更为已支付，仅触发核销码生成；佣金在订单完成（确认收货/核销）时再计算
+        if (status === 'paid') {
+            try {
                 // 如果是服务商品订单，确保核销码已生成
                 const orderItems = await OrderItem.findAll({
                     where: { orderId: order.id },
