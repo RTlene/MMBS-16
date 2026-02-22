@@ -592,9 +592,8 @@ class CommissionService {
         if (directReferrer) {
             const isDistributor = directReferrer.distributorLevelId != null;
             if (isDistributor) {
-                await directReferrer.increment('distributorSales', { by: orderAmount });
-                await directReferrer.increment('directSales', { by: orderAmount }); // 直接推荐订单同时计入直接销售额，供等级判定用
-                console.log(`[销售额] 订单 ${orderId} 直接推荐人(分销商) ${directReferrerId} +${orderAmount} distributorSales + directSales`);
+                await directReferrer.increment('directSales', { by: orderAmount }); // 分享赚钱型：直接推荐订单只计入直接销售额，不重复计入分销销售额
+                console.log(`[销售额] 订单 ${orderId} 直接推荐人(分销商) ${directReferrerId} +${orderAmount} directSales`);
             } else {
                 await directReferrer.increment('directSales', { by: orderAmount });
                 console.log(`[销售额] 订单 ${orderId} 直接推荐人 ${directReferrerId} +${orderAmount} directSales`);
@@ -608,9 +607,8 @@ class CommissionService {
                 if (indirectReferrer) {
                     const isIndirectDistributor = indirectReferrer.distributorLevelId != null;
                     if (isIndirectDistributor) {
-                        await indirectReferrer.increment('distributorSales', { by: orderAmount });
-                        await indirectReferrer.increment('indirectSales', { by: orderAmount }); // 间接推荐订单同时计入间接销售额，供等级判定用
-                        console.log(`[销售额] 订单 ${orderId} 间接推荐人(分销商) ${indirectReferrerId} +${orderAmount} distributorSales + indirectSales`);
+                        await indirectReferrer.increment('indirectSales', { by: orderAmount }); // 分享赚钱型：间接推荐订单只计入间接销售额，不重复计入分销销售额
+                        console.log(`[销售额] 订单 ${orderId} 间接推荐人(分销商) ${indirectReferrerId} +${orderAmount} indirectSales`);
                     } else {
                         await indirectReferrer.increment('indirectSales', { by: orderAmount });
                         console.log(`[销售额] 订单 ${orderId} 间接推荐人 ${indirectReferrerId} +${orderAmount} indirectSales`);
