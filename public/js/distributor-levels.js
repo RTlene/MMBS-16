@@ -158,6 +158,7 @@ function renderLevels() {
                     ${level.enableAutoUpgrade ? '启用' : '关闭'}
                 </span>
             </td>
+            <td>${level.enableAutoUpgrade ? (level.upgradeConditionLogic === 'or' ? '或' : '与') : '-'}</td>
             <td>
                 <span class="status-badge status-${level.status}">
                     ${getStatusText(level.status)}
@@ -317,6 +318,8 @@ function fillLevelForm(level) {
     document.getElementById('sortOrder').value = level.sortOrder ?? 0;
     const autoUpgradeEl = document.getElementById('enableAutoUpgrade');
     if (autoUpgradeEl) autoUpgradeEl.checked = !!level.enableAutoUpgrade;
+    const logicEl = document.getElementById('upgradeConditionLogic');
+    if (logicEl) logicEl.value = level.upgradeConditionLogic === 'or' ? 'or' : 'and';
     // 按类型切换到对应模式（采购成本>0 为分销商，否则为分享赚钱）
     if (getLevelType(level) === 'sharer') {
         switchMode('sharer');
@@ -347,7 +350,8 @@ async function submitLevelForm(event) {
         status: formData.get('status'),
         description: formData.get('description'),
         privileges: getPrivileges(),
-        enableAutoUpgrade: document.getElementById('enableAutoUpgrade') && document.getElementById('enableAutoUpgrade').checked
+        enableAutoUpgrade: document.getElementById('enableAutoUpgrade') && document.getElementById('enableAutoUpgrade').checked,
+        upgradeConditionLogic: document.getElementById('upgradeConditionLogic') ? document.getElementById('upgradeConditionLogic').value : 'and'
     };
     
     if (isSharerMode) {

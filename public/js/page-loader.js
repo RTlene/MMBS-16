@@ -92,6 +92,11 @@ const pageInitFunctions = {
         if (window.TestOrder && window.TestOrder.init) {
             window.TestOrder.init();
         }
+    },
+    'system-settings': () => {
+        if (window.SystemSettings && window.SystemSettings.init) {
+            window.SystemSettings.init();
+        }
     }
 };
 

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通用设置</title>
+    <style>
+        .system-settings-container { padding: 20px; background: #f5f5f5; min-height: 100vh; }
+        .page-header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .page-title { font-size: 24px; font-weight: 600; color: #333; margin: 0 0 8px 0; }
+        .page-description { color: #666; margin: 0; font-size: 14px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; overflow: hidden; }
+        .card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; font-weight: 600; color: #333; }
+        .card-body { padding: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group:last-child { margin-bottom: 0; }
+        .form-label { display: block; margin-bottom: 6px; font-weight: 500; color: #333; }
+        .form-input { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
+        .form-hint { font-size: 12px; color: #888; margin-top: 4px; }
+        .btn { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #1890ff; color: white; }
+        .btn-primary:hover { background: #40a9ff; }
+        .form-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .form-row input[type="checkbox"] { width: 18px; height: 18px; }
+    </style>
+</head>
+<body>
+    <div class="system-settings-container">
+        <div class="page-header">
+            <h1 class="page-title">通用设置</h1>
+            <p class="page-description">系统级配置，如活跃会员自动检测等</p>
+        </div>
+
+        <div class="card">
+            <div class="card-header">活跃会员自动检测</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <div class="form-row">
+                        <input type="checkbox" id="activeMemberCheckEnabled" name="activeMemberCheckEnabled">
+                        <label class="form-label" for="activeMemberCheckEnabled" style="margin:0;">启用活跃会员自动检测</label>
+                    </div>
+                    <p class="form-hint">定时根据「活跃条件」与「天数」将会员标记为活跃/不活跃，并更新会员状态</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">判定天数（天）</label>
+                    <input type="number" id="activeMemberCheckDays" name="activeMemberCheckDays" class="form-input" min="1" max="365" value="30">
+                    <p class="form-hint">在设定天数内满足活跃条件视为活跃，否则视为不活跃</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">活跃条件</label>
+                    <select id="activeMemberCondition" name="activeMemberCondition" class="form-input" style="max-width:280px;">
+                        <option value="lastActiveAt">按最后活跃时间（lastActiveAt）</option>
+                        <option value="lastOrderAt">按最后下单时间（近 N 天内有支付成功订单）</option>
+                    </select>
+                    <p class="form-hint">lastActiveAt 需在登录/下单等行为中更新；lastOrderAt 以订单支付时间为准</p>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary" id="saveSystemSettingsBtn">保存设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="../js/system-settings.js"></script>
+</body>
+</html>

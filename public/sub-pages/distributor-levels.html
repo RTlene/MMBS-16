@@ -427,6 +427,7 @@
                         <th>采购成本</th>
                         <th>分享佣金</th>
                         <th>自动升级</th>
+                        <th>升级条件</th>
                         <th>状态</th>
                         <th>排序</th>
                         <th>操作</th>
@@ -554,6 +555,14 @@
                         <input type="checkbox" id="enableAutoUpgrade" name="enableAutoUpgrade" value="1">
                         <label class="form-label" for="enableAutoUpgrade" style="margin: 0;">启用自动升级</label>
                         <small style="color: #666;">满足本等级销售额/粉丝数条件时，自动将分销商升级到此等级</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">升级条件关系</label>
+                        <select id="upgradeConditionLogic" name="upgradeConditionLogic" class="form-input">
+                            <option value="and">与（粉丝与销售额都满足）</option>
+                            <option value="or">或（满足其一即可）</option>
+                        </select>
+                        <small style="color: #666;">仅当启用自动升级时生效</small>
                     </div>
                 </div>
 

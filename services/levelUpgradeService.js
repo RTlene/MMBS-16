@@ -115,7 +115,7 @@ class LevelUpgradeService {
         const levels = await DistributorLevel.findAll({
             where: { status: 'active', enableAutoUpgrade: true },
             order: [['level', 'DESC']],
-            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans']
+            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'upgradeConditionLogic']
         });
         const sales = parseFloat(totalSales) || 0;
         const fans = parseInt(totalFans, 10) || 0;
@@ -132,8 +132,9 @@ class LevelUpgradeService {
             if (maxF !== null && maxF <= 0) maxF = null; // 0 或未填表示无上限
             const okSales = sales >= minS && (maxS == null || sales <= maxS);
             const okFans = fans >= minF && (maxF == null || fans <= maxF);
-            const ok = okSales && okFans;
-            console.log('[等级升级] 等级「%s」minSales=%s maxSales=%s minFans=%s maxFans=%s -> salesOk=%s fansOk=%s', lv.name, minS, maxS, minF, maxF, okSales, okFans);
+            const logic = (lv.upgradeConditionLogic === 'or') ? 'or' : 'and';
+            const ok = logic === 'or' ? (okSales || okFans) : (okSales && okFans);
+            console.log('[等级升级] 等级「%s」条件关系=%s minSales=%s maxSales=%s minFans=%s maxFans=%s -> salesOk=%s fansOk=%s', lv.name, logic, minS, maxS, minF, maxF, okSales, okFans);
             if (ok) {
                 console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s -> 等级「%s」', sales, fans, lv.name);
                 return lv;

@@ -123,7 +123,8 @@ router.post('/', async (req, res) => {
             description,
             status,
             sortOrder,
-            enableAutoUpgrade
+            enableAutoUpgrade,
+            upgradeConditionLogic
         } = req.body;
 
         // 验证必填字段
@@ -165,7 +166,8 @@ router.post('/', async (req, res) => {
             description: description || '',
             status: status || 'active',
             sortOrder: sortOrder != null && sortOrder !== '' ? parseInt(sortOrder, 10) : 0,
-            enableAutoUpgrade: !!enableAutoUpgrade
+            enableAutoUpgrade: !!enableAutoUpgrade,
+            upgradeConditionLogic: (upgradeConditionLogic === 'or' ? 'or' : 'and')
         });
         console.log('[分销等级] 创建成功 id=%s name=%s procurementCost=%s costRate=%s sharerDirect=%s sharerIndirect=%s', newLevel.id, newLevel.name, newLevel.procurementCost, newLevel.costRate, newLevel.sharerDirectCommissionRate, newLevel.sharerIndirectCommissionRate);
 
@@ -207,7 +209,8 @@ router.put('/:id', async (req, res) => {
             description,
             status,
             sortOrder,
-            enableAutoUpgrade
+            enableAutoUpgrade,
+            upgradeConditionLogic
         } = req.body;
 
         const levelRecord = await DistributorLevel.findByPk(id);
@@ -250,7 +253,8 @@ router.put('/:id', async (req, res) => {
             description: description !== undefined ? description : levelRecord.description,
             status: status || levelRecord.status,
             sortOrder: sortOrder !== undefined ? sortOrder : levelRecord.sortOrder,
-            enableAutoUpgrade: enableAutoUpgrade !== undefined ? !!enableAutoUpgrade : levelRecord.enableAutoUpgrade
+            enableAutoUpgrade: enableAutoUpgrade !== undefined ? !!enableAutoUpgrade : levelRecord.enableAutoUpgrade,
+            upgradeConditionLogic: upgradeConditionLogic !== undefined ? (upgradeConditionLogic === 'or' ? 'or' : 'and') : (levelRecord.upgradeConditionLogic === 'or' ? 'or' : 'and')
         };
         // procurementCost 更新时同步 costRate（0-100）。分享模式 procurementCost=0 → costRate=0
         if (procurementCost !== undefined) {

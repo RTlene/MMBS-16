@@ -128,6 +128,9 @@ const ensureCertFromStorage = paymentConfigRoutes.ensureCertFromStorage;
 app.use('/api/payment-config', require('./middleware/auth').authenticateToken, paymentConfigRoutes);
 // 添加图片压缩管理路由
 app.use('/api/compress', compressRoutes);
+// 系统设置（通用设置、活跃会员检测等）
+const settingsRoutes = require('./routes/settings-routes');
+app.use('/api/settings', require('./middleware/auth').authenticateToken, settingsRoutes);
 
 
 // ==================== 小程序相关路由 ====================
@@ -221,6 +224,21 @@ let dbInitError = null;
 
 const configStore = require('./services/configStore');
 
+function startActiveMemberCheckInterval() {
+  const activeMemberCheckService = require('./services/activeMemberCheckService');
+  const INTERVAL_MS = 60 * 60 * 1000;
+  setInterval(() => {
+    activeMemberCheckService.runActiveMemberCheck().catch(e => {
+      console.error('[活跃检测] 执行失败:', e.message);
+    });
+  }, INTERVAL_MS);
+  setTimeout(() => {
+    activeMemberCheckService.runActiveMemberCheck().catch(e => {
+      console.error('[活跃检测] 首次执行失败:', e.message);
+    });
+  }, 30 * 1000);
+}
+
 /** 启动时从配置文件恢复微信支付相关环境变量，避免每次部署后需重新在后台配置 */
 function loadPaymentConfigIntoEnv() {
   const configPath = path.join(__dirname, 'config', 'wechat-payment-config.json');
@@ -290,6 +308,7 @@ async function bootstrap() {
   initDB().then(() => {
     dbReady = true;
     console.log(`[DB] 初始化完成，耗时 ${Date.now() - dbStartAt}ms`);
+    startActiveMemberCheckInterval();
   }).catch((err) => {
     dbInitError = err;
     console.error("[DB] 初始化失败，服务已启动但数据库暂不可用:", err.message);

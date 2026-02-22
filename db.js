@@ -571,6 +571,12 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         defaultValue: false,
         comment: '是否启用自动升级（满足本等级条件时自动将分销商升级到此等级）'
     },
+    upgradeConditionLogic: {
+        type: DataTypes.ENUM('and', 'or'),
+        allowNull: false,
+        defaultValue: 'and',
+        comment: '自动升级条件关系：and=粉丝与销售额都满足，or=满足其一即可'
+    },
     createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
