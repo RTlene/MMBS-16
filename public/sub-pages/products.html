@@ -876,6 +876,22 @@
                     <button type="button" class="btn btn-success btn-sm" onclick="addSKU()">添加SKU</button>
                 </div>
                 
+                <!-- 会员价（仅编辑时显示） -->
+                <div id="memberPricesSection" class="form-group" style="display: none;">
+                    <h3>会员价</h3>
+                    <p class="member-price-tip" style="font-size:12px;color:#888;margin-bottom:10px;">为不同会员等级设置专属价格，该等级会员下单时直接使用会员价，且不参与优惠券、促销等优惠。未设置会员价的等级按原逻辑计费。</p>
+                    <div id="memberPricesList">
+                        <!-- 会员价列表由 JS 渲染 -->
+                    </div>
+                    <div class="member-price-add" style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+                        <select id="memberPriceLevelSelect" style="padding:6px 10px;min-width:140px;">
+                            <option value="">选择会员等级</option>
+                        </select>
+                        <input type="number" id="memberPriceInput" placeholder="会员价" min="0" step="0.01" style="padding:6px 10px;width:100px;">
+                        <button type="button" class="btn btn-success btn-sm" onclick="addMemberPrice()">添加</button>
+                    </div>
+                </div>
+                
                 <div style="text-align: right; margin-top: 20px;">
                     <button type="button" class="btn" onclick="closeProductModal()" style="margin-right: 10px;">取消</button>
                     <button type="button" class="btn btn-success" onclick="openMiniappProductPreview()" style="margin-right: 10px;">小程序详情预览</button>

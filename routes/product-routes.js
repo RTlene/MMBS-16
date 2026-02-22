@@ -1,5 +1,5 @@
 const express = require('express');
-const { Product, ProductSKU, ProductAttribute, Category } = require('../db');
+const { Product, ProductSKU, ProductAttribute, Category, ProductMemberPrice, MemberLevel } = require('../db');
 const { Op } = require('sequelize');
 const { deleteProductFiles } = require('./product-files-routes');
 const multer = require('multer');
@@ -276,6 +276,72 @@ router.post('/import', upload.single('file'), async (req, res) => {
   } catch (error) {
     console.error('导入商品失败:', error);
     res.status(500).json({ code: 1, message: '导入商品失败: ' + error.message });
+  }
+});
+
+// ---------- 商品会员价（需放在 /:id 之前） ----------
+// 获取某商品的会员价列表
+router.get('/:id/member-prices', async (req, res) => {
+  try {
+    const productId = safeInt(req.params.id);
+    if (!productId) return res.status(400).json({ code: 1, message: '商品ID无效' });
+    const product = await Product.findByPk(productId);
+    if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
+    const list = await ProductMemberPrice.findAll({
+      where: { productId },
+      include: [{ model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] }],
+      order: [['memberLevelId', 'ASC']]
+    });
+    res.json({ code: 0, message: '获取成功', data: list });
+  } catch (err) {
+    console.error('获取商品会员价失败:', err);
+    res.status(500).json({ code: 1, message: err.message || '服务器错误' });
+  }
+});
+
+// 为某商品添加/更新一条会员价（同一商品同一等级仅保留一条）
+router.post('/:id/member-prices', async (req, res) => {
+  try {
+    const productId = safeInt(req.params.id);
+    const { memberLevelId, price } = req.body || {};
+    if (!productId) return res.status(400).json({ code: 1, message: '商品ID无效' });
+    const levelId = safeInt(memberLevelId);
+    if (!levelId) return res.status(400).json({ code: 1, message: '请选择会员等级' });
+    const priceNum = parseFloat(price);
+    if (!Number.isFinite(priceNum) || priceNum < 0) return res.status(400).json({ code: 1, message: '会员价必须为有效非负数' });
+    const product = await Product.findByPk(productId);
+    if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
+    const level = await MemberLevel.findByPk(levelId);
+    if (!level) return res.status(400).json({ code: 1, message: '会员等级不存在' });
+    const [row] = await ProductMemberPrice.upsert(
+      { productId, memberLevelId: levelId, price: priceNum },
+      { conflictFields: ['productId', 'memberLevelId'] }
+    );
+    const created = await ProductMemberPrice.findOne({
+      where: { productId, memberLevelId: levelId },
+      include: [{ model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] }]
+    });
+    res.json({ code: 0, message: '保存成功', data: created });
+  } catch (err) {
+    console.error('保存商品会员价失败:', err);
+    res.status(500).json({ code: 1, message: err.message || '服务器错误' });
+  }
+});
+
+// 删除某商品的一条会员价
+router.delete('/:id/member-prices/:priceId', async (req, res) => {
+  try {
+    const productId = safeInt(req.params.id);
+    const priceId = safeInt(req.params.priceId);
+    if (!productId || !priceId) return res.status(400).json({ code: 1, message: '参数无效' });
+    const deleted = await ProductMemberPrice.destroy({
+      where: { id: priceId, productId }
+    });
+    if (!deleted) return res.status(404).json({ code: 1, message: '该会员价不存在或不属于本商品' });
+    res.json({ code: 0, message: '删除成功' });
+  } catch (err) {
+    console.error('删除商品会员价失败:', err);
+    res.status(500).json({ code: 1, message: err.message || '服务器错误' });
   }
 });
 

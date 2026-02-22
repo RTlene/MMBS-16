@@ -351,6 +351,11 @@ function openAddProductModal() {
     document.getElementById('detailContentEditor').innerHTML = '<p>请输入商品详情内容...</p>';
     document.getElementById('detailContent').value = '';
     
+    // 添加商品时不显示会员价区块
+    window.productManagementData.editingProductId = null;
+    var memberPricesSection = document.getElementById('memberPricesSection');
+    if (memberPricesSection) memberPricesSection.style.display = 'none';
+    
     document.getElementById('productModal').style.display = 'block';
 }
 
@@ -358,6 +363,119 @@ function openAddProductModal() {
 function closeProductModal() {
     document.getElementById('productModal').style.display = 'none';
 }
+
+// ---------- 会员价（仅编辑时） ----------
+async function loadMemberLevelsForSelect() {
+    try {
+        const res = await fetch('/api/member-levels?limit=200', { headers: getAuthHeaders() });
+        const result = await res.json();
+        if (result.code === 0 && result.data && result.data.levels) {
+            window.productManagementData.memberLevels = result.data.levels;
+            return result.data.levels;
+        }
+        return [];
+    } catch (e) {
+        console.error('加载会员等级失败:', e);
+        return [];
+    }
+}
+
+function renderMemberPriceSelect(usedLevelIds) {
+    var levels = window.productManagementData.memberLevels || [];
+    var select = document.getElementById('memberPriceLevelSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">选择会员等级</option>' + levels
+        .filter(function (l) { return !usedLevelIds || usedLevelIds.indexOf(l.id) === -1; })
+        .map(function (l) { return '<option value="' + l.id + '">' + (l.name || '等级' + l.level) + '</option>'; })
+        .join('');
+}
+
+async function loadMemberPrices(productId) {
+    try {
+        const res = await fetch('/api/products/' + productId + '/member-prices', { headers: getAuthHeaders() });
+        const result = await res.json();
+        if (result.code === 0 && result.data) {
+            window.productManagementData.memberPrices = result.data;
+            renderMemberPrices(result.data);
+            var usedIds = (result.data || []).map(function (p) { return p.memberLevelId; });
+            renderMemberPriceSelect(usedIds);
+        } else {
+            window.productManagementData.memberPrices = [];
+            renderMemberPrices([]);
+            renderMemberPriceSelect([]);
+        }
+    } catch (e) {
+        console.error('加载会员价失败:', e);
+        window.productManagementData.memberPrices = [];
+        renderMemberPrices([]);
+        renderMemberPriceSelect([]);
+    }
+}
+
+function renderMemberPrices(list) {
+    var container = document.getElementById('memberPricesList');
+    if (!container) return;
+    if (!list || list.length === 0) {
+        container.innerHTML = '<p style="color:#888;font-size:13px;">暂无会员价，可在下方添加。</p>';
+        return;
+    }
+    container.innerHTML = '<table class="product-table" style="max-width:400px;"><thead><tr><th>会员等级</th><th>会员价</th><th></th></tr></thead><tbody>' +
+        list.map(function (p) {
+            var name = (p.memberLevel && p.memberLevel.name) ? p.memberLevel.name : ('等级' + (p.memberLevel && p.memberLevel.level ? p.memberLevel.level : p.memberLevelId));
+            var price = Number(p.price);
+            var priceStr = Number.isFinite(price) ? price.toFixed(2) : p.price;
+            return '<tr><td>' + (name || '-') + '</td><td>¥' + priceStr + '</td><td><button type="button" class="btn btn-danger btn-sm" onclick="deleteMemberPrice(' + p.productId + ',' + p.id + ')">删除</button></td></tr>';
+        }).join('') +
+        '</tbody></table>';
+}
+
+window.addMemberPrice = async function addMemberPrice() {
+    var productId = window.productManagementData.editingProductId;
+    if (!productId) return;
+    var levelSelect = document.getElementById('memberPriceLevelSelect');
+    var priceInput = document.getElementById('memberPriceInput');
+    var levelId = levelSelect && levelSelect.value ? levelSelect.value : '';
+    var price = priceInput ? parseFloat(priceInput.value) : NaN;
+    if (!levelId) { alert('请选择会员等级'); return; }
+    if (!Number.isFinite(price) || price < 0) { alert('请输入有效的会员价（非负数）'); return; }
+    try {
+        const res = await fetch('/api/products/' + productId + '/member-prices', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ memberLevelId: parseInt(levelId, 10), price: price })
+        });
+        const result = await res.json();
+        if (result.code === 0) {
+            priceInput.value = '';
+            loadMemberPrices(productId);
+        } else {
+            alert(result.message || '保存失败');
+        }
+    } catch (e) {
+        console.error('添加会员价失败:', e);
+        alert('添加会员价失败: ' + (e.message || e));
+    }
+};
+
+window.deleteMemberPrice = async function deleteMemberPrice(productId, priceId) {
+    if (!productId || !priceId) return;
+    if (!confirm('确定删除该会员价？')) return;
+    try {
+        const res = await fetch('/api/products/' + productId + '/member-prices/' + priceId, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        const result = await res.json();
+        if (result.code === 0) {
+            loadMemberPrices(productId);
+        } else {
+            alert(result.message || '删除失败');
+        }
+    } catch (e) {
+        console.error('删除会员价失败:', e);
+        alert('删除失败: ' + (e.message || e));
+    }
+};
 
 // ==================== 小程序详情页预览（后台） ====================
 
@@ -554,10 +672,14 @@ async function editProduct(id) {
             document.getElementById('detailContent').value = product.detailContent || '';
             
             document.getElementById('modalTitle').textContent = '编辑商品';
-            document.getElementById('productModal').style.display = 'block';
-            
-            // 存储当前编辑的商品ID
+            // 存储当前编辑的商品ID并显示会员价区块
             window.productManagementData.editingProductId = id;
+            var memberPricesSection = document.getElementById('memberPricesSection');
+            if (memberPricesSection) memberPricesSection.style.display = 'block';
+            await loadMemberLevelsForSelect();
+            await loadMemberPrices(id);
+            
+            document.getElementById('productModal').style.display = 'block';
         } else {
             console.error('获取商品信息失败:', result.message);
         }

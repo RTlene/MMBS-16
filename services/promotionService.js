@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const { 
     Product, ProductSKU, Coupon, Promotion, PointRecord, PointProduct, 
-    Member, MemberLevel, Order, OrderItem 
+    Member, MemberLevel, Order, OrderItem, ProductMemberPrice 
 } = require('../db');
 const PromotionRulesService = require('./promotionRulesService');
 
@@ -75,18 +75,36 @@ class PromotionService {
 
             // 确保数量是有效数字
             const safeQuantity = Number(quantity) || 1;
+
+            // 会员价：当前会员等级在该商品上配置了会员价时，直接使用会员价，不参与任何优惠
+            let isMemberPrice = false;
+            if (member && member.memberLevelId) {
+                const memberPriceRow = await ProductMemberPrice.findOne({
+                    where: { productId: product.id, memberLevelId: member.memberLevelId }
+                });
+                if (memberPriceRow) {
+                    unitPrice = Number(memberPriceRow.price) || unitPrice;
+                    isMemberPrice = true;
+                }
+            }
             
             // 计算小计（用于优惠券查询），确保不是NaN
             const subtotal = (Number.isFinite(unitPrice) && Number.isFinite(safeQuantity)) 
                 ? unitPrice * safeQuantity 
                 : 0;
 
-            // 并行执行优惠券、促销活动和积分商品的查询
-            const [availableCoupons, availablePromotions, pointProduct] = await Promise.all([
-                this.getAvailableCouponsOptimized(memberId, productId, skuId, subtotal),
-                this.getAvailablePromotionsOptimized(productId, skuId),
-                this.getPointProductInfo(productId, skuId)
-            ]);
+            // 会员价时不查优惠券/促销，只查积分商品信息
+            const [availableCoupons, availablePromotions, pointProduct] = isMemberPrice
+                ? await Promise.all([
+                    Promise.resolve([]),
+                    Promise.resolve([]),
+                    this.getPointProductInfo(productId, skuId)
+                ])
+                : await Promise.all([
+                    this.getAvailableCouponsOptimized(memberId, productId, skuId, subtotal),
+                    this.getAvailablePromotionsOptimized(productId, skuId),
+                    this.getPointProductInfo(productId, skuId)
+                ]);
 
             // 计算优惠后的价格（使用安全的数量值）
             const priceCalculation = await this.calculatePromotionalPrice(
@@ -191,13 +209,13 @@ class PromotionService {
                     originalPrice: unitPrice,
                     quantity: safeQuantity,
                     subtotal: subtotal,
-                    // 精简discounts，只保留必要字段
+                    isMemberPrice: isMemberPrice,
+                    // 精简discounts，只保留必要字段；会员价不参与优惠故无折扣
                     discounts: (priceCalculation.discounts || []).map(d => ({
                         type: d.type,
                         id: d.id || null,
                         name: d.name,
                         amount: d.amount
-                        // 移除 description 字段以减少数据量
                     })),
                     finalPrice: priceCalculation.finalPrice,
                     savings: priceCalculation.savings,

@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Order, OrderItem, Member, Product, ProductSKU, OrderOperationLog, VerificationCode, sequelize } = require('../db');
+const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
@@ -131,35 +131,45 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 });
             }
 
-            // 计算价格（暂时简化，不使用促销服务）
+            // 计算价格：优先会员价（会员价不参与任何优惠）
             let unitPrice = parseFloat(sku.price || 0);
             let itemTotal = unitPrice * quantity;
             let itemDiscounts = [];
             let itemAppliedCoupons = [];
             let itemAppliedPromotions = [];
 
-            // 如果 PromotionService 可用，尝试应用促销
-            try {
-                if (PromotionService && typeof PromotionService.applyPromotionsToOrder === 'function') {
-                    const promoResult = await PromotionService.applyPromotionsToOrder(
-                        { productId, skuId, quantity },
-                        member.id,
-                        appliedCoupons,
-                        appliedPromotions,
-                        pointUsage
-                    );
-                    
-                    if (promoResult) {
-                        unitPrice = parseFloat(promoResult.unitPrice || sku.price || 0);
-                        itemTotal = parseFloat(promoResult.totalAmount || (unitPrice * quantity));
-                        itemDiscounts = promoResult.discounts || [];
-                        itemAppliedCoupons = promoResult.appliedCoupons || [];
-                        itemAppliedPromotions = promoResult.appliedPromotions || [];
+            const memberLevelId = freshMember.memberLevelId ? parseInt(freshMember.memberLevelId, 10) : null;
+            const memberPriceRow = memberLevelId
+                ? await ProductMemberPrice.findOne({ where: { productId, memberLevelId } })
+                : null;
+
+            if (memberPriceRow) {
+                unitPrice = parseFloat(memberPriceRow.price || 0);
+                itemTotal = unitPrice * quantity;
+                // 会员价不参与优惠，不再走促销
+            } else {
+                // 如果 PromotionService 可用，尝试应用促销
+                try {
+                    if (PromotionService && typeof PromotionService.applyPromotionsToOrder === 'function') {
+                        const promoResult = await PromotionService.applyPromotionsToOrder(
+                            { productId, skuId, quantity },
+                            member.id,
+                            appliedCoupons,
+                            appliedPromotions,
+                            pointUsage
+                        );
+                        
+                        if (promoResult) {
+                            unitPrice = parseFloat(promoResult.unitPrice || sku.price || 0);
+                            itemTotal = parseFloat(promoResult.totalAmount || (unitPrice * quantity));
+                            itemDiscounts = promoResult.discounts || [];
+                            itemAppliedCoupons = promoResult.appliedCoupons || [];
+                            itemAppliedPromotions = promoResult.appliedPromotions || [];
+                        }
                     }
+                } catch (promoError) {
+                    console.error('[Order] 应用促销失败，使用原价:', promoError);
                 }
-            } catch (promoError) {
-                console.error('[Order] 应用促销失败，使用原价:', promoError);
-                // 使用原价继续处理
             }
 
             orderTotalAmount += itemTotal;

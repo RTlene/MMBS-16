@@ -311,6 +311,47 @@ const ProductSKU = sequelize.define('ProductSKU', {
     timestamps: true
 });
 
+// 商品会员价：按商品+会员等级配置，该等级会员下单直接使用此价，不参与优惠
+const ProductMemberPrice = sequelize.define('ProductMemberPrice', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    productId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        comment: '商品ID'
+    },
+    memberLevelId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        comment: '会员等级ID'
+    },
+    price: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        comment: '会员价（不参与优惠计算）'
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
+    }
+}, {
+    tableName: 'product_member_prices',
+    timestamps: true,
+    comment: '商品会员价表',
+    indexes: [
+        { unique: true, fields: ['productId', 'memberLevelId'] }
+    ]
+});
+
 // ProductAttribute Model - 商品属性模板
 const ProductAttribute = sequelize.define('ProductAttribute', {
     id: {
@@ -3012,12 +3053,18 @@ Product.hasMany(ProductAttribute, {
     onUpdate: 'CASCADE'
 });
 
-ProductAttribute.belongsTo(Product, { 
-    foreignKey: 'productId', 
+ProductAttribute.belongsTo(Product, {
+    foreignKey: 'productId',
     as: 'product',
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE'
 });
+
+// 商品会员价关联
+Product.hasMany(ProductMemberPrice, { foreignKey: 'productId', as: 'memberPrices', onDelete: 'CASCADE' });
+ProductMemberPrice.belongsTo(Product, { foreignKey: 'productId', as: 'product', onDelete: 'CASCADE' });
+ProductMemberPrice.belongsTo(MemberLevel, { foreignKey: 'memberLevelId', as: 'memberLevel', onDelete: 'CASCADE' });
+MemberLevel.hasMany(ProductMemberPrice, { foreignKey: 'memberLevelId', as: 'productMemberPrices' });
 
 // 定义关联关系
 Order.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
@@ -3175,6 +3222,7 @@ async function init() {
       ['Products', Product],
       ['ProductSKUs', ProductSKU],
       ['ProductAttributes', ProductAttribute],
+      ['product_member_prices', ProductMemberPrice],
       ['MemberLevels', MemberLevel],
       ['DistributorLevels', DistributorLevel],
       ['TeamExpansionLevels', TeamExpansionLevel],
@@ -3265,6 +3313,7 @@ module.exports = {
   Category,
   Product,
   ProductSKU,
+  ProductMemberPrice,
   ProductAttribute,
   MemberLevel,
   DistributorLevel,
