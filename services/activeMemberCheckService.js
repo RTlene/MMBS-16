@@ -1,8 +1,9 @@
 /**
- * 活跃会员自动检测：根据系统设置定时将会员 status 按「最后活跃时间」或「最后下单时间」判定为 active/inactive
+ * 活跃会员自动检测：根据系统设置定时将会员 status 按「最后活跃时间」或「最后下单时间」判定为 active/inactive。
+ * 有登录、下单等行为时可直接调用 setMemberActive(memberId) 将会员置为活跃，减少定时扫描压力。
  */
 const { Op } = require('sequelize');
-const { Member, Order, sequelize } = require('../db');
+const { Member, sequelize } = require('../db');
 const configStore = require('./configStore');
 
 const SECTION = 'system';
@@ -12,8 +13,21 @@ function getConfig() {
     return {
         enabled: !!data.activeMemberCheckEnabled,
         days: Math.max(1, parseInt(data.activeMemberCheckDays, 10) || 30),
-        condition: data.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt'
+        condition: data.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt',
+        intervalHours: Math.max(1, Math.min(720, parseInt(data.activeMemberCheckIntervalHours, 10) || 24))
     };
+}
+
+/**
+ * 将会员标记为活跃（最近活跃时间 + 状态），在登录、下单等行为时调用，无需等定时检测
+ */
+async function setMemberActive(memberId) {
+    if (!memberId) return;
+    const now = new Date();
+    await Member.update(
+        { status: 'active', lastActiveAt: now },
+        { where: { id: memberId } }
+    );
 }
 
 /**
@@ -70,4 +84,4 @@ async function runActiveMemberCheck() {
     return { setInactive, setActive };
 }
 
-module.exports = { getConfig, runActiveMemberCheck };
+module.exports = { getConfig, runActiveMemberCheck, setMemberActive };

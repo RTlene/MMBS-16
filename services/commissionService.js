@@ -582,6 +582,8 @@ class CommissionService {
         if (orderAmount <= 0) return;
         const buyer = order.member;
         if (!buyer) return;
+        const activeMemberCheckService = require('./activeMemberCheckService');
+        activeMemberCheckService.setMemberActive(buyer.id).catch(() => {});
         const directReferrerId = buyer.referrerId ? parseInt(buyer.referrerId, 10) : null;
         if (!directReferrerId) {
             await order.update({ salesUpdatedAt: new Date() });

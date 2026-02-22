@@ -226,17 +226,21 @@ const configStore = require('./services/configStore');
 
 function startActiveMemberCheckInterval() {
   const activeMemberCheckService = require('./services/activeMemberCheckService');
-  const INTERVAL_MS = 60 * 60 * 1000;
-  setInterval(() => {
-    activeMemberCheckService.runActiveMemberCheck().catch(e => {
-      console.error('[活跃检测] 执行失败:', e.message);
-    });
-  }, INTERVAL_MS);
+  function scheduleNext() {
+    const cfg = activeMemberCheckService.getConfig();
+    const hours = cfg.intervalHours || 24;
+    const ms = Math.max(3600000, hours * 60 * 60 * 1000);
+    setTimeout(() => {
+      activeMemberCheckService.runActiveMemberCheck()
+        .catch(e => console.error('[活跃检测] 执行失败:', e.message))
+        .finally(scheduleNext);
+    }, ms);
+  }
   setTimeout(() => {
-    activeMemberCheckService.runActiveMemberCheck().catch(e => {
-      console.error('[活跃检测] 首次执行失败:', e.message);
-    });
-  }, 30 * 1000);
+    activeMemberCheckService.runActiveMemberCheck()
+      .catch(e => console.error('[活跃检测] 首次执行失败:', e.message))
+      .finally(scheduleNext);
+  }, 60 * 1000);
 }
 
 /** 启动时从配置文件恢复微信支付相关环境变量，避免每次部署后需重新在后台配置 */

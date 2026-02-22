@@ -887,6 +887,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const newReferrerId = toRefId(cleanedData.referrerId);
         await member.update(cleanedData);
         try {
+            const activeMemberCheckService = require('../services/activeMemberCheckService');
+            activeMemberCheckService.setMemberActive(member.id).catch(() => {});
+        } catch (_) {}
+        try {
             console.log('[会员更新] 触发等级/粉丝检查 memberId=%s oldReferrerId=%s newReferrerId=%s', member.id, oldReferrerId, newReferrerId);
             await LevelUpgradeService.onMemberDataChanged(member.id, { oldReferrerId, newReferrerId });
         } catch (e) {

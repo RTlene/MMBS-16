@@ -52,7 +52,12 @@
                         <option value="lastActiveAt">按最后活跃时间（lastActiveAt）</option>
                         <option value="lastOrderAt">按最后下单时间（近 N 天内有支付成功订单）</option>
                     </select>
-                    <p class="form-hint">lastActiveAt 需在登录/下单等行为中更新；lastOrderAt 以订单支付时间为准</p>
+                    <p class="form-hint">lastActiveAt 需在登录/下单等行为中更新；lastOrderAt 以订单支付时间为准。登录、下单时会自动将对应会员置为活跃。</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">定时检测间隔（小时）</label>
+                    <input type="number" id="activeMemberCheckIntervalHours" name="activeMemberCheckIntervalHours" class="form-input" min="1" max="720" value="24" style="max-width:120px;">
+                    <p class="form-hint">仅定时任务执行间隔，默认 24 小时。有登录/下单时会员会立即被置为活跃，无需等定时检测。</p>
                 </div>
                 <div class="form-group">
                     <button type="button" class="btn btn-primary" id="saveSystemSettingsBtn">保存设置</button>

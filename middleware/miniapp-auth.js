@@ -166,9 +166,10 @@ async function miniappLogin(req, res) {
     } else {
       console.log('[MiniappAuth] 已有会员, ID:', member.id);
       
-      // 更新最后登录时间
+      const now = new Date();
       await member.update({
-        lastLoginAt: new Date(),
+        lastActiveAt: now,
+        status: 'active',
         sessionKey: session_key,
         unionid: unionid || member.unionid,
         nickname: member.nickname || safeNickname,

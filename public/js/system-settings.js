@@ -16,9 +16,11 @@
             const enabledEl = document.getElementById('activeMemberCheckEnabled');
             const daysEl = document.getElementById('activeMemberCheckDays');
             const conditionEl = document.getElementById('activeMemberCondition');
+            const intervalEl = document.getElementById('activeMemberCheckIntervalHours');
             if (enabledEl) enabledEl.checked = !!d.activeMemberCheckEnabled;
             if (daysEl) daysEl.value = d.activeMemberCheckDays != null ? d.activeMemberCheckDays : 30;
             if (conditionEl) conditionEl.value = d.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt';
+            if (intervalEl) intervalEl.value = d.activeMemberCheckIntervalHours != null ? d.activeMemberCheckIntervalHours : 24;
         } catch (e) {
             console.error('加载系统设置失败', e);
         }
@@ -28,10 +30,12 @@
         const enabledEl = document.getElementById('activeMemberCheckEnabled');
         const daysEl = document.getElementById('activeMemberCheckDays');
         const conditionEl = document.getElementById('activeMemberCondition');
+        const intervalEl = document.getElementById('activeMemberCheckIntervalHours');
         const body = {
             activeMemberCheckEnabled: enabledEl ? enabledEl.checked : false,
             activeMemberCheckDays: daysEl ? Math.max(1, parseInt(daysEl.value, 10) || 30) : 30,
-            activeMemberCondition: conditionEl && conditionEl.value === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt'
+            activeMemberCondition: conditionEl && conditionEl.value === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt',
+            activeMemberCheckIntervalHours: intervalEl ? Math.max(1, Math.min(720, parseInt(intervalEl.value, 10) || 24)) : 24
         };
         try {
             const res = await fetch('/api/settings/system', {
