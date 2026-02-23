@@ -626,7 +626,8 @@ class CommissionService {
         const order = await Order.findByPk(orderId, {
             include: [{ model: Member, as: 'member', attributes: ['id', 'referrerId'] }]
         });
-        if (!order || order.status !== 'paid') return;
+        // 已支付或已完成的订单才累加销售额（paid/delivered/completed 均视为已支付）
+        if (!order || !['paid', 'delivered', 'completed'].includes(order.status || '')) return;
         if (order.salesUpdatedAt) return; // 已累加过，防重复
         const orderAmount = parseFloat(order.totalAmount) || 0;
         if (orderAmount <= 0) return;
