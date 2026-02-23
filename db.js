@@ -3187,6 +3187,12 @@ PointSourceConfig.belongsTo(User, { foreignKey: 'updatedBy', as: 'updater' });
 PointMultiplierConfig.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 PointMultiplierConfig.belongsTo(User, { foreignKey: 'updatedBy', as: 'updater' });
 
+const DB_RETRY_CODES = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST'];
+function isConnectionError(err) {
+  const code = err && (err.code || (err.original && err.original.code));
+  return DB_RETRY_CODES.includes(code) || (err.original && err.original.errno === -104);
+}
+
 // 单表 sync，失败时记录表名并继续，便于定位「Too many keys」等单表问题
 async function syncTable(name, model) {
   try {
@@ -3258,16 +3264,30 @@ async function init() {
     ];
 
     const failed = [];
+    const maxRetries = 3;
+    const retryDelayMs = 2000;
     for (const [name, model] of tables) {
-      // sync({ alter: true }) 非常慢；默认仅 sync()，需要时再开启 alter
       const result = useAlter ? await syncTable(name, model) : await (async () => {
-        try {
-          await model.sync();
-          return null;
-        } catch (err) {
-          console.error(`[DB] 表 ${name} 同步失败:`, err.message);
-          return { name, error: err };
+        let lastErr;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            await model.sync();
+            return null;
+          } catch (err) {
+            lastErr = err;
+            if (attempt < maxRetries && isConnectionError(err)) {
+              console.warn(`[DB] 表 ${name} 同步连接中断 (${err.message})，${retryDelayMs / 1000}s 后重试 (${attempt}/${maxRetries})`);
+              await new Promise(r => setTimeout(r, retryDelayMs));
+              try {
+                await sequelize.authenticate();
+              } catch (_) {}
+              continue;
+            }
+            console.error(`[DB] 表 ${name} 同步失败:`, err.message);
+            return { name, error: err };
+          }
         }
+        return { name, error: lastErr };
       })();
       if (result) failed.push(result);
     }
