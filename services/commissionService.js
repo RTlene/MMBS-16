@@ -617,10 +617,10 @@ class CommissionService {
 
     /**
      * 订单支付成功后，将订单金额累加到「关联且非本人」的推荐人销售额（不累加到下单会员本人）
-     * - 直接推荐人：若是分销商则 + distributorSales，否则 + directSales；均 + totalSales
-     * - 间接推荐人：若是分销商则 + distributorSales，否则 + indirectSales；均 + totalSales
-     * - 推荐链上更上层的分销商：该订单计入其推荐网络下消费，+ distributorSales，+ totalSales
-     * 用 order.salesUpdatedAt 防重复累加。
+     * - 直接推荐人：无分销等级时 + directSales、+ totalSales（仅无等级会员的直接粉丝订单记直接销售额）；有分销等级时 + distributorSales、+ totalSales（照旧）
+     * - 间接推荐人：照旧，+ indirectSales、+ totalSales
+     * - 推荐链上更上层的分销商：+ distributorSales，+ totalSales
+     * 用 order.salesUpdatedAt 防重复累加。使用 COALESCE 防止字段为 NULL 时累加失效。
      */
     static async updateSalesOnOrderPaid(orderId) {
         const order = await Order.findByPk(orderId, {
@@ -641,41 +641,39 @@ class CommissionService {
         }
         const directReferrer = await Member.findByPk(directReferrerId, { attributes: ['id', 'referrerId', 'distributorLevelId'] });
         const memberIdsToUpgrade = [];
+        const safeAdd = (model, field, amount) => {
+            return model.update({
+                [field]: sequelize.literal(`COALESCE(${field}, 0) + ${Number(amount)}`)
+            });
+        };
         if (directReferrer) {
             const isDistributor = directReferrer.distributorLevelId != null;
             if (isDistributor) {
-                await directReferrer.increment('directSales', { by: orderAmount }); // 分享赚钱型：直接推荐订单只计入直接销售额，不重复计入分销销售额
-                console.log(`[销售额] 订单 ${orderId} 直接推荐人(分销商) ${directReferrerId} +${orderAmount} directSales`);
+                await safeAdd(directReferrer, 'distributorSales', orderAmount);
+                console.log(`[销售额] 订单 ${orderId} 直接推荐人(分销商) ${directReferrerId} +${orderAmount} distributorSales`);
             } else {
-                await directReferrer.increment('directSales', { by: orderAmount });
-                console.log(`[销售额] 订单 ${orderId} 直接推荐人 ${directReferrerId} +${orderAmount} directSales`);
+                await safeAdd(directReferrer, 'directSales', orderAmount);
+                console.log(`[销售额] 订单 ${orderId} 直接推荐人(无等级) ${directReferrerId} +${orderAmount} directSales`);
             }
-            await directReferrer.increment('totalSales', { by: orderAmount });
+            await safeAdd(directReferrer, 'totalSales', orderAmount);
             memberIdsToUpgrade.push(directReferrerId);
 
             const indirectReferrerId = directReferrer.referrerId ? parseInt(directReferrer.referrerId, 10) : null;
             if (indirectReferrerId) {
                 const indirectReferrer = await Member.findByPk(indirectReferrerId, { attributes: ['id', 'referrerId', 'distributorLevelId'] });
                 if (indirectReferrer) {
-                    const isIndirectDistributor = indirectReferrer.distributorLevelId != null;
-                    if (isIndirectDistributor) {
-                        await indirectReferrer.increment('indirectSales', { by: orderAmount }); // 分享赚钱型：间接推荐订单只计入间接销售额，不重复计入分销销售额
-                        console.log(`[销售额] 订单 ${orderId} 间接推荐人(分销商) ${indirectReferrerId} +${orderAmount} indirectSales`);
-                    } else {
-                        await indirectReferrer.increment('indirectSales', { by: orderAmount });
-                        console.log(`[销售额] 订单 ${orderId} 间接推荐人 ${indirectReferrerId} +${orderAmount} indirectSales`);
-                    }
-                    await indirectReferrer.increment('totalSales', { by: orderAmount });
+                    await safeAdd(indirectReferrer, 'indirectSales', orderAmount);
+                    await safeAdd(indirectReferrer, 'totalSales', orderAmount);
+                    console.log(`[销售额] 订单 ${orderId} 间接推荐人 ${indirectReferrerId} +${orderAmount} indirectSales`);
                     memberIdsToUpgrade.push(indirectReferrerId);
                 }
-                // 推荐链上更上层的分销商：网络下非直接/间接的消费也计入其分销销售额（从间接推荐人的上家起）
-                let currentId = indirectReferrer.referrerId ? parseInt(indirectReferrer.referrerId, 10) : null;
+                let currentId = indirectReferrer && indirectReferrer.referrerId ? parseInt(indirectReferrer.referrerId, 10) : null;
                 while (currentId) {
                     const upline = await Member.findByPk(currentId, { attributes: ['id', 'referrerId', 'distributorLevelId'] });
                     if (!upline) break;
                     if (upline.distributorLevelId != null) {
-                        await upline.increment('distributorSales', { by: orderAmount });
-                        await upline.increment('totalSales', { by: orderAmount });
+                        await safeAdd(upline, 'distributorSales', orderAmount);
+                        await safeAdd(upline, 'totalSales', orderAmount);
                         console.log(`[销售额] 订单 ${orderId} 上层分销商 ${upline.id} +${orderAmount} distributorSales`);
                         memberIdsToUpgrade.push(upline.id);
                     }
