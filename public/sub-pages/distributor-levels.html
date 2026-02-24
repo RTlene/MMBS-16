@@ -491,6 +491,16 @@
                         <input type="number" id="maxFans" name="maxFans" class="form-input" min="0">
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">粉丝数判定口径</label>
+                        <label style="display:flex;align-items:center;gap:8px;font-weight:400;color:#555;">
+                            <input type="checkbox" id="useActiveFansForUpgrade" style="width:auto;">
+                            <span>按活跃粉丝判定（关闭则按全部粉丝）</span>
+                        </label>
+                        <small style="color:#666;">“活跃粉丝”按会员状态为 active 统计（由系统设置-活跃会员自动检测/登录下单刷新决定）</small>
+                    </div>
+                </div>
 
                 <!-- 分销商模式内容 -->
                 <div id="distributorMode" class="mode-content active">

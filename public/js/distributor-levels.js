@@ -150,7 +150,7 @@ function renderLevels() {
                 </span>
             </td>
             <td>${formatSalesRange(level.minSales, level.maxSales)}</td>
-            <td>${formatFansRange(level.minFans, level.maxFans)}</td>
+            <td>${formatFansRange(level.minFans, level.maxFans)}${level.useActiveFansForUpgrade ? '<span style="color:#666;font-size:12px;">（活跃）</span>' : ''}</td>
             <td>${formatProcurementCost(level.procurementCost)}</td>
             <td>${formatCommissionRates(level.sharerDirectCommissionRate, level.sharerIndirectCommissionRate)}</td>
             <td>
@@ -308,6 +308,8 @@ function fillLevelForm(level) {
     document.getElementById('maxSales').value = level.maxSales != null ? level.maxSales : '';
     document.getElementById('minFans').value = level.minFans != null ? level.minFans : '';
     document.getElementById('maxFans').value = level.maxFans != null ? level.maxFans : '';
+    const activeFansEl = document.getElementById('useActiveFansForUpgrade');
+    if (activeFansEl) activeFansEl.checked = !!level.useActiveFansForUpgrade;
     document.getElementById('procurementCost').value = level.procurementCost != null ? level.procurementCost : '';
     document.getElementById('sharerDirectCommissionRate').value = level.sharerDirectCommissionRate != null ? level.sharerDirectCommissionRate : '';
     document.getElementById('sharerIndirectCommissionRate').value = level.sharerIndirectCommissionRate != null ? level.sharerIndirectCommissionRate : '';
@@ -344,6 +346,7 @@ async function submitLevelForm(event) {
         maxSales: formData.get('maxSales') === '' ? null : parseFloat(formData.get('maxSales')),
         minFans: parseInt(formData.get('minFans'), 10) || 0,
         maxFans: formData.get('maxFans') === '' ? null : parseInt(formData.get('maxFans'), 10),
+        useActiveFansForUpgrade: document.getElementById('useActiveFansForUpgrade') && document.getElementById('useActiveFansForUpgrade').checked,
         color: formData.get('color'),
         icon: formData.get('icon'),
         sortOrder: parseInt(formData.get('sortOrder'), 10) || 0,

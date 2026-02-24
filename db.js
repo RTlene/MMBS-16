@@ -541,6 +541,12 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         allowNull: true,
         comment: '最高粉丝数限制'
     },
+    useActiveFansForUpgrade: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '粉丝条件是否按活跃粉丝判定（true=活跃粉丝，false=全部粉丝）'
+    },
     benefits: {
         type: DataTypes.TEXT,
         allowNull: true,

@@ -31,6 +31,24 @@ class LevelUpgradeService {
     }
 
     /**
+     * 计算活跃粉丝数（直接+间接，按 member.status='active' 判定活跃）
+     * 注意：不写回数据库，仅用于升级判断。
+     */
+    static async countActiveFans(memberId) {
+        const directActive = await Member.count({ where: { referrerId: memberId, status: 'active' } });
+        const directIds = await Member.findAll({
+            where: { referrerId: memberId },
+            attributes: ['id'],
+            raw: true
+        }).then(rows => rows.map(r => r.id));
+        const indirectActive = directIds.length > 0
+            ? await Member.count({ where: { referrerId: { [Op.in]: directIds }, status: 'active' } })
+            : 0;
+        const totalActive = directActive + indirectActive;
+        return { directActiveFans: directActive, totalActiveFans: totalActive };
+    }
+
+    /**
      * 获取从某会员起向上整条推荐链的 ID 列表（不含本人）
      */
     static async getUplineChain(memberId) {
@@ -111,16 +129,17 @@ class LevelUpgradeService {
     /**
      * 获取会员当前销售额、粉丝数应匹配的分销等级（仅考虑启用自动升级的等级，按 level 降序取最高满足的）
      */
-    static async getEligibleDistributorLevel(totalSales, totalFans) {
+    static async getEligibleDistributorLevel(totalSales, totalFans, activeFans) {
         const levels = await DistributorLevel.findAll({
             where: { status: 'active', enableAutoUpgrade: true },
             order: [['level', 'DESC']],
-            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'upgradeConditionLogic']
+            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'upgradeConditionLogic', 'useActiveFansForUpgrade']
         });
         const sales = parseFloat(totalSales) || 0;
-        const fans = parseInt(totalFans, 10) || 0;
+        const fansAll = parseInt(totalFans, 10) || 0;
+        const fansActive = parseInt(activeFans, 10) || 0;
         if (levels.length === 0) {
-            console.log('[等级升级] 无启用自动升级的分销等级，totalSales=%s totalFans=%s', sales, fans);
+            console.log('[等级升级] 无启用自动升级的分销等级，totalSales=%s totalFans=%s activeFans=%s', sales, fansAll, fansActive);
             return null;
         }
         for (const lv of levels) {
@@ -130,17 +149,18 @@ class LevelUpgradeService {
             const minF = parseInt(lv.minFans, 10) || 0;
             let maxF = lv.maxFans != null && lv.maxFans !== '' ? parseInt(lv.maxFans, 10) : null;
             if (maxF !== null && maxF <= 0) maxF = null; // 0 或未填表示无上限
+            const fansValue = lv.useActiveFansForUpgrade ? fansActive : fansAll;
             const okSales = sales >= minS && (maxS == null || sales <= maxS);
-            const okFans = fans >= minF && (maxF == null || fans <= maxF);
+            const okFans = fansValue >= minF && (maxF == null || fansValue <= maxF);
             const logic = (lv.upgradeConditionLogic === 'or') ? 'or' : 'and';
             const ok = logic === 'or' ? (okSales || okFans) : (okSales && okFans);
-            console.log('[等级升级] 等级「%s」条件关系=%s minSales=%s maxSales=%s minFans=%s maxFans=%s -> salesOk=%s fansOk=%s', lv.name, logic, minS, maxS, minF, maxF, okSales, okFans);
+            console.log('[等级升级] 等级「%s」条件关系=%s minSales=%s maxSales=%s minFans=%s maxFans=%s fansMode=%s(fans=%s) -> salesOk=%s fansOk=%s', lv.name, logic, minS, maxS, minF, maxF, lv.useActiveFansForUpgrade ? 'active' : 'all', fansValue, okSales, okFans);
             if (ok) {
-                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s -> 等级「%s」', sales, fans, lv.name);
+                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s activeFans=%s -> 等级「%s」', sales, fansAll, fansActive, lv.name);
                 return lv;
             }
         }
-        console.log('[等级升级] 未匹配任何分销等级 totalSales=%s totalFans=%s（已查 %s 个启用自动升级等级）', sales, fans, levels.length);
+        console.log('[等级升级] 未匹配任何分销等级 totalSales=%s totalFans=%s activeFans=%s（已查 %s 个启用自动升级等级）', sales, fansAll, fansActive, levels.length);
         return null;
     }
 
@@ -181,8 +201,11 @@ class LevelUpgradeService {
         if (!member) return { changed: false };
         const totalSales = override && override.totalSales !== undefined ? override.totalSales : member.totalSales;
         const totalFans = override && override.totalFans !== undefined ? override.totalFans : member.totalFans;
-        console.log('[等级升级] 分销等级检查 memberId=%s totalSales=%s totalFans=%s (override=%s)', memberId, totalSales, totalFans, override ? '是' : '否');
-        const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans);
+        const activeFans = override && override.activeFans !== undefined
+            ? override.activeFans
+            : (await this.countActiveFans(memberId)).totalActiveFans;
+        console.log('[等级升级] 分销等级检查 memberId=%s totalSales=%s totalFans=%s activeFans=%s (override=%s)', memberId, totalSales, totalFans, activeFans, override ? '是' : '否');
+        const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans, activeFans);
         const currentId = member.distributorLevelId ? parseInt(member.distributorLevelId, 10) : null;
         const newId = eligible ? eligible.id : null;
         if (newId === currentId) {
@@ -192,13 +215,15 @@ class LevelUpgradeService {
         console.log('[等级升级] 执行分销等级变更 memberId=%s %s -> %s', memberId, currentId, newId);
         await member.update({ distributorLevelId: newId });
         if (newId != null) {
+            const usedFans = eligible.useActiveFansForUpgrade ? activeFans : totalFans;
+            const fansLabel = eligible.useActiveFansForUpgrade ? '活跃粉丝' : '粉丝';
             await MemberLevelChangeRecord.create({
                 memberId: member.id,
                 levelType: 'distributor',
                 oldLevelId: currentId,
                 newLevelId: newId,
                 reason: 'auto_upgrade',
-                description: `自动升级：总销售额 ${totalSales}、粉丝 ${totalFans} 满足等级「${eligible.name}」条件`
+                description: `自动升级：总销售额 ${totalSales}、${fansLabel} ${usedFans} 满足等级「${eligible.name}」条件`
             });
         }
         return { changed: true, newLevelId: newId, newLevelName: eligible ? eligible.name : null };
