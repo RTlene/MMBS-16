@@ -2220,48 +2220,6 @@ const PointExchange = sequelize.define('PointExchange', {
     timestamps: true
 });
 
-// 推荐奖励模型
-const ReferralReward = sequelize.define('ReferralReward', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
-    referrerId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        comment: '推荐人ID'
-    },
-    refereeId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        comment: '被推荐人ID'
-    },
-    rewardType: {
-        type: DataTypes.ENUM('points', 'cash', 'coupon'),
-        allowNull: false,
-        comment: '奖励类型'
-    },
-    rewardValue: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: '奖励值'
-    },
-    status: {
-        type: DataTypes.ENUM('pending', 'paid', 'expired'),
-        defaultValue: 'pending',
-        comment: '状态'
-    },
-    paidAt: {
-        type: DataTypes.DATE,
-        allowNull: true,
-        comment: '发放时间'
-    }
-}, {
-    tableName: 'referral_rewards',
-    timestamps: true
-});
-
 // 抽奖活动模型
 const LuckyDraw = sequelize.define('LuckyDraw', {
     id: {
@@ -2306,75 +2264,6 @@ const LuckyDraw = sequelize.define('LuckyDraw', {
     }
 }, {
     tableName: 'lucky_draws',
-    timestamps: true
-});
-
-// 短信模板模型
-const SmsTemplate = sequelize.define('SmsTemplate', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
-    name: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        comment: '模板名称'
-    },
-    content: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        comment: '短信内容'
-    },
-    type: {
-        type: DataTypes.ENUM('verification', 'notification', 'marketing'),
-        allowNull: false,
-        comment: '短信类型'
-    },
-    status: {
-        type: DataTypes.ENUM('active', 'inactive'),
-        defaultValue: 'active',
-        comment: '状态'
-    }
-}, {
-    tableName: 'sms_templates',
-    timestamps: true
-});
-
-// 邮件模板模型
-const EmailTemplate = sequelize.define('EmailTemplate', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
-    name: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        comment: '模板名称'
-    },
-    subject: {
-        type: DataTypes.STRING(200),
-        allowNull: false,
-        comment: '邮件主题'
-    },
-    content: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        comment: '邮件内容'
-    },
-    type: {
-        type: DataTypes.ENUM('welcome', 'order', 'promotion', 'newsletter'),
-        allowNull: false,
-        comment: '邮件类型'
-    },
-    status: {
-        type: DataTypes.ENUM('active', 'inactive'),
-        defaultValue: 'active',
-        comment: '状态'
-    }
-}, {
-    tableName: 'email_templates',
     timestamps: true
 });
 
@@ -3156,10 +3045,6 @@ PointProduct.hasMany(PointExchange, { foreignKey: 'productId', as: 'exchanges' }
 PointExchange.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
 Member.hasMany(PointExchange, { foreignKey: 'memberId', as: 'pointExchanges' });
 
-// 推荐奖励与会员关联
-ReferralReward.belongsTo(Member, { foreignKey: 'referrerId', as: 'referrer' });
-ReferralReward.belongsTo(Member, { foreignKey: 'refereeId', as: 'referee' });
-
 // 佣金计算记录关联
 CommissionCalculation.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
 CommissionCalculation.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
@@ -3252,10 +3137,7 @@ async function init() {
       ['PointRecords', PointRecord],
       ['PointProducts', PointProduct],
       ['PointExchanges', PointExchange],
-      ['ReferralRewards', ReferralReward],
       ['LuckyDraws', LuckyDraw],
-      ['SmsTemplates', SmsTemplate],
-      ['EmailTemplates', EmailTemplate],
       ['Banners', Banner],
       ['Popups', Popup],
       ['Articles', Article],
@@ -3359,10 +3241,7 @@ module.exports = {
     PointRecord,
     PointProduct,
     PointExchange,
-    ReferralReward,
     LuckyDraw,
-    SmsTemplate,
-    EmailTemplate,
     Banner,
     Popup,
     Article,
