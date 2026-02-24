@@ -10,6 +10,7 @@ const SECTION = 'system';
 
 const DEFAULT_SYSTEM = {
     activeMemberCheckEnabled: false,
+    activeMemberCheckMode: 'scheduled',
     activeMemberCheckDays: 30,
     activeMemberCondition: 'lastActiveAt',
     activeMemberCheckIntervalHours: 24
@@ -36,6 +37,7 @@ router.put('/system', authenticateToken, async (req, res) => {
             ...DEFAULT_SYSTEM,
             ...current,
             activeMemberCheckEnabled: body.activeMemberCheckEnabled !== undefined ? !!body.activeMemberCheckEnabled : current.activeMemberCheckEnabled,
+            activeMemberCheckMode: body.activeMemberCheckMode !== undefined ? (body.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled') : (current.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled'),
             activeMemberCheckDays: body.activeMemberCheckDays !== undefined ? Math.max(1, parseInt(body.activeMemberCheckDays, 10) || 30) : current.activeMemberCheckDays,
             activeMemberCondition: (body.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt'),
             activeMemberCheckIntervalHours: body.activeMemberCheckIntervalHours !== undefined ? Math.max(1, Math.min(720, parseInt(body.activeMemberCheckIntervalHours, 10) || 24)) : (current.activeMemberCheckIntervalHours ?? 24)

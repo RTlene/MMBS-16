@@ -226,9 +226,12 @@ const configStore = require('./services/configStore');
 
 function startActiveMemberCheckInterval() {
   const activeMemberCheckService = require('./services/activeMemberCheckService');
+  const cfg = activeMemberCheckService.getConfig();
+  if (cfg.simpleMode) return;
   function scheduleNext() {
-    const cfg = activeMemberCheckService.getConfig();
-    const hours = cfg.intervalHours || 24;
+    const c = activeMemberCheckService.getConfig();
+    if (c.simpleMode) return;
+    const hours = c.intervalHours || 24;
     const ms = Math.max(3600000, hours * 60 * 60 * 1000);
     setTimeout(() => {
       activeMemberCheckService.runActiveMemberCheck()

@@ -17,6 +17,11 @@
             const daysEl = document.getElementById('activeMemberCheckDays');
             const conditionEl = document.getElementById('activeMemberCondition');
             const intervalEl = document.getElementById('activeMemberCheckIntervalHours');
+            const modeEl = document.getElementById('activeMemberCheckMode');
+            if (modeEl) {
+                modeEl.value = (d.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled');
+                updateActiveMemberModeUI();
+            }
             if (enabledEl) enabledEl.checked = !!d.activeMemberCheckEnabled;
             if (daysEl) daysEl.value = d.activeMemberCheckDays != null ? d.activeMemberCheckDays : 30;
             if (conditionEl) conditionEl.value = d.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt';
@@ -31,8 +36,10 @@
         const daysEl = document.getElementById('activeMemberCheckDays');
         const conditionEl = document.getElementById('activeMemberCondition');
         const intervalEl = document.getElementById('activeMemberCheckIntervalHours');
+        const modeEl = document.getElementById('activeMemberCheckMode');
         const body = {
             activeMemberCheckEnabled: enabledEl ? enabledEl.checked : false,
+            activeMemberCheckMode: modeEl && modeEl.value === 'simple' ? 'simple' : 'scheduled',
             activeMemberCheckDays: daysEl ? Math.max(1, parseInt(daysEl.value, 10) || 30) : 30,
             activeMemberCondition: conditionEl && conditionEl.value === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt',
             activeMemberCheckIntervalHours: intervalEl ? Math.max(1, Math.min(720, parseInt(intervalEl.value, 10) || 24)) : 24
@@ -55,10 +62,21 @@
         }
     }
 
+    function updateActiveMemberModeUI() {
+        const modeEl = document.getElementById('activeMemberCheckMode');
+        const scheduledOpts = document.getElementById('activeMemberScheduledOptions');
+        const modeHint = document.getElementById('activeMemberCheckModeHint');
+        const isSimple = modeEl && modeEl.value === 'simple';
+        if (scheduledOpts) scheduledOpts.style.display = isSimple ? 'none' : '';
+        if (modeHint) modeHint.textContent = isSimple ? '简单模式：用户只要有订单即视为活跃，不会执行定时扫描。' : '定时检测模式：按下方设置定时将会员标记为活跃/不活跃。';
+    }
+
     function init() {
         loadSystemSettings();
         const btn = document.getElementById('saveSystemSettingsBtn');
         if (btn) btn.addEventListener('click', saveSystemSettings);
+        const modeEl = document.getElementById('activeMemberCheckMode');
+        if (modeEl) modeEl.addEventListener('change', updateActiveMemberModeUI);
     }
 
     window.SystemSettings = { init, loadSystemSettings };

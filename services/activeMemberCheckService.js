@@ -10,8 +10,11 @@ const SECTION = 'system';
 
 function getConfig() {
     const data = configStore.getSection(SECTION) || {};
+    const mode = (data.activeMemberCheckMode === 'simple') ? 'simple' : 'scheduled';
     return {
         enabled: !!data.activeMemberCheckEnabled,
+        simpleMode: mode === 'simple',
+        mode,
         days: Math.max(1, parseInt(data.activeMemberCheckDays, 10) || 30),
         condition: data.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt',
         intervalHours: Math.max(1, Math.min(720, parseInt(data.activeMemberCheckIntervalHours, 10) || 24))
@@ -35,6 +38,7 @@ async function setMemberActive(memberId) {
  */
 async function runActiveMemberCheck() {
     const config = getConfig();
+    if (config.simpleMode) return { skipped: true, reason: '简单模式：有订单即活跃，不执行定时检测' };
     if (!config.enabled) return { skipped: true, reason: '未启用' };
 
     const now = new Date();
