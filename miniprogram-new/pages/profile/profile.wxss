@@ -49,6 +49,110 @@
   opacity: 0.8;
 }
 
+/* 会员信息卡片 */
+.level-card-section {
+  margin: -40rpx 24rpx 20rpx;
+  padding: 0;
+}
+
+.level-card {
+  background: #FFFFFF;
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
+}
+
+.level-card-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 24rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.level-block {
+  margin-bottom: 28rpx;
+}
+
+.level-block:last-child {
+  margin-bottom: 0;
+}
+
+.level-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.level-block-label {
+  font-size: 26rpx;
+  color: #666;
+}
+
+.level-block-value {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #3481B8;
+}
+
+.level-block-body {
+  padding-left: 0;
+}
+
+.progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-bottom: 12rpx;
+}
+
+.progress-desc {
+  font-size: 24rpx;
+  color: #888;
+}
+
+.progress-next {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.progress-bar-wrap {
+  height: 12rpx;
+  background: #E8E8E8;
+  border-radius: 6rpx;
+  overflow: hidden;
+  margin-bottom: 12rpx;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3481B8, #5A9ED8);
+  border-radius: 6rpx;
+  transition: width 0.3s ease;
+}
+
+.progress-bar.distributor-bar {
+  background: linear-gradient(90deg, #52c41a, #73d13d);
+}
+
+.progress-tip {
+  font-size: 22rpx;
+  color: #999;
+  display: block;
+}
+
+.progress-tip.max {
+  color: #52c41a;
+}
+
+.distributor-level-block .level-block-value {
+  color: #52c41a;
+}
+
 .login-btn {
   padding: 16rpx 48rpx;
   background-color: rgba(255, 255, 255, 0.2);

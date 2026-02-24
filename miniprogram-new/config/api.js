@@ -94,6 +94,7 @@ const API = {
   MEMBER: {
     CREATE: '/api/miniapp/members',             // 创建会员（注册）
     PROFILE: '/api/miniapp/members/profile',    // 会员信息
+    LEVEL_CARD: '/api/miniapp/members/level-card', // 等级卡片（会员等级+分销等级进度）
     UPDATE_PROFILE: '/api/miniapp/members/profile', // 更新会员信息
     TEAM: '/api/miniapp/members/team',          // 团队成员
     STATS: '/api/miniapp/members/stats',        // 会员统计

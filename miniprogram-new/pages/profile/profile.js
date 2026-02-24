@@ -29,6 +29,7 @@ Page({
     memberInfo: null,
     isLogin: false,
     defaultAvatar: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+    levelCard: null,
     orderStats: {
       pending: 0,    // 待付款
       paid: 0,       // 待发货
@@ -44,6 +45,7 @@ Page({
     if (auth.isLogin()) {
       this.loadMemberInfo();
       this.loadOrderStats();
+      this.loadLevelCard();
     }
   },
 
@@ -64,6 +66,7 @@ Page({
       this.setData({ isLogin: true });
       this.loadMemberInfo();
       this.loadOrderStats();
+      this.loadLevelCard();
     }
   },
 
@@ -91,6 +94,40 @@ Page({
       }
     } catch (error) {
       console.error('[Profile] 加载会员信息失败:', error);
+    }
+  },
+
+  /**
+   * 加载等级卡片（会员等级+分销等级进度）
+   */
+  async loadLevelCard() {
+    try {
+      const result = await request.get(API.MEMBER.LEVEL_CARD, {}, {
+        showLoading: false,
+        showError: false
+      });
+      if (result.data && (result.data.memberProgress || result.data.distributorLevel || result.data.distributorProgress)) {
+        const card = {
+          memberLevel: result.data.memberLevel,
+          memberProgress: result.data.memberProgress,
+          distributorLevel: result.data.distributorLevel,
+          distributorProgress: null
+        };
+        if (result.data.distributorProgress) {
+          const d = result.data.distributorProgress;
+          const sales = parseFloat(d.currentSales) || 0;
+          const fans = parseInt(d.currentFans, 10) || 0;
+          const active = parseInt(d.activeFans, 10) || 0;
+          card.distributorProgress = {
+            ...d,
+            salesText: sales.toFixed(0),
+            fanText: d.useActiveFans ? `粉丝 ${fans}（活跃 ${active}）` : `粉丝 ${fans}`
+          };
+        }
+        this.setData({ levelCard: card });
+      }
+    } catch (error) {
+      console.error('[Profile] 加载等级卡片失败:', error);
     }
   },
 
@@ -132,6 +169,7 @@ Page({
           this.setData({
             isLogin: false,
             memberInfo: null,
+            levelCard: null,
             orderStats: {
               pending: 0,
               paid: 0,

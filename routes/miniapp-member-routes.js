@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { Member, MemberLevel, DistributorLevel, TeamExpansionLevel, CommissionCalculation } = require('../db');
 const bcrypt = require('bcryptjs');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
+const LevelUpgradeService = require('../services/levelUpgradeService');
 const router = express.Router();
 
 
@@ -287,6 +288,126 @@ router.get('/members/profile', authenticateMiniappUser, async (req, res) => {
         res.status(500).json({
             code: 1,
             message: '获取会员信息失败',
+            error: error.message
+        });
+    }
+});
+
+// 获取会员等级卡片数据（会员等级+分销等级进度，用于个人页可视化）
+router.get('/members/level-card', authenticateMiniappUser, async (req, res) => {
+    try {
+        const member = req.member;
+        const currentPoints = parseInt(member.totalPoints, 10) || 0;
+        const currentSales = parseFloat(member.totalSales) || 0;
+        const totalFans = parseInt(member.totalFans, 10) || 0;
+
+        const memberLevels = await MemberLevel.findAll({
+            where: { status: 'active', enableAutoUpgrade: true },
+            order: [['level', 'ASC']],
+            attributes: ['id', 'name', 'level', 'minPoints', 'maxPoints']
+        });
+        const distributorLevels = await DistributorLevel.findAll({
+            where: { status: 'active', enableAutoUpgrade: true },
+            order: [['level', 'ASC']],
+            attributes: ['id', 'name', 'level', 'minSales', 'minFans', 'upgradeConditionLogic', 'useActiveFansForUpgrade']
+        });
+
+        let currentMemberLevel = null;
+        if (member.memberLevelId) {
+            currentMemberLevel = memberLevels.find(l => l.id === member.memberLevelId) || await MemberLevel.findByPk(member.memberLevelId, { attributes: ['id', 'name', 'level', 'minPoints'] });
+        }
+        const nextMemberLevel = memberLevels.find(l => (currentMemberLevel ? l.level > currentMemberLevel.level : true));
+        const needPointsVal = nextMemberLevel ? Math.max(0, (parseInt(nextMemberLevel.minPoints, 10) || 0) - currentPoints) : 0;
+        const memberProgress = {
+            currentLevelName: currentMemberLevel ? currentMemberLevel.name : '普通会员',
+            currentLevel: currentMemberLevel ? currentMemberLevel.level : 0,
+            currentPoints,
+            nextLevelName: nextMemberLevel ? nextMemberLevel.name : null,
+            nextLevelMinPoints: nextMemberLevel ? (parseInt(nextMemberLevel.minPoints, 10) || 0) : null,
+            needPoints: needPointsVal,
+            tip: nextMemberLevel ? `再积累 ${needPointsVal} 积分可升级至「${nextMemberLevel.name}」` : '已达当前最高会员等级',
+            progressPercent: 0,
+            isMax: !nextMemberLevel
+        };
+        if (nextMemberLevel && currentMemberLevel) {
+            const minCur = parseInt(currentMemberLevel.minPoints, 10) || 0;
+            const minNext = parseInt(nextMemberLevel.minPoints, 10) || 0;
+            if (minNext > minCur) {
+                memberProgress.progressPercent = Math.min(100, Math.round(((currentPoints - minCur) / (minNext - minCur)) * 100));
+            }
+        } else if (nextMemberLevel) {
+            const minNext = parseInt(nextMemberLevel.minPoints, 10) || 0;
+            if (minNext > 0) memberProgress.progressPercent = Math.min(100, Math.round((currentPoints / minNext) * 100));
+        }
+
+        let currentDistributorLevel = null;
+        if (member.distributorLevelId) {
+            currentDistributorLevel = distributorLevels.find(l => l.id === member.distributorLevelId) || await DistributorLevel.findByPk(member.distributorLevelId, { attributes: ['id', 'name', 'level', 'minSales', 'minFans', 'upgradeConditionLogic', 'useActiveFansForUpgrade'] });
+        }
+        const nextDistributorLevel = distributorLevels.find(l => (currentDistributorLevel ? l.level > currentDistributorLevel.level : true));
+        let activeFans = 0;
+        if (nextDistributorLevel || currentDistributorLevel) {
+            const fansRes = await LevelUpgradeService.countActiveFans(member.id);
+            activeFans = fansRes.totalActiveFans;
+        }
+        const fansForDisplay = nextDistributorLevel && nextDistributorLevel.useActiveFansForUpgrade ? activeFans : totalFans;
+        const distributorProgress = {
+            currentLevelName: currentDistributorLevel ? currentDistributorLevel.name : null,
+            currentLevel: currentDistributorLevel ? currentDistributorLevel.level : 0,
+            currentSales,
+            currentFans: totalFans,
+            activeFans,
+            nextLevelName: nextDistributorLevel ? nextDistributorLevel.name : null,
+            nextLevelMinSales: nextDistributorLevel ? (parseFloat(nextDistributorLevel.minSales) || 0) : null,
+            nextLevelMinFans: nextDistributorLevel ? (parseInt(nextDistributorLevel.minFans, 10) || 0) : null,
+            conditionLogic: nextDistributorLevel ? (nextDistributorLevel.upgradeConditionLogic || 'and') : 'and',
+            useActiveFans: nextDistributorLevel ? !!nextDistributorLevel.useActiveFansForUpgrade : false,
+            needSales: 0,
+            needFans: 0,
+            progressPercent: 0,
+            isMax: !nextDistributorLevel,
+            tip: ''
+        };
+        if (nextDistributorLevel) {
+            const needS = Math.max(0, (parseFloat(nextDistributorLevel.minSales) || 0) - currentSales);
+            const needF = Math.max(0, (parseInt(nextDistributorLevel.minFans, 10) || 0) - fansForDisplay);
+            distributorProgress.needSales = needS;
+            distributorProgress.needFans = needF;
+            const logic = nextDistributorLevel.upgradeConditionLogic === 'or' ? 'or' : 'and';
+            const fanLabel = nextDistributorLevel.useActiveFansForUpgrade ? '活跃粉丝' : '粉丝';
+            if (logic === 'and') {
+                distributorProgress.tip = `销售额还差 ¥${needS.toFixed(0)}，${fanLabel}还差 ${needF} 人可升级至「${nextDistributorLevel.name}」`;
+                const pctSales = (parseFloat(nextDistributorLevel.minSales) || 0) > 0 ? Math.min(1, currentSales / (parseFloat(nextDistributorLevel.minSales) || 1)) : 1;
+                const pctFans = (parseInt(nextDistributorLevel.minFans, 10) || 0) > 0 ? Math.min(1, fansForDisplay / (parseInt(nextDistributorLevel.minFans, 10) || 1)) : 1;
+                distributorProgress.progressPercent = Math.min(100, Math.round(Math.min(pctSales, pctFans) * 100));
+            } else {
+                distributorProgress.tip = needS <= 0 && needF <= 0 ? `已达升级条件，将自动升级至「${nextDistributorLevel.name}」` : `再完成 ¥${needS.toFixed(0)} 销售额或增加 ${needF} 位${fanLabel}可升级至「${nextDistributorLevel.name}」`;
+                const pctSales = (parseFloat(nextDistributorLevel.minSales) || 0) > 0 ? Math.min(1, currentSales / (parseFloat(nextDistributorLevel.minSales) || 1)) : 1;
+                const pctFans = (parseInt(nextDistributorLevel.minFans, 10) || 0) > 0 ? Math.min(1, fansForDisplay / (parseInt(nextDistributorLevel.minFans, 10) || 1)) : 1;
+                distributorProgress.progressPercent = Math.min(100, Math.round(Math.max(pctSales, pctFans) * 100));
+            }
+        } else {
+            distributorProgress.tip = currentDistributorLevel ? '已达当前最高分销等级' : '成为分销商后可按条件升级等级';
+        }
+
+        const memberLevelInfo = currentMemberLevel ? { id: currentMemberLevel.id, name: currentMemberLevel.name, level: currentMemberLevel.level } : null;
+        const distributorLevelInfo = currentDistributorLevel ? { id: currentDistributorLevel.id, name: currentDistributorLevel.name, level: currentDistributorLevel.level } : null;
+
+        res.json({
+            code: 0,
+            message: '获取成功',
+            data: {
+                memberLevel: memberLevelInfo,
+                memberProgress,
+                distributorLevel: distributorLevelInfo,
+                distributorProgress: (currentDistributorLevel || nextDistributorLevel) ? distributorProgress : null
+            }
+        });
+    } catch (error) {
+        console.error('获取等级卡片失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: '获取等级卡片失败',
             error: error.message
         });
     }

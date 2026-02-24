@@ -17,6 +17,51 @@
     </view>
   </view>
 
+  <!-- 会员信息卡片：等级与升级进度 -->
+  <view class="level-card-section" wx:if="{{isLogin && levelCard}}">
+    <view class="level-card">
+      <view class="level-card-title">会员信息</view>
+      <!-- 会员等级 -->
+      <view class="level-block member-level-block">
+        <view class="level-block-header">
+          <text class="level-block-label">会员等级</text>
+          <text class="level-block-value">{{levelCard.memberProgress.currentLevelName}}</text>
+        </view>
+        <view class="level-block-body">
+          <view class="progress-row">
+            <text class="progress-desc">当前积分 {{levelCard.memberProgress.currentPoints}}</text>
+            <text class="progress-next" wx:if="{{levelCard.memberProgress.nextLevelName}}">下一级：{{levelCard.memberProgress.nextLevelName}}</text>
+          </view>
+          <view class="progress-bar-wrap" wx:if="{{!levelCard.memberProgress.isMax}}">
+            <view class="progress-bar" style="width: {{levelCard.memberProgress.progressPercent}}%;"></view>
+          </view>
+          <text class="progress-tip" wx:if="{{levelCard.memberProgress.tip}}">{{levelCard.memberProgress.tip}}</text>
+          <text class="progress-tip max" wx:if="{{levelCard.memberProgress.isMax}}">{{levelCard.memberProgress.tip}}</text>
+        </view>
+      </view>
+      <!-- 分销等级 -->
+      <view class="level-block distributor-level-block" wx:if="{{levelCard.distributorProgress || levelCard.distributorLevel}}">
+        <view class="level-block-header">
+          <text class="level-block-label">分销等级</text>
+          <text class="level-block-value">{{levelCard.distributorLevel ? levelCard.distributorLevel.name : '暂无'}}</text>
+        </view>
+        <view class="level-block-body" wx:if="{{levelCard.distributorProgress}}">
+          <view class="progress-row">
+            <text class="progress-desc">销售额 ¥{{levelCard.distributorProgress.salesText}}</text>
+            <text class="progress-desc">{{levelCard.distributorProgress.fanText}}</text>
+          </view>
+          <view class="progress-bar-wrap" wx:if="{{!levelCard.distributorProgress.isMax && levelCard.distributorProgress.nextLevelName}}">
+            <view class="progress-bar distributor-bar" style="width: {{levelCard.distributorProgress.progressPercent}}%;"></view>
+          </view>
+          <text class="progress-tip" wx:if="{{levelCard.distributorProgress.tip}}">{{levelCard.distributorProgress.tip}}</text>
+        </view>
+        <view class="level-block-body" wx:elif="{{!levelCard.distributorLevel}}">
+          <text class="progress-tip">成为分销商后可按条件升级等级</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- 订单统计 -->
   <view class="order-section" wx:if="{{isLogin}}">
     <view class="section-title" bindtap="goToOrders">
