@@ -856,14 +856,15 @@ function buildCategoryTree(categories, parentId = null) {
 // 计算商品价格（应用运营工具）
 router.post('/products/calculate-price', async (req, res) => {
     try {
-        const { productId, skuId, quantity, memberId, appliedCoupons = [], appliedPromotions = [], pointUsage = null } = req.body;
+        const { productId, skuId, quantity, memberId: memberIdRaw, appliedCoupons = [], appliedPromotions = [], pointUsage = null } = req.body;
 
-        if (!productId || !quantity || !memberId) {
+        if (!productId || quantity == null || quantity === '') {
             return res.status(400).json({
                 code: 1,
                 message: '缺少必填参数'
             });
         }
+        const memberId = memberIdRaw != null && memberIdRaw !== '' ? Number(memberIdRaw) : 0;
 
         const orderData = { productId, skuId, quantity };
         const finalOrderData = await PromotionService.applyPromotionsToOrder(

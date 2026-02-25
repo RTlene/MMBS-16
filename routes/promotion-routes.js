@@ -2,6 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { Promotion } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const PromotionRulesService = require('../services/promotionRulesService');
 
 const router = express.Router();
 
