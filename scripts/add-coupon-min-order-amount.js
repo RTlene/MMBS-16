@@ -29,4 +29,3 @@ async function ensureCouponMinOrderAmount() {
 ensureCouponMinOrderAmount()
   .then(() => sequelize.close())
   .catch(() => sequelize.close());
-

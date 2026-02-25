@@ -42,8 +42,8 @@
     <swiper
       class="activity-swiper"
       indicator-dots="{{true}}"
-      indicator-color="rgba(0,0,0,0.2)"
-      indicator-active-color="#3481B8"
+      indicator-color="rgba(0,0,0,0.12)"
+      indicator-active-color="#1E293B"
       autoplay="{{true}}"
       interval="{{4000}}"
       duration="{{400}}"

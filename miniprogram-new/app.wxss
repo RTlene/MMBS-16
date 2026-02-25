@@ -3,43 +3,48 @@
  * MMBS-16 商城小程序
  */
 
-/* ==================== 全局变量 ==================== */
+/* ==================== 全局变量（明亮简约：白底 + 浅蓝 + 亮金） ==================== */
 page {
-  --primary-color: #3481B8;
-  --primary-light: #5A9ED8;
-  --primary-dark: #2366A0;
+  --primary-color: #3B82F6;
+  --primary-light: #60A5FA;
+  --primary-dark: #2563EB;
+  --primary-deep: #1E40AF;
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
   
-  --success-color: #07C160;
-  --warning-color: #FF976A;
-  --danger-color: #FA5151;
-  --info-color: #10AEFF;
+  --success-color: #10B981;
+  --warning-color: #F59E0B;
+  --danger-color: #EF4444;
+  --info-color: #38BDF8;
+  --accent-gold: #D4A017;
+  --accent-gold-light: #E5B429;
   
-  --text-color: #333333;
-  --text-secondary: #666666;
-  --text-placeholder: #999999;
-  --text-disabled: #CCCCCC;
+  --text-color: #1E293B;
+  --text-secondary: #64748B;
+  --text-placeholder: #94A3B8;
+  --text-disabled: #CBD5E1;
   
   --bg-color: #FFFFFF;
-  --bg-page: #F8F8F8;
-  --bg-grey: #F5F5F5;
+  --bg-page: #F5F7FA;
+  --bg-grey: #F1F5F9;
   
-  --border-color: #E5E5E5;
-  --border-light: #F0F0F0;
+  --border-color: #E2E8F0;
+  --border-light: #F1F5F9;
   
-  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 8rpx 24rpx rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1rpx 4rpx rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 4rpx 20rpx rgba(0, 0, 0, 0.06);
   
-  --radius-sm: 8rpx;
-  --radius-md: 12rpx;
-  --radius-lg: 16rpx;
-  --radius-xl: 20rpx;
+  --radius-sm: 6rpx;
+  --radius-md: 10rpx;
+  --radius-lg: 14rpx;
+  --radius-xl: 16rpx;
   
-  --spacing-xs: 16rpx;
+  --spacing-xs: 12rpx;
   --spacing-sm: 20rpx;
-  --spacing-md: 24rpx;
-  --spacing-lg: 32rpx;
-  --spacing-xl: 40rpx;
+  --spacing-md: 28rpx;
+  --spacing-lg: 36rpx;
+  --spacing-xl: 48rpx;
 }
 
 /* ==================== 重置样式 ==================== */
@@ -230,9 +235,10 @@ image {
 
 .card {
   background-color: var(--bg-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-md);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
+  border: none;
 }
 
 .section {
@@ -260,13 +266,14 @@ image {
   padding: 0 var(--spacing-md);
   border-radius: var(--radius-md);
   font-size: 28rpx;
+  font-weight: 500;
   color: #FFFFFF;
   background-color: var(--primary-color);
-  transition: all 0.3s;
+  transition: opacity 0.2s;
 }
 
 .btn:active {
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .btn-primary {
@@ -315,31 +322,33 @@ image {
 
 .badge {
   position: absolute;
-  top: -10rpx;
+  top: -6rpx;
   right: -10rpx;
-  min-width: 32rpx;
-  height: 32rpx;
-  padding: 0 8rpx;
-  border-radius: 16rpx;
+  min-width: 28rpx;
+  height: 28rpx;
+  padding: 0 6rpx;
+  border-radius: 14rpx;
   background-color: var(--danger-color);
   color: #FFFFFF;
   font-size: 20rpx;
-  line-height: 32rpx;
+  font-weight: 500;
+  line-height: 28rpx;
   text-align: center;
 }
 
-/* ==================== 标签 ==================== */
+/* ==================== 标签（简约） ==================== */
 
 .tag {
   display: inline-block;
-  padding: 4rpx 12rpx;
-  border-radius: var(--radius-sm);
+  padding: 4rpx 10rpx;
+  border-radius: 4rpx;
   font-size: 20rpx;
-  line-height: 1.5;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .tag-primary {
-  background-color: rgba(52, 129, 184, 0.1);
+  background-color: rgba(59, 130, 246, 0.12);
   color: var(--primary-color);
 }
 

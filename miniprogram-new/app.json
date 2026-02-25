@@ -29,14 +29,14 @@
   "window": {
     "navigationBarTextStyle": "white",
     "navigationBarTitleText": "MMBS商城",
-    "navigationBarBackgroundColor": "#3481B8",
-    "backgroundColor": "#F8F8F8",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F5F7FA",
     "backgroundTextStyle": "dark",
     "enablePullDownRefresh": false
   },
   "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#3481B8",
+    "color": "#64748B",
+    "selectedColor": "#D4A017",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "black",
     "list": [
