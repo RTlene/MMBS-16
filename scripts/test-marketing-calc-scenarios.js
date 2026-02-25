@@ -13,7 +13,9 @@
  * 4) 有促销、有优惠券 → 预期实付 80（促销与券叠加）
  *
  * 运行：node scripts/test-marketing-calc-scenarios.js
- * 环境变量：BASE_URL、ADMIN_USERNAME、ADMIN_PASSWORD、MEMBER_ID（可选）
+ * 环境变量：
+ *   BASE_URL、ADMIN_USERNAME、ADMIN_PASSWORD、MEMBER_ID（可选）
+ *   USE_EXISTING=1 且同时设置 PRODUCT_ID、SKU_ID、PROMOTION_ID、COUPON_ID 时，不创建新数据，直接使用已有 ID 跑算价（避免重复创建）
  */
 require('dotenv').config();
 const axios = require('axios');
@@ -22,6 +24,13 @@ const BASE_URL = (process.env.BASE_URL || 'https://express-1tth-223108-8-1373039
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const MEMBER_ID_ENV = process.env.MEMBER_ID != null && process.env.MEMBER_ID !== '' ? parseInt(process.env.MEMBER_ID, 10) : null;
+
+const USE_EXISTING = process.env.USE_EXISTING === '1';
+const EXISTING_PRODUCT_ID = process.env.PRODUCT_ID != null && process.env.PRODUCT_ID !== '' ? parseInt(process.env.PRODUCT_ID, 10) : null;
+const EXISTING_SKU_ID = process.env.SKU_ID != null && process.env.SKU_ID !== '' ? parseInt(process.env.SKU_ID, 10) : null;
+const EXISTING_PROMOTION_ID = process.env.PROMOTION_ID != null && process.env.PROMOTION_ID !== '' ? parseInt(process.env.PROMOTION_ID, 10) : null;
+const EXISTING_COUPON_ID = process.env.COUPON_ID != null && process.env.COUPON_ID !== '' ? parseInt(process.env.COUPON_ID, 10) : null;
+const USE_EXISTING_IDS = USE_EXISTING && EXISTING_PRODUCT_ID && EXISTING_SKU_ID && EXISTING_PROMOTION_ID && EXISTING_COUPON_ID;
 
 // ---------- 脚本内固定数值（可改） ----------
 const PRODUCT_PRICE = 100;
@@ -157,8 +166,11 @@ async function createCoupon() {
   console.log('[创建] 优惠券 id=', couponId, ' 减', COUPON_DISCOUNT, ' 满', COUPON_MIN_ORDER, '可用');
 }
 
+const DEBUG_CALC = process.env.DEBUG_CALC === '1';
+
 async function calculatePrice(appliedCoupons, appliedPromotions) {
-  const r = await req('POST', '/api/miniapp/products/calculate-price', {
+  const path = '/api/miniapp/products/calculate-price' + (DEBUG_CALC ? '?debug=1' : '');
+  const r = await req('POST', path, {
     productId,
     skuId: skuId || undefined,
     quantity: QUANTITY,
@@ -210,9 +222,17 @@ async function run() {
   try {
     await login();
     await ensureMember();
-    await createProduct();
-    await createPromotion();
-    await createCoupon();
+    if (USE_EXISTING_IDS) {
+      productId = EXISTING_PRODUCT_ID;
+      skuId = EXISTING_SKU_ID;
+      promotionId = EXISTING_PROMOTION_ID;
+      couponId = EXISTING_COUPON_ID;
+      console.log('[复用] 使用已有 ID: productId=', productId, 'skuId=', skuId, 'promotionId=', promotionId, 'couponId=', couponId);
+    } else {
+      await createProduct();
+      await createPromotion();
+      await createCoupon();
+    }
   } catch (e) {
     console.error(e.message);
     process.exit(1);

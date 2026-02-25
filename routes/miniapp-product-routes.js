@@ -869,6 +869,9 @@ router.post('/products/calculate-price', async (req, res) => {
         const norm = (v) => (Array.isArray(v) ? v : (v != null ? [v] : [])).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
         const couponIds = norm(appliedCoupons);
         const promotionIds = norm(appliedPromotions);
+        if (process.env.NODE_ENV !== 'production' || req.query.debug === '1') {
+            console.log('[calculate-price] body appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> couponIds=', couponIds, 'promotionIds=', promotionIds);
+        }
 
         const orderData = { productId, skuId, quantity };
         const finalOrderData = await PromotionService.applyPromotionsToOrder(
@@ -878,6 +881,10 @@ router.post('/products/calculate-price', async (req, res) => {
             promotionIds,
             pointUsage
         );
+
+        if (req.query.debug === '1') {
+            console.log('[calculate-price] result totalAmount=', finalOrderData.totalAmount, 'discounts=', (finalOrderData.discounts || []).length, finalOrderData.discounts);
+        }
 
         const originalAmount = Number(finalOrderData.originalAmount) || 0;
         const finalPrice = Number.isFinite(Number(finalOrderData.totalAmount)) ? Number(finalOrderData.totalAmount) : originalAmount;

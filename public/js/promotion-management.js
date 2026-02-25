@@ -267,6 +267,21 @@ function updateRulesConfig() {
                 </div>
             `;
             break;
+        case 'full_reduction':
+            rulesHTML = `
+                <div class="rule-item">
+                    <label>满减规则（金额）:</label>
+                    <input type="number" id="fullReductionMinAmount" min="0" step="0.01" placeholder="满多少元"> 元
+                    <input type="number" id="fullReductionDiscountAmount" min="0" step="0.01" placeholder="减多少元"> 元
+                </div>
+            `;
+            break;
+        case 'full_gift':
+            rulesHTML = `<div class="rule-item"><span>满送规则请在接口或数据库中配置 fullGiftRules（JSON）</span></div>`;
+            break;
+        case 'full_discount':
+            rulesHTML = `<div class="rule-item"><span>满折规则请在接口或数据库中配置 fullDiscountRules（JSON）</span></div>`;
+            break;
     }
     
     rulesConfig.innerHTML = rulesHTML;
@@ -275,11 +290,20 @@ function updateRulesConfig() {
 // 填充规则配置
 function fillRulesConfig(rules) {
     if (!rules) return;
+
+    if (rules.fullReductionRules && rules.fullReductionRules.length > 0) {
+        const r = rules.fullReductionRules[0];
+        const minInput = document.getElementById('fullReductionMinAmount');
+        const discountInput = document.getElementById('fullReductionDiscountAmount');
+        if (minInput) minInput.value = r.minAmount || '';
+        if (discountInput) discountInput.value = r.discountAmount || '';
+        return;
+    }
     
     Object.keys(rules).forEach(key => {
         const input = document.getElementById(key);
         if (input) {
-            input.value = rules[key];
+            input.value = Array.isArray(rules[key]) ? JSON.stringify(rules[key]) : (rules[key] || '');
         }
     });
 }
@@ -362,6 +386,17 @@ function getRulesConfig() {
             const regions = document.getElementById('regions');
             if (minAmount && minAmount.value) rules.minAmount = parseFloat(minAmount.value);
             if (regions && regions.value) rules.regions = regions.value.split(',').map(region => region.trim());
+            break;
+        case 'full_reduction':
+            const fullReductionMinAmount = document.getElementById('fullReductionMinAmount');
+            const fullReductionDiscountAmount = document.getElementById('fullReductionDiscountAmount');
+            if (fullReductionMinAmount && fullReductionMinAmount.value && fullReductionDiscountAmount && fullReductionDiscountAmount.value) {
+                rules.fullReductionRules = [{
+                    conditionType: 'amount',
+                    minAmount: parseFloat(fullReductionMinAmount.value),
+                    discountAmount: parseFloat(fullReductionDiscountAmount.value)
+                }];
+            }
             break;
     }
     
@@ -459,7 +494,10 @@ function getPromotionTypeText(type) {
         'flash_sale': '限时抢购',
         'group_buy': '团购',
         'bundle': '捆绑销售',
-        'free_shipping': '包邮'
+        'free_shipping': '包邮',
+        'full_reduction': '满减',
+        'full_gift': '满送',
+        'full_discount': '满折'
     };
     return typeMap[type] || type;
 }
