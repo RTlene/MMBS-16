@@ -910,31 +910,25 @@ class PromotionService {
      */
     static async validateCoupon(coupon, memberId, productId, skuId, quantity) {
         const now = new Date();
-        
-        // 检查有效期
-        if (coupon.validFrom > now || coupon.validTo < now) {
+        const validFrom = coupon.validFrom instanceof Date ? coupon.validFrom : new Date(coupon.validFrom);
+        const validTo = coupon.validTo instanceof Date ? coupon.validTo : new Date(coupon.validTo);
+        if (isNaN(validFrom.getTime()) || isNaN(validTo.getTime())) return false;
+        if (validFrom > now || validTo < now) return false;
+
+        if (coupon.usageLimit != null && coupon.usedCount != null && Number(coupon.usedCount) >= Number(coupon.usageLimit)) {
             return false;
         }
 
-        // 检查使用限制
-        if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-            return false;
-        }
-
-        // 检查商品限制（宽松比较，兼容 body 传字符串 ID）
-        if (coupon.productIds && coupon.productIds.length > 0) {
+        const productIds = Array.isArray(coupon.productIds) ? coupon.productIds : (coupon.productIds ? [].concat(coupon.productIds) : []);
+        if (productIds.length > 0) {
             const pid = Number(productId);
-            if (!coupon.productIds.some((id) => Number(id) === pid)) {
-                return false;
-            }
+            if (!productIds.some((id) => Number(id) === pid)) return false;
         }
 
-        // 检查SKU限制
-        if (coupon.skuIds && coupon.skuIds.length > 0 && skuId != null) {
+        const skuIds = Array.isArray(coupon.skuIds) ? coupon.skuIds : (coupon.skuIds ? [].concat(coupon.skuIds) : []);
+        if (skuIds.length > 0 && skuId != null) {
             const sid = Number(skuId);
-            if (!coupon.skuIds.some((id) => Number(id) === sid)) {
-                return false;
-            }
+            if (!skuIds.some((id) => Number(id) === sid)) return false;
         }
 
         return true;
@@ -946,37 +940,31 @@ class PromotionService {
     static async validatePromotion(promotion, productId, skuId, quantity) {
         const now = new Date();
 
-        // 检查有效期（仅当 startTime 存在时判断；未设则视为长期有效）
         if (promotion.startTime) {
             const start = promotion.startTime instanceof Date ? promotion.startTime.getTime() : new Date(promotion.startTime).getTime();
             const end = promotion.endTime instanceof Date ? promotion.endTime.getTime() : new Date(promotion.endTime).getTime();
-            if (start > now.getTime() || end < now.getTime()) {
+            if (isNaN(start) || isNaN(end) || start > now.getTime() || end < now.getTime()) {
                 return false;
             }
         } else if (promotion.validFrom && promotion.validTo) {
-            if (promotion.validFrom > now || promotion.validTo < now) {
-                return false;
-            }
+            const vf = promotion.validFrom instanceof Date ? promotion.validFrom : new Date(promotion.validFrom);
+            const vt = promotion.validTo instanceof Date ? promotion.validTo : new Date(promotion.validTo);
+            if (isNaN(vf.getTime()) || isNaN(vt.getTime()) || vf > now || vt < now) return false;
         }
 
-        // 检查商品限制（宽松比较）
-        if (promotion.productIds && promotion.productIds.length > 0) {
+        const productIds = Array.isArray(promotion.productIds) ? promotion.productIds : (promotion.productIds ? [].concat(promotion.productIds) : []);
+        if (productIds.length > 0) {
             const pid = Number(productId);
-            if (!promotion.productIds.some((id) => Number(id) === pid)) {
-                return false;
-            }
+            if (!productIds.some((id) => Number(id) === pid)) return false;
         }
 
-        // 检查SKU限制（有配置且传了 skuId 时才校验）
-        if (promotion.skuIds && promotion.skuIds.length > 0 && skuId != null) {
+        const skuIds = Array.isArray(promotion.skuIds) ? promotion.skuIds : (promotion.skuIds ? [].concat(promotion.skuIds) : []);
+        if (skuIds.length > 0 && skuId != null) {
             const sid = Number(skuId);
-            if (!promotion.skuIds.some((id) => Number(id) === sid)) {
-                return false;
-            }
+            if (!skuIds.some((id) => Number(id) === sid)) return false;
         }
 
-        // 检查数量限制
-        if (promotion.minQuantity && quantity < promotion.minQuantity) {
+        if (promotion.minQuantity != null && Number(quantity) < Number(promotion.minQuantity)) {
             return false;
         }
 
