@@ -875,16 +875,21 @@ router.post('/products/calculate-price', async (req, res) => {
             pointUsage
         );
 
+        const originalAmount = Number(finalOrderData.originalAmount) || 0;
+        const finalPrice = Number.isFinite(Number(finalOrderData.totalAmount)) ? Number(finalOrderData.totalAmount) : originalAmount;
+        const savings = originalAmount - finalPrice;
+        const savingsRate = originalAmount > 0 ? Math.round((savings / originalAmount) * 10000) / 100 : 0;
+
         res.json({
             code: 0,
             message: '计算成功',
             data: {
                 pricing: {
                     originalAmount: finalOrderData.originalAmount,
-                    finalPrice: finalOrderData.finalPrice,
-                    discounts: finalOrderData.discounts,
-                    savings: finalOrderData.savings,
-                    savingsRate: finalOrderData.savingsRate
+                    finalPrice,
+                    discounts: finalOrderData.discounts || [],
+                    savings,
+                    savingsRate
                 },
                 appliedCoupons: finalOrderData.appliedCoupons,
                 appliedPromotions: finalOrderData.appliedPromotions,
