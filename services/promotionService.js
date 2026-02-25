@@ -5,6 +5,18 @@ const {
 } = require('../db');
 const PromotionRulesService = require('./promotionRulesService');
 
+/** 解析促销 rules（DB 可能返回 JSON 字符串） */
+function parsePromotionRules(rules) {
+    if (rules == null) return null;
+    if (typeof rules === 'object') return rules;
+    if (typeof rules !== 'string') return null;
+    try {
+        return JSON.parse(rules);
+    } catch {
+        return null;
+    }
+}
+
 class PromotionService {
     /**
      * 获取商品详情时应用运营工具
@@ -516,27 +528,28 @@ class PromotionService {
         for (const promotion of promotions) {
             let discountAmount = 0;
             let discountInfo = null;
-            
+            const rules = parsePromotionRules(promotion.rules);
+
             // 根据促销类型计算折扣
             switch (promotion.type) {
                 case 'full_reduction':
-                    if (promotion.rules && promotion.rules.fullReductionRules) {
-                        const result = PromotionRulesService.calculateFullReduction(originalAmount, totalQuantity, promotion.rules.fullReductionRules);
+                    if (rules && rules.fullReductionRules && rules.fullReductionRules.length > 0) {
+                        const result = PromotionRulesService.calculateFullReduction(originalAmount, totalQuantity, rules.fullReductionRules);
                         discountAmount = result.discountAmount;
                         discountInfo = result;
                     }
                     break;
                 case 'full_gift':
                     // 满送不直接减少金额，而是添加赠品
-                    if (promotion.rules && promotion.rules.fullGiftRules) {
-                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, promotion.rules.fullGiftRules);
+                    if (rules && rules.fullGiftRules && rules.fullGiftRules.length > 0) {
+                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
                         discountInfo = result;
                         // 满送不减少金额，但记录赠品信息
                     }
                     break;
                 case 'full_discount':
-                    if (promotion.rules && promotion.rules.fullDiscountRules) {
-                        const result = PromotionRulesService.calculateFullDiscount(originalAmount, totalQuantity, promotion.rules.fullDiscountRules);
+                    if (rules && rules.fullDiscountRules && rules.fullDiscountRules.length > 0) {
+                        const result = PromotionRulesService.calculateFullDiscount(originalAmount, totalQuantity, rules.fullDiscountRules);
                         discountAmount = result.discountAmount;
                         discountInfo = result;
                     }
@@ -642,27 +655,28 @@ class PromotionService {
         for (const promotion of promotions) {
             let discountAmount = 0;
             let discountInfo = null;
-            
+            const rules = parsePromotionRules(promotion.rules);
+
             // 根据促销类型计算折扣
             switch (promotion.type) {
                 case 'full_reduction':
-                    if (promotion.rules && promotion.rules.fullReductionRules) {
-                        const result = PromotionRulesService.calculateFullReduction(originalAmount, totalQuantity, promotion.rules.fullReductionRules);
+                    if (rules && rules.fullReductionRules && rules.fullReductionRules.length > 0) {
+                        const result = PromotionRulesService.calculateFullReduction(originalAmount, totalQuantity, rules.fullReductionRules);
                         discountAmount = result.discountAmount;
                         discountInfo = result;
                     }
                     break;
                 case 'full_gift':
                     // 满送不直接减少金额，而是添加赠品
-                    if (promotion.rules && promotion.rules.fullGiftRules) {
-                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, promotion.rules.fullGiftRules);
+                    if (rules && rules.fullGiftRules && rules.fullGiftRules.length > 0) {
+                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
                         discountInfo = result;
                         // 满送不减少金额，但记录赠品信息
                     }
                     break;
                 case 'full_discount':
-                    if (promotion.rules && promotion.rules.fullDiscountRules) {
-                        const result = PromotionRulesService.calculateFullDiscount(originalAmount, totalQuantity, promotion.rules.fullDiscountRules);
+                    if (rules && rules.fullDiscountRules && rules.fullDiscountRules.length > 0) {
+                        const result = PromotionRulesService.calculateFullDiscount(originalAmount, totalQuantity, rules.fullDiscountRules);
                         discountAmount = result.discountAmount;
                         discountInfo = result;
                     }
@@ -767,40 +781,49 @@ class PromotionService {
      * 计算折扣金额
      */
     static calculateDiscountAmount(promotionOrCoupon, amount, quantity) {
-        const { discountType, discountValue, maxDiscountAmount, minOrderAmount } = promotionOrCoupon;
+        const discountType = promotionOrCoupon.discountType;
+        const rawDiscountValue = promotionOrCoupon.discountValue;
+        const discountValueNum = Number(rawDiscountValue);
+        const maxDiscountAmount = promotionOrCoupon.maxDiscountAmount != null ? Number(promotionOrCoupon.maxDiscountAmount) : null;
+        const minOrderAmount = promotionOrCoupon.minOrderAmount != null ? Number(promotionOrCoupon.minOrderAmount) : null;
+        const amt = Number(amount) || 0;
+        const qty = Number(quantity) || 0;
 
         // 检查最低订单金额
-        if (minOrderAmount && amount < minOrderAmount) {
+        if (minOrderAmount != null && minOrderAmount > 0 && amt < minOrderAmount) {
             return 0;
         }
 
         let discountAmount = 0;
 
         if (discountType === 'percentage') {
-            discountAmount = amount * (discountValue / 100);
+            discountAmount = amt * (discountValueNum / 100);
         } else if (discountType === 'fixed') {
-            discountAmount = discountValue;
-        } else if (discountType === 'quantity') {
+            discountAmount = discountValueNum;
+        } else if (discountType === 'quantity' && rawDiscountValue && typeof rawDiscountValue === 'object') {
             // 买X送Y或买X减Y
-            const freeQuantity = Math.floor(quantity / discountValue.quantity) * discountValue.freeQuantity;
-            discountAmount = freeQuantity * (amount / quantity);
+            const v = rawDiscountValue;
+            const freeQuantity = Math.floor(qty / (v.quantity || 1)) * (v.freeQuantity || 0);
+            discountAmount = qty > 0 ? freeQuantity * (amt / qty) : 0;
         }
 
         // 应用最大折扣限制
-        if (maxDiscountAmount && discountAmount > maxDiscountAmount) {
+        if (maxDiscountAmount != null && maxDiscountAmount > 0 && discountAmount > maxDiscountAmount) {
             discountAmount = maxDiscountAmount;
         }
 
-        return Math.min(discountAmount, amount);
+        return Math.min(discountAmount, amt);
     }
 
     /**
      * 验证并获取优惠券
      */
     static async validateAndGetCoupons(couponIds, memberId, productId, skuId, quantity) {
+        const ids = Array.isArray(couponIds) ? couponIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
+        if (ids.length === 0) return [];
         const coupons = await Coupon.findAll({
             where: {
-                id: { [Op.in]: couponIds },
+                id: { [Op.in]: ids },
                 status: 'active'
             }
         });
@@ -821,9 +844,11 @@ class PromotionService {
      * 验证并获取促销活动
      */
     static async validateAndGetPromotions(promotionIds, productId, skuId, quantity) {
+        const ids = Array.isArray(promotionIds) ? promotionIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
+        if (ids.length === 0) return [];
         const promotions = await Promotion.findAll({
             where: {
-                id: { [Op.in]: promotionIds },
+                id: { [Op.in]: ids },
                 status: 'active'
             }
         });

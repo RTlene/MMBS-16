@@ -865,13 +865,17 @@ router.post('/products/calculate-price', async (req, res) => {
             });
         }
         const memberId = memberIdRaw != null && memberIdRaw !== '' ? Number(memberIdRaw) : 0;
+        // 归一化为数字数组，避免字符串或单值导致查询/校验异常
+        const norm = (v) => (Array.isArray(v) ? v : (v != null ? [v] : [])).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+        const couponIds = norm(appliedCoupons);
+        const promotionIds = norm(appliedPromotions);
 
         const orderData = { productId, skuId, quantity };
         const finalOrderData = await PromotionService.applyPromotionsToOrder(
             orderData,
             memberId,
-            appliedCoupons,
-            appliedPromotions,
+            couponIds,
+            promotionIds,
             pointUsage
         );
 
