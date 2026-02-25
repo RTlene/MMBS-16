@@ -5,6 +5,24 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// 获取优惠券统计（管理端）
+router.get('/stats', authenticateToken, async (req, res) => {
+    try {
+        const total = await Coupon.count();
+        const active = await Coupon.count({ where: { status: 'active' } });
+        const inactive = await Coupon.count({ where: { status: 'inactive' } });
+        const expired = await Coupon.count({ where: { status: 'expired' } });
+        res.json({
+            code: 0,
+            message: '获取成功',
+            data: { total, active, inactive, expired }
+        });
+    } catch (error) {
+        console.error('获取优惠券统计失败:', error);
+        res.status(500).json({ code: 1, message: '获取优惠券统计失败' });
+    }
+});
+
 // 获取优惠券列表（管理端）
 router.get('/', authenticateToken, async (req, res) => {
     try {
