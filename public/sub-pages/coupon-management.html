@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>优惠券管理</title>
+    <style>
+        .coupon-management-container { padding: 24px; background: #f5f7fa; min-height: 100vh; }
+        .page-header { background: #fff; padding: 24px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .page-title { font-size: 22px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
+        .page-description { color: #64748b; font-size: 14px; line-height: 1.6; }
+        .notice-box { background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 16px; border-radius: 8px; margin-top: 16px; }
+        .notice-box strong { display: block; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="coupon-management-container">
+        <div class="page-header">
+            <h1 class="page-title">优惠券管理</h1>
+            <p class="page-description">管理平台发放的优惠券（创建、编辑、上下架、统计）。</p>
+            <div class="notice-box">
+                <strong>功能说明</strong>
+                管理端接口已就绪：GET/POST/PUT/DELETE <code>/api/coupons</code>（需管理员登录）。本页列表与表单尚未开发，可先用 <code>scripts/seed-marketing-test-data.js</code> 造数，或通过接口/数据库管理优惠券；小程序端支持「我的优惠券」、领取与下单抵扣。
+            </div>
+        </div>
+    </div>
+</body>
+</html>

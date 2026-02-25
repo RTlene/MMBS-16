@@ -97,6 +97,11 @@ const pageInitFunctions = {
         if (window.SystemSettings && window.SystemSettings.init) {
             window.SystemSettings.init();
         }
+    },
+    'coupon-management': () => {
+        if (window.CouponManagement && window.CouponManagement.init) {
+            window.CouponManagement.init();
+        }
     }
 };
 

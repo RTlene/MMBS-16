@@ -22,6 +22,7 @@ const withdrawalRoutes = require('./routes/withdrawal-routes');
 const commissionRoutes = require('./routes/commission-routes');
 const pointMallRoutes = require('./routes/point-mall-routes');
 const promotionRoutes = require('./routes/promotion-routes');
+const couponRoutes = require('./routes/coupon-routes');
 const luckyDrawRoutes = require('./routes/lucky-draw-routes');
 const bannerRoutes = require('./routes/banner-routes');
 const popupRoutes = require('./routes/popup-routes');
@@ -102,6 +103,8 @@ app.use('/api/commission', require('./middleware/auth').authenticateToken, commi
 app.use('/api/point-mall', require('./middleware/auth').authenticateToken, pointMallRoutes);
 // 添加促销活动管理路由
 app.use('/api/promotions', require('./middleware/auth').authenticateToken, promotionRoutes);
+// 添加优惠券管理路由（管理端）
+app.use('/api/coupons', require('./middleware/auth').authenticateToken, couponRoutes);
 // 添加抽奖活动管理路由
 app.use('/api/lucky-draws', require('./middleware/auth').authenticateToken, luckyDrawRoutes);
 // 添加横幅管理路由（内部在各自路由上控制权限）
