@@ -4,6 +4,7 @@ const { Order, Member, Product, ProductSKU, MemberCommissionRecord, DistributorL
 const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const CommissionService = require('../services/commissionService');
+const wechatPayService = require('../services/wechatPayService');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 
@@ -1222,11 +1223,11 @@ router.put('/:id/refund/process', async (req, res) => {
     }
 });
 
-// 完成退款
+// 完成退款（来源为微信支付时自动调用微信退款接口，再标记完成）
 router.put('/:id/refund/complete', async (req, res) => {
     try {
         const { id } = req.params;
-        const { thirdPartyRefundNo } = req.body;
+        const { thirdPartyRefundNo: manualRefundNo } = req.body;
 
         const order = await Order.findByPk(id);
         if (!order) {
@@ -1243,26 +1244,51 @@ router.put('/:id/refund/complete', async (req, res) => {
             });
         }
 
+        let thirdPartyRefundNo = manualRefundNo || null;
+        const totalCents = Math.round(parseFloat(order.totalAmount || 0) * 100);
+        const refundCents = Math.round(parseFloat(order.refundAmount || order.totalAmount || 0) * 100);
+
+        // 来源为微信支付时，先调用微信退款接口再标记完成
+        if (order.paymentMethod === 'wechat' && order.transactionId && wechatPayService.hasPrivateKey()) {
+            try {
+                const outRefundNo = `RF${order.id}-${Date.now()}`;
+                const wxRes = await wechatPayService.createRefund({
+                    outTradeNo: order.orderNo,
+                    outRefundNo,
+                    totalCents,
+                    refundCents,
+                    reason: '用户申请退款'
+                });
+                thirdPartyRefundNo = wxRes.refund_id || thirdPartyRefundNo;
+            } catch (wxErr) {
+                console.error('微信退款失败:', wxErr.message);
+                return res.status(500).json({
+                    code: 1,
+                    message: '微信退款执行失败：' + (wxErr.message || '请稍后重试或手动退款后填写微信退款单号'),
+                    error: wxErr.message
+                });
+            }
+        }
+
         await order.update({
             refundStatus: 'completed',
             refundedAt: new Date(),
             updatedBy: req.user?.id
         });
 
-        // 记录操作日志
         await OrderOperationLog.create({
             orderId: order.id,
             operation: 'refund',
             operatorId: req.user?.id,
             operatorType: 'admin',
-            description: '退款已完成',
+            description: '退款已完成' + (thirdPartyRefundNo ? `，微信退款单号：${thirdPartyRefundNo}` : ''),
             data: { thirdPartyRefundNo }
         });
 
         res.json({
             code: 0,
             message: '退款完成',
-            data: { order }
+            data: { order, thirdPartyRefundNo }
         });
     } catch (error) {
         console.error('完成退款失败:', error);

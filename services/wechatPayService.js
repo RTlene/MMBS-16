@@ -314,6 +314,69 @@ class WeChatPayService {
     }
 
     /**
+     * 申请退款（微信支付 APIv3 国内退款）
+     * @param {Object} params
+     * @param {string} params.outTradeNo - 商户订单号（与支付时一致）
+     * @param {string} params.outRefundNo - 商户退款单号（唯一）
+     * @param {number} params.totalCents - 原订单总金额（单位：分）
+     * @param {number} params.refundCents - 本次退款金额（单位：分）
+     * @param {string} [params.reason] - 退款原因（选填）
+     * @returns {Promise<{ refund_id, out_refund_no, create_time, ... }>} 微信返回的退款单号在 refund_id
+     */
+    async createRefund(params) {
+        const { outTradeNo, outRefundNo, totalCents, refundCents, reason } = params;
+        this.refreshFromEnv();
+        if (!this.privateKey || !this.certSerialNo) {
+            throw new Error('商户证书/私钥未配置，无法发起退款');
+        }
+        const total = Math.round(Number(totalCents));
+        const refund = Math.round(Number(refundCents));
+        if (!outTradeNo || !outRefundNo || total <= 0 || refund <= 0 || refund > total) {
+            throw new Error('退款参数无效：订单号、退款单号、金额（分）必填且 0 < 退款金额 <= 订单金额');
+        }
+
+        const baseUrl = this.getBaseUrl();
+        const urlPath = '/v3/refund/domestic/refunds';
+        const requestBody = {
+            out_trade_no: String(outTradeNo).substring(0, 32),
+            out_refund_no: String(outRefundNo).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32) || 'RF' + Date.now(),
+            amount: {
+                refund,
+                total,
+                currency: 'CNY'
+            }
+        };
+        if (reason && String(reason).trim()) {
+            requestBody.reason = String(reason).trim().substring(0, 80);
+        }
+
+        const bodyStr = JSON.stringify(requestBody);
+        const authHeader = this.generateAuthHeader('POST', urlPath, bodyStr);
+
+        try {
+            const response = await axios.post(baseUrl + urlPath, requestBody, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authHeader,
+                    'Accept': 'application/json',
+                    'User-Agent': 'WeChatPay-APIv3-NodeJS'
+                },
+                timeout: 15000,
+                httpsAgent
+            });
+            const data = response.data;
+            console.log('[WeChatPay] 退款已受理', { out_refund_no: requestBody.out_refund_no, refund_id: data.refund_id });
+            return data;
+        } catch (error) {
+            const wxData = error.response?.data;
+            const code = wxData?.code;
+            const message = wxData?.message || error.message;
+            console.error('[WeChatPay] 退款申请失败:', { code, message, detail: wxData });
+            throw new Error(message || '退款申请失败');
+        }
+    }
+
+    /**
      * 商家转账到零钱（单笔）- 使用升级版接口「发起转账」
      * 商户号接入升级版后需使用 /v3/fund-app/mch-transfer/transfer-bills，并传转账场景 1005（佣金报酬）及报备信息。
      * 收款人以 openid 标识；单笔>=2000元时需传加密的 userName（需配置 Wechatpay-Serial 与公钥），此处仅实现小额不传姓名。

@@ -1201,10 +1201,11 @@
                     <input type="hidden" id="completeRefundOrderId">
                     <div class="mb-3">
                         <label for="thirdPartyRefundNo" class="form-label">第三方退款单号（选填）</label>
-                        <input type="text" class="form-control" id="thirdPartyRefundNo" placeholder="如微信退款单号">
+                        <input type="text" class="form-control" id="thirdPartyRefundNo" placeholder="如微信退款单号（refund_id）">
+                        <small class="text-muted">微信退款单号：订单来源为微信支付时，点击确认后将<strong>自动执行微信退款</strong>，系统会写入微信返回的退款单号；非微信支付或已线下退款的，可在此填写第三方单号以便留档。</small>
                     </div>
                     <div class="alert alert-info mb-0">
-                        <i class="fas fa-info-circle"></i> 确认退款已完成，此操作不可撤销。
+                        <i class="fas fa-info-circle"></i> 确认退款已完成，此操作不可撤销。来源为微信支付的订单将自动调用微信退款接口。
                     </div>
                 </div>
                 <div class="modal-footer">
