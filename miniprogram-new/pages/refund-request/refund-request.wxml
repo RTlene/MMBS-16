@@ -1,20 +1,39 @@
 <view class="refund-request-page">
   <scroll-view class="content" scroll-y>
-    <view class="page-tip">未发货订单可直接退款；已退货通过的订单可在此申请退款。</view>
+    <!-- 说明 -->
+    <view class="page-tip">
+      <text class="tip-title">说明</text>
+      <text class="tip-text">仅未发货或已取消的订单可在此申请退款，商家审核后处理。退货成功由商家统一办理退款，无需再申请；换货不涉及退款。</text>
+    </view>
+
     <!-- 订单信息 -->
-    <view class="order-info" wx:if="{{order}}">
-      <view class="section-title">订单信息</view>
-      <view class="order-card">
-        <text class="order-no">订单号：{{order.orderNo}}</text>
-        <text class="order-amount">订单金额：¥{{formatAmount(order.totalAmount)}}</text>
-        <text class="return-amount">可退金额：¥{{formatAmount(order.returnAmount || order.totalAmount)}}</text>
+    <view class="section order-section" wx:if="{{order}}">
+      <view class="section-head">
+        <text class="section-title">订单信息</text>
+      </view>
+      <view class="section-body order-card">
+        <view class="order-row">
+          <text class="order-label">订单号</text>
+          <text class="order-value">{{order.orderNo}}</text>
+        </view>
+        <view class="order-row">
+          <text class="order-label">订单金额</text>
+          <text class="order-value amount">¥{{formatAmount(order.totalAmount)}}</text>
+        </view>
+        <view class="order-row">
+          <text class="order-label">可退金额</text>
+          <text class="order-value highlight">¥{{formatAmount(order.returnAmount || order.totalAmount)}}</text>
+        </view>
       </view>
     </view>
 
     <!-- 退款金额 -->
-    <view class="amount-section">
-      <view class="section-title">退款金额 <text class="required">*</text></view>
-      <view class="amount-input-wrapper">
+    <view class="section amount-section">
+      <view class="section-head">
+        <text class="section-title">退款金额</text>
+        <text class="required">*</text>
+      </view>
+      <view class="section-body amount-row">
         <text class="amount-symbol">¥</text>
         <input
           class="amount-input"
@@ -23,17 +42,20 @@
           value="{{refundAmount}}"
           bindinput="onInputAmount"
         />
-        <text class="amount-max" wx:if="{{order}}" bindtap="onSetMaxAmount">
-          最大：¥{{formatAmount(order.returnAmount || order.totalAmount)}}
-        </text>
+        <view class="amount-max" bindtap="onSetMaxAmount" wx:if="{{order}}">
+          <text class="amount-max-text">最大 ¥{{formatAmount(order.returnAmount || order.totalAmount)}}</text>
+        </view>
       </view>
     </view>
 
     <!-- 退款方式 -->
-    <view class="method-section">
-      <view class="section-title">退款方式 <text class="required">*</text></view>
-      <view class="method-list">
-        <view 
+    <view class="section method-section">
+      <view class="section-head">
+        <text class="section-title">退款方式</text>
+        <text class="required">*</text>
+      </view>
+      <view class="section-body method-list">
+        <view
           class="method-item {{refundMethod === item.value ? 'active' : ''}}"
           wx:for="{{methods}}"
           wx:key="value"
@@ -47,21 +69,28 @@
     </view>
 
     <!-- 退款原因 -->
-    <view class="reason-section">
-      <view class="section-title">退款原因 <text class="required">*</text></view>
-      <textarea
-        class="reason-input"
-        placeholder="请详细说明退款原因"
-        value="{{reason}}"
-        bindinput="onInputReason"
-        maxlength="500"
-        auto-height
-      />
-      <view class="char-count">{{reason.length}}/500</view>
+    <view class="section reason-section">
+      <view class="section-head">
+        <text class="section-title">退款原因</text>
+        <text class="required">*</text>
+      </view>
+      <view class="section-body">
+        <textarea
+          class="reason-input"
+          placeholder="请详细说明退款原因，便于商家审核"
+          value="{{reason}}"
+          bindinput="onInputReason"
+          maxlength="500"
+          auto-height
+        />
+        <view class="char-count">{{reason.length}}/500</view>
+      </view>
     </view>
+
+    <view class="bottom-spacer"></view>
   </scroll-view>
 
-  <!-- 底部提交按钮 -->
+  <!-- 底部提交 -->
   <view class="bottom-bar">
     <button
       class="submit-btn"
@@ -73,4 +102,3 @@
     </button>
   </view>
 </view>
-

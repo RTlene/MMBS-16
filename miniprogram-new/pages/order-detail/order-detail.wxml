@@ -182,10 +182,10 @@
     >
       申请退货/换货
     </button>
-    <!-- 未发货可退款；已取消/已退货/退货通过后可申请退款 -->
+    <!-- 仅未发货或已取消可申请退款；退货成功由商家处理，不显示此按钮 -->
     <button
       class="action-btn secondary"
-      wx:if="{{((order.status === 'paid' || order.status === 'cancelled' || order.status === 'returned') || order.returnStatus === 'approved') && (!order.refundStatus || order.refundStatus === 'none')}}"
+      wx:if="{{(order.status === 'paid' || order.status === 'cancelled') && (!order.refundStatus || order.refundStatus === 'none')}}"
       bindtap="onRequestRefund"
     >
       申请退款

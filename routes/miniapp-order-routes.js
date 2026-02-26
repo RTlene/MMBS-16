@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, sequelize } = require('../db');
+const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
@@ -1107,12 +1107,12 @@ router.post('/orders/:id/refund', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 规则：未发货(paid)可直接退款；已发货/已收货(shipped/delivered)须先退货，退货通过(returnStatus=approved)后再可申请退款
-        const canRefund = ['paid', 'cancelled', 'returned'].includes(order.status) || order.returnStatus === 'approved';
+        // 仅未发货、已取消可申请退款；退货成功由后台处理退款，无需用户再申请
+        const canRefund = ['paid', 'cancelled'].includes(order.status);
         if (!canRefund) {
             return res.status(400).json({
                 code: 1,
-                message: '当前订单状态不允许申请退款'
+                message: '仅未发货或已取消的订单可申请退款；退货成功由商家处理退款'
             });
         }
 
@@ -1124,13 +1124,26 @@ router.post('/orders/:id/refund', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        const finalRefundAmount = refundAmount || order.returnAmount || order.totalAmount;
+        const finalRefundAmount = parseFloat(refundAmount || order.returnAmount || order.totalAmount);
 
         await order.update({
             refundStatus: 'requested',
-            refundAmount: parseFloat(finalRefundAmount),
+            refundAmount: finalRefundAmount,
             refundMethod,
             updatedBy: member.id
+        });
+
+        // 创建退款记录，供后台「退款管理」列表展示与处理
+        const refundNo = `RF${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+        await RefundRecord.create({
+            refundNo,
+            orderId: order.id,
+            returnRequestId: null,
+            memberId: member.id,
+            amount: finalRefundAmount,
+            method: refundMethod,
+            status: 'pending',
+            reason: reason || '用户申请退款'
         });
 
         // 记录操作日志
@@ -1140,11 +1153,11 @@ router.post('/orders/:id/refund', authenticateMiniappUser, async (req, res) => {
             operatorId: null, // 小程序用户不在 users 表中，设为 null
             operatorType: 'member',
             description: `申请退款，金额：${finalRefundAmount}元（会员ID: ${member.id}）`,
-            data: { 
-                memberId: member.id, // 在 data 中记录会员ID
-                reason, 
-                refundAmount: finalRefundAmount, 
-                refundMethod 
+            data: {
+                memberId: member.id,
+                reason,
+                refundAmount: finalRefundAmount,
+                refundMethod
             }
         });
 
