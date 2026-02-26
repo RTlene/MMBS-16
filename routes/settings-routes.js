@@ -13,7 +13,8 @@ const DEFAULT_SYSTEM = {
     activeMemberCheckMode: 'scheduled',
     activeMemberCheckDays: 30,
     activeMemberCondition: 'lastActiveAt',
-    activeMemberCheckIntervalHours: 24
+    activeMemberCheckIntervalHours: 24,
+    returnAddress: ''
 };
 
 // GET /api/settings/system
@@ -40,7 +41,8 @@ router.put('/system', authenticateToken, async (req, res) => {
             activeMemberCheckMode: body.activeMemberCheckMode !== undefined ? (body.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled') : (current.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled'),
             activeMemberCheckDays: body.activeMemberCheckDays !== undefined ? Math.max(1, parseInt(body.activeMemberCheckDays, 10) || 30) : current.activeMemberCheckDays,
             activeMemberCondition: (body.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt'),
-            activeMemberCheckIntervalHours: body.activeMemberCheckIntervalHours !== undefined ? Math.max(1, Math.min(720, parseInt(body.activeMemberCheckIntervalHours, 10) || 24)) : (current.activeMemberCheckIntervalHours ?? 24)
+            activeMemberCheckIntervalHours: body.activeMemberCheckIntervalHours !== undefined ? Math.max(1, Math.min(720, parseInt(body.activeMemberCheckIntervalHours, 10) || 24)) : (current.activeMemberCheckIntervalHours ?? 24),
+            returnAddress: body.returnAddress !== undefined ? String(body.returnAddress || '').trim() : (current.returnAddress ?? '')
         };
         await configStore.setSection(SECTION, next);
         res.json({ code: 0, message: '保存成功', data: next });

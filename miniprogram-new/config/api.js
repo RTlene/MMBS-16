@@ -79,6 +79,7 @@ const API = {
     DETAIL: '/api/miniapp/orders/:id',          // 订单详情
     UPDATE_STATUS: '/api/miniapp/orders/:id/status', // 更新订单状态
     REQUEST_RETURN: '/api/miniapp/orders/:id/return', // 申请退货
+    RETURN_LOGISTICS: '/api/miniapp/orders/:id/return-logistics', // 提交退货物流
     REQUEST_REFUND: '/api/miniapp/orders/:id/refund', // 申请退款
     STATS: '/api/miniapp/orders/stats',         // 订单统计
   },

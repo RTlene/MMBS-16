@@ -1294,6 +1294,16 @@ const Order = sequelize.define('Order', {
         allowNull: true,
         comment: '退货金额'
     },
+    returnShippingCompany: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        comment: '用户回寄物流公司'
+    },
+    returnTrackingNumber: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        comment: '用户回寄物流单号'
+    },
     refundStatus: {
         type: DataTypes.ENUM('none', 'requested', 'processing', 'completed', 'failed'),
         allowNull: false,

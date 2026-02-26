@@ -197,6 +197,82 @@
   color: #666666;
 }
 
+/* 退货寄回与物流 */
+.return-logistics-section {
+  margin: 24rpx 0;
+}
+
+.return-logistics-card {
+  background-color: #FFF9E6;
+  margin: 0 24rpx;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid #F0E68C;
+}
+
+.return-tip {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 16rpx;
+}
+
+.return-tip .highlight {
+  color: #d4af37;
+  font-weight: 600;
+}
+
+.return-address-block {
+  margin-bottom: 20rpx;
+  font-size: 26rpx;
+  color: #333;
+}
+
+.return-address-label {
+  color: #666;
+}
+
+.return-address-text {
+  display: block;
+  margin-top: 8rpx;
+  word-break: break-all;
+}
+
+.return-logistics-card .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  align-items: center;
+}
+
+.return-logistics-card .form-input {
+  flex: 1;
+  min-width: 160rpx;
+  padding: 16rpx;
+  font-size: 26rpx;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  background: #fff;
+}
+
+.submit-logistics-btn {
+  padding: 16rpx 32rpx;
+  font-size: 26rpx;
+  background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+  color: #333;
+  border-radius: 8rpx;
+}
+
+.logistics-submitted {
+  font-size: 26rpx;
+  color: #666;
+}
+
+.info-value.return-address {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* 订单信息 */
 .info-section {
   margin: 24rpx 0;

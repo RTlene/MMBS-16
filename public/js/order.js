@@ -314,6 +314,16 @@ class OrderManagement {
         if (order.returnStatus === 'requested') {
             buttons += `<button class="btn btn-action btn-warning" onclick="orderManagement.processReturn(${order.id})" title="处理退货"><i class="fas fa-undo"></i> 处理退货</button>`;
         }
+        // 确认退货物流并发起退款（退货已通过，待用户寄回后操作）
+        if (order.returnStatus === 'approved' && order.refundStatus !== 'completed') {
+            buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.confirmReturnRefund(${order.id})" title="确认物流并退款"><i class="fas fa-truck-loading"></i> 确认退款</button>`;
+        }
+
+        // 主动退款（已支付/已发货/已完成且未在退款流程中）
+        const canManualRefund = ['paid', 'shipped', 'delivered', 'completed'].includes(order.status) && order.refundStatus === 'none' && order.returnStatus !== 'requested';
+        if (canManualRefund) {
+            buttons += `<button class="btn btn-action btn-outline-danger" onclick="orderManagement.showManualRefundModal(${order.id}, ${order.totalAmount || 0})" title="主动退款"><i class="fas fa-hand-holding-usd"></i> 主动退款</button>`;
+        }
 
         // 处理退款申请 / 完成退款（集成在订单管理）
         if (order.refundStatus === 'requested') {
@@ -1394,6 +1404,81 @@ class OrderManagement {
         } else {
             el.style.display = 'none';
             el.classList.remove('show');
+        }
+    }
+
+    // 确认退货物流并发起退款
+    async confirmReturnRefund(orderId) {
+        if (!confirm('确认已收到用户回寄货物（或线下已确认）并执行退款？微信支付将自动调用退款接口。')) return;
+        try {
+            const response = await fetch(`/api/orders/${orderId}/return/confirm-refund`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert('退款已完成', 'success');
+                await this.loadOrders();
+            } else {
+                showAlert('操作失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } catch (error) {
+            console.error('确认退货并退款失败:', error);
+            showAlert('操作失败', 'error');
+        }
+    }
+
+    // 主动退款弹窗
+    showManualRefundModal(orderId, totalAmount) {
+        this.pendingManualRefundOrderId = orderId;
+        const amountEl = document.getElementById('manualRefundAmount');
+        const reasonEl = document.getElementById('manualRefundReason');
+        if (amountEl) amountEl.value = totalAmount || '';
+        if (reasonEl) reasonEl.value = '';
+        const el = document.getElementById('manualRefundModal');
+        if (el) {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                this._manualRefundModal = this._manualRefundModal || new bootstrap.Modal(el);
+                this._manualRefundModal.show();
+            } else {
+                el.style.display = 'flex';
+                el.classList.add('show');
+            }
+        }
+    }
+
+    closeManualRefundModal() {
+        this.pendingManualRefundOrderId = null;
+        const el = document.getElementById('manualRefundModal');
+        if (this._manualRefundModal) this._manualRefundModal.hide();
+        else if (el) { el.style.display = 'none'; el.classList.remove('show'); }
+    }
+
+    async confirmManualRefund() {
+        const orderId = this.pendingManualRefundOrderId;
+        const amount = parseFloat(document.getElementById('manualRefundAmount')?.value);
+        const reason = document.getElementById('manualRefundReason')?.value?.trim() || '管理员主动退款';
+        if (!orderId || isNaN(amount) || amount <= 0) {
+            showAlert('请填写有效退款金额', 'error');
+            return;
+        }
+        try {
+            const response = await fetch(`/api/orders/${orderId}/refund`, {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refundAmount: amount, reason, refundMethod: 'original' })
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert('退款申请已提交，请在列表中点击「处理退款」再「完成退款」完成流程', 'success');
+                this.closeManualRefundModal();
+                await this.loadOrders();
+            } else {
+                showAlert('提交失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } catch (error) {
+            console.error('主动退款失败:', error);
+            showAlert('提交失败', 'error');
         }
     }
 

@@ -2,6 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
+const configStore = require('../services/configStore');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
 // 尝试加载 PromotionService，如果失败则设为 null
@@ -475,7 +476,13 @@ router.get('/orders', authenticateMiniappUser, async (req, res) => {
 
         // 状态筛选
         if (status) {
-            if (status === 'unused') {
+            if (status === 'aftersale') {
+                // 售后：有退货或退款记录的订单
+                where[Op.or] = [
+                    { returnStatus: { [Op.ne]: 'none' } },
+                    { refundStatus: { [Op.ne]: 'none' } }
+                ];
+            } else if (status === 'unused') {
                 // 待使用：已支付的服务商品订单，且有未使用的核销码
                 where.status = 'paid';
                 // 这个筛选会在后续处理中进一步过滤
@@ -800,6 +807,8 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             returnStatusText: getReturnStatusText(order.returnStatus),
             returnReason: order.returnReason,
             returnAmount: order.returnAmount,
+            returnShippingCompany: order.returnShippingCompany,
+            returnTrackingNumber: order.returnTrackingNumber,
             refundStatus: order.refundStatus,
             refundStatusText: getRefundStatusText(order.refundStatus),
             refundAmount: order.refundAmount,
@@ -819,6 +828,12 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
                 data: log.data
             }))
         };
+
+        // 退货已通过时返回平台退货地址，供用户邮寄
+        if (order.returnStatus === 'approved') {
+            const systemSettings = configStore.getSection('system') || {};
+            orderDetail.returnAddress = systemSettings.returnAddress || '';
+        }
 
         res.json({
             code: 0,
@@ -1081,6 +1096,50 @@ router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
             message: '申请退货失败',
             error: error.message
         });
+    }
+});
+
+// 提交退货物流信息（用户回寄后填写，退货已通过时可用）
+router.put('/orders/:id/return-logistics', authenticateMiniappUser, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { returnShippingCompany, returnTrackingNumber } = req.body || {};
+        const member = req.member;
+
+        const order = await Order.findByPk(id);
+        if (!order) {
+            return res.status(404).json({ code: 1, message: '订单不存在' });
+        }
+        if (order.memberId !== member.id) {
+            return res.status(403).json({ code: 1, message: '无权操作此订单' });
+        }
+        if (order.returnStatus !== 'approved') {
+            return res.status(400).json({ code: 1, message: '仅退货已通过的订单可填写回寄物流' });
+        }
+        if (order.refundStatus === 'completed' || order.status === 'refunded') {
+            return res.status(400).json({ code: 1, message: '该订单已退款完成' });
+        }
+
+        const company = (returnShippingCompany && String(returnShippingCompany).trim()) || null;
+        const tracking = (returnTrackingNumber && String(returnTrackingNumber).trim()) || null;
+        if (!company || !tracking) {
+            return res.status(400).json({ code: 1, message: '请填写物流公司和物流单号' });
+        }
+
+        await order.update({
+            returnShippingCompany: company,
+            returnTrackingNumber: tracking,
+            updatedBy: member.id
+        });
+
+        res.json({
+            code: 0,
+            message: '退货物流信息已提交',
+            data: { order: { id: order.id, returnShippingCompany: order.returnShippingCompany, returnTrackingNumber: order.returnTrackingNumber } }
+        });
+    } catch (error) {
+        console.error('提交退货物流失败:', error);
+        res.status(500).json({ code: 1, message: '提交失败', error: error.message });
     }
 });
 

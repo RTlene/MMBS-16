@@ -1109,6 +1109,91 @@ router.put('/:id/return/process', async (req, res) => {
     }
 });
 
+// 确认退货物流并发起退款（审核通过后，用户可填写回寄物流，后台确认后执行退款并更新订单状态）
+router.put('/:id/return/confirm-refund', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const order = await Order.findByPk(id);
+        if (!order) {
+            return res.status(404).json({
+                code: 1,
+                message: '订单不存在'
+            });
+        }
+
+        if (order.returnStatus !== 'approved') {
+            return res.status(400).json({
+                code: 1,
+                message: '仅对已通过退货申请的订单可确认并发起退款'
+            });
+        }
+
+        if (order.refundStatus === 'completed' || order.status === 'refunded') {
+            return res.status(400).json({
+                code: 1,
+                message: '该订单已退款完成'
+            });
+        }
+
+        const totalCents = Math.round(parseFloat(order.totalAmount || 0) * 100);
+        const refundCents = Math.round(parseFloat(order.returnAmount || order.totalAmount || 0) * 100);
+        let thirdPartyRefundNo = null;
+
+        if (order.paymentMethod === 'wechat' && order.transactionId && wechatPayService.hasPrivateKey()) {
+            try {
+                const outRefundNo = `RF${order.id}-${Date.now()}`;
+                const wxRes = await wechatPayService.createRefund({
+                    outTradeNo: order.orderNo,
+                    outRefundNo,
+                    totalCents,
+                    refundCents,
+                    reason: '用户退货退款'
+                });
+                thirdPartyRefundNo = wxRes.refund_id || null;
+            } catch (wxErr) {
+                console.error('微信退款失败:', wxErr.message);
+                return res.status(500).json({
+                    code: 1,
+                    message: '微信退款执行失败：' + (wxErr.message || '请稍后重试或线下退款'),
+                    error: wxErr.message
+                });
+            }
+        }
+
+        await order.update({
+            status: 'refunded',
+            returnStatus: 'returned',
+            refundStatus: 'completed',
+            refundAmount: order.returnAmount || order.totalAmount,
+            refundedAt: new Date(),
+            updatedBy: req.user?.id
+        });
+
+        await OrderOperationLog.create({
+            orderId: order.id,
+            operation: 'refund',
+            operatorId: req.user?.id,
+            operatorType: 'admin',
+            description: '确认退货物流并发起退款完成' + (thirdPartyRefundNo ? `，微信退款单号：${thirdPartyRefundNo}` : ''),
+            data: { thirdPartyRefundNo, returnShippingCompany: order.returnShippingCompany, returnTrackingNumber: order.returnTrackingNumber }
+        });
+
+        res.json({
+            code: 0,
+            message: '退款已完成',
+            data: { order, thirdPartyRefundNo }
+        });
+    } catch (error) {
+        console.error('确认退货并退款失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: '确认退货并退款失败',
+            error: error.message
+        });
+    }
+});
+
 // 申请退款
 router.post('/:id/refund', async (req, res) => {
     try {
@@ -1123,10 +1208,14 @@ router.post('/:id/refund', async (req, res) => {
             });
         }
 
-        if (!['cancelled', 'returned'].includes(order.status) && order.returnStatus !== 'approved') {
+        // 会员：仅已取消/已退货/退货已通过可申请；管理员：已支付/已发货/已收货/已完成也可主动发起退款
+        const isAdmin = !!req.user;
+        const memberCanRefund = ['cancelled', 'returned'].includes(order.status) || order.returnStatus === 'approved';
+        const adminCanRefund = ['paid', 'shipped', 'delivered', 'completed'].includes(order.status);
+        if (!memberCanRefund && !(isAdmin && adminCanRefund)) {
             return res.status(400).json({
                 code: 1,
-                message: '只有已取消、已退货或退货已通过的订单才能申请退款'
+                message: isAdmin ? '该订单状态不允许发起退款' : '只有已取消、已退货或退货已通过的订单才能申请退款'
             });
         }
 

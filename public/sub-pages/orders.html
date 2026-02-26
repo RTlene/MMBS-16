@@ -146,16 +146,17 @@
             font-size: 12px;
         }
 
-        /* 订单操作列：查看详情与发货/退款/删除等统一尺寸，适中不臃肿 */
+        /* 订单操作列：两行排列，按钮再小一号 */
         .order-actions-cell {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            max-width: 140px;
         }
         .btn-action {
-            padding: 5px 8px;
-            font-size: 12px;
+            padding: 3px 6px;
+            font-size: 11px;
             white-space: nowrap;
         }
         .btn-action i {
@@ -174,6 +175,10 @@
         /* 订单管理弹窗统一样式：居中、内边距、圆角、表单项间距 */
         .order-modal .modal-dialog {
             max-width: 480px;
+        }
+        /* 订单详情弹窗加宽 */
+        #orderDetailModal .modal-dialog {
+            max-width: min(96vw, 1100px);
         }
         .order-modal .modal-content {
             border-radius: 12px;
@@ -1164,6 +1169,9 @@
                     <button type="button" class="btn-close" onclick="if(window.orderManagement) orderManagement.closeProcessReturnModal();"></button>
                 </div>
                 <div class="modal-body">
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle"></i> 请提醒用户将退换货物<strong>自行邮寄至平台</strong>，并在小程序中填写退货物流信息。后台确认收到物流后，再点击「确认物流并发起退款」完成退款。
+                    </div>
                     <form id="processReturnForm">
                         <input type="hidden" id="processReturnOrderId">
                         <div class="mb-3">
@@ -1226,6 +1234,33 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="if(window.orderManagement) orderManagement.closeProcessRefundModal();">取消</button>
                     <button type="button" class="btn btn-primary" onclick="if(window.orderManagement) orderManagement.confirmProcessRefund();">确认处理</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主动退款 -->
+    <div class="modal fade order-modal" id="manualRefundModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">主动退款</h5>
+                    <button type="button" class="btn-close" onclick="if(window.orderManagement) orderManagement.closeManualRefundModal();"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="manualRefundAmount" class="form-label">退款金额 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="manualRefundAmount" step="0.01" min="0.01" placeholder="请输入退款金额">
+                    </div>
+                    <div class="mb-3">
+                        <label for="manualRefundReason" class="form-label">退款原因（选填）</label>
+                        <input type="text" class="form-control" id="manualRefundReason" placeholder="如：管理员主动退款">
+                    </div>
+                    <p class="text-muted small mb-0">提交后将生成退款申请，请再在列表中点击「处理退款」→「完成退款」执行实际退款。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="if(window.orderManagement) orderManagement.closeManualRefundModal();">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="if(window.orderManagement) orderManagement.confirmManualRefund();">提交退款申请</button>
                 </div>
             </div>
         </div>

@@ -14,7 +14,10 @@ Page({
     loading: true,
     error: null,
     from: '', // 来源：create-创建订单后跳转
-    verificationCodes: [] // 核销码列表
+    verificationCodes: [], // 核销码列表
+    returnShippingCompany: '',
+    returnTrackingNumber: '',
+    submittingLogistics: false
   },
 
   onLoad(options) {
@@ -462,6 +465,43 @@ Page({
     wx.navigateTo({
       url: `/pages/refund-request/refund-request?orderId=${order.id}`
     });
+  },
+
+  onReturnShippingCompanyInput(e) {
+    this.setData({ returnShippingCompany: (e.detail && e.detail.value) || '' });
+  },
+
+  onReturnTrackingNumberInput(e) {
+    this.setData({ returnTrackingNumber: (e.detail && e.detail.value) || '' });
+  },
+
+  /**
+   * 提交退货回寄物流
+   */
+  async onSubmitReturnLogistics() {
+    const { order, returnShippingCompany, returnTrackingNumber } = this.data;
+    if (!order || order.returnStatus !== 'approved') return;
+    const company = (returnShippingCompany && String(returnShippingCompany).trim()) || '';
+    const tracking = (returnTrackingNumber && String(returnTrackingNumber).trim()) || '';
+    if (!company || !tracking) {
+      wx.showToast({ title: '请填写物流公司和物流单号', icon: 'none' });
+      return;
+    }
+    this.setData({ submittingLogistics: true });
+    try {
+      const url = API.ORDER.RETURN_LOGISTICS.replace(':id', order.id);
+      const result = await request.put(url, { returnShippingCompany: company, returnTrackingNumber: tracking }, { needAuth: true });
+      if (result.code === 0) {
+        wx.showToast({ title: '已提交', icon: 'success' });
+        this.loadOrderDetail();
+      } else {
+        wx.showToast({ title: result.message || '提交失败', icon: 'none' });
+      }
+    } catch (err) {
+      wx.showToast({ title: err.message || '提交失败', icon: 'none' });
+    } finally {
+      this.setData({ submittingLogistics: false });
+    }
   },
 
   /**

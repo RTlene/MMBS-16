@@ -27,7 +27,8 @@ Page({
       { key: 'paid', label: '待发货' },
       { key: 'unused', label: '待使用' }, // 服务商品待使用
       { key: 'shipped', label: '待收货' },
-      { key: 'completed', label: '已完成' }
+      { key: 'completed', label: '已完成' },
+      { key: 'aftersale', label: '售后' }
     ],
     
     // 空状态

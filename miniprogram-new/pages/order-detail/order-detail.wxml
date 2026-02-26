@@ -107,6 +107,26 @@
       </view>
     </view>
 
+    <!-- 退货已通过：提示邮寄并填写回寄物流 -->
+    <view class="return-logistics-section" wx:if="{{order.returnStatus === 'approved' && order.refundStatus !== 'completed'}}">
+      <view class="section-title">退货寄回</view>
+      <view class="return-logistics-card">
+        <view class="return-tip">请将退换货物<text class="highlight">自行邮寄至平台</text>。寄出后请填写下方回寄物流信息，平台确认收货后将为您退款。</view>
+        <view class="return-address-block" wx:if="{{order.returnAddress}}">
+          <text class="return-address-label">平台退货地址：</text>
+          <text class="return-address-text">{{order.returnAddress}}</text>
+        </view>
+        <view class="form-row" wx:if="{{!order.returnTrackingNumber}}">
+          <input class="form-input" placeholder="物流公司" value="{{returnShippingCompany}}" bindinput="onReturnShippingCompanyInput" />
+          <input class="form-input" placeholder="物流单号" value="{{returnTrackingNumber}}" bindinput="onReturnTrackingNumberInput" />
+          <button class="submit-logistics-btn" bindtap="onSubmitReturnLogistics" loading="{{submittingLogistics}}">提交物流</button>
+        </view>
+        <view class="logistics-submitted" wx:else>
+          <text>已填写回寄物流：{{order.returnShippingCompany}} {{order.returnTrackingNumber}}</text>
+        </view>
+      </view>
+    </view>
+
     <!-- 订单信息 -->
     <view class="info-section">
       <view class="section-title">订单信息</view>
@@ -130,6 +150,10 @@
         <view class="info-row" wx:if="{{order.refundStatusText && order.refundStatus !== 'none'}}">
           <text class="info-label">退款状态</text>
           <text class="info-value">{{order.refundStatusText}}</text>
+        </view>
+        <view class="info-row" wx:if="{{order.returnStatus === 'approved' && order.returnAddress}}">
+          <text class="info-label">退货寄回地址</text>
+          <text class="info-value return-address">{{order.returnAddress}}</text>
         </view>
         <view class="info-row" wx:if="{{order.shippingCompany || order.trackingNumber}}">
           <text class="info-label">物流信息</text>
