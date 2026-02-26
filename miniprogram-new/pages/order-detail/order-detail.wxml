@@ -179,7 +179,7 @@
     </button>
     <button
       class="action-btn secondary"
-      wx:if="{{((order.status === 'cancelled' || order.status === 'returned') || order.returnStatus === 'approved') && (!order.refundStatus || order.refundStatus === 'none')}}"
+      wx:if="{{((order.status === 'paid' || order.status === 'cancelled' || order.status === 'returned') || order.returnStatus === 'approved') && (!order.refundStatus || order.refundStatus === 'none')}}"
       bindtap="onRequestRefund"
     >
       申请退款

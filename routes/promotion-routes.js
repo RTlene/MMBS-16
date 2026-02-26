@@ -6,13 +6,36 @@ const PromotionRulesService = require('../services/promotionRulesService');
 
 const router = express.Router();
 
+// 云环境常见 ECONNRESET：数据库连接被重置时自动重试
+const DB_RETRY_CODES = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST'];
+function isDbConnectionError(err) {
+    const code = err && (err.code || (err.original && err.original.code));
+    return DB_RETRY_CODES.includes(code) || (err.original && err.original.errno === -104);
+}
+async function withDbRetry(fn, maxAttempts = 3) {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastErr = err;
+            if (attempt < maxAttempts && err.name === 'SequelizeDatabaseError' && isDbConnectionError(err)) {
+                await new Promise(r => setTimeout(r, 100 * attempt));
+                continue;
+            }
+            throw err;
+        }
+    }
+    throw lastErr;
+}
+
 // 获取促销活动统计
 router.get('/stats', authenticateToken, async (req, res) => {
     try {
-        const total = await Promotion.count();
-        const active = await Promotion.count({ where: { status: 'active' } });
-        const draft = await Promotion.count({ where: { status: 'draft' } });
-        const ended = await Promotion.count({ where: { status: 'ended' } });
+        const total = await withDbRetry(() => Promotion.count());
+        const active = await withDbRetry(() => Promotion.count({ where: { status: 'active' } }));
+        const draft = await withDbRetry(() => Promotion.count({ where: { status: 'draft' } }));
+        const ended = await withDbRetry(() => Promotion.count({ where: { status: 'ended' } }));
 
         res.json({
             code: 0,
@@ -65,12 +88,12 @@ router.get('/', authenticateToken, async (req, res) => {
             where.status = status;
         }
 
-        const { count, rows } = await Promotion.findAndCountAll({
+        const { count, rows } = await withDbRetry(() => Promotion.findAndCountAll({
             where,
             limit: parseInt(limit),
             offset: parseInt(offset),
             order: [[sortBy, sortOrder.toUpperCase()]]
-        });
+        }));
 
         if (req.query._listDebug === '1') {
             console.log('[GET /api/promotions] total=', count, 'rows=', rows.length, 'ids=', rows.map(r => r.id));
@@ -99,7 +122,7 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const promotion = await Promotion.findByPk(id);
+        const promotion = await withDbRetry(() => Promotion.findByPk(id));
 
         if (!promotion) {
             return res.status(404).json({
@@ -157,7 +180,7 @@ router.post('/', authenticateToken, async (req, res) => {
             }
         }
 
-        const promotion = await Promotion.create({
+        const promotion = await withDbRetry(() => Promotion.create({
             name: promotionData.name,
             type: promotionData.type,
             description: promotionData.description || '',
@@ -165,7 +188,7 @@ router.post('/', authenticateToken, async (req, res) => {
             endTime: endTime,
             status: promotionData.status || 'draft',
             rules: promotionData.rules || {}
-        });
+        }));
 
         res.json({
             code: 0,
@@ -187,7 +210,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const { id } = req.params;
         const promotionData = req.body;
 
-        const promotion = await Promotion.findByPk(id);
+        const promotion = await withDbRetry(() => Promotion.findByPk(id));
         if (!promotion) {
             return res.status(404).json({
                 code: 1,
@@ -228,7 +251,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
 
         // 更新促销活动
-        await promotion.update({
+        await withDbRetry(() => promotion.update({
             name: promotionData.name || promotion.name,
             type: promotionData.type || promotion.type,
             description: promotionData.description !== undefined ? promotionData.description : promotion.description,
@@ -236,7 +259,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             endTime: promotionData.endTime ? new Date(promotionData.endTime) : promotion.endTime,
             status: promotionData.status || promotion.status,
             rules: promotionData.rules !== undefined ? promotionData.rules : promotion.rules
-        });
+        }));
 
         res.json({
             code: 0,
@@ -258,7 +281,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
 
-        const promotion = await Promotion.findByPk(id);
+        const promotion = await withDbRetry(() => Promotion.findByPk(id));
         if (!promotion) {
             return res.status(404).json({
                 code: 1,
@@ -298,7 +321,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
             }
         }
 
-        await promotion.update({ status });
+        await withDbRetry(() => promotion.update({ status }));
 
         res.json({
             code: 0,
@@ -319,7 +342,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
 
-        const promotion = await Promotion.findByPk(id);
+        const promotion = await withDbRetry(() => Promotion.findByPk(id));
         if (!promotion) {
             return res.status(404).json({
                 code: 1,
@@ -335,7 +358,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             });
         }
 
-        await promotion.destroy();
+        await withDbRetry(() => promotion.destroy());
 
         res.json({
             code: 0,

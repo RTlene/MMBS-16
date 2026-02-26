@@ -1107,11 +1107,12 @@ router.post('/orders/:id/refund', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 检查订单状态
-        if (!['cancelled', 'returned'].includes(order.status) && order.returnStatus !== 'approved') {
+        // 检查订单状态：已支付(未发货)、已取消、已退货、退货已通过 均可申请退款
+        const canRefund = ['paid', 'cancelled', 'returned'].includes(order.status) || order.returnStatus === 'approved';
+        if (!canRefund) {
             return res.status(400).json({
                 code: 1,
-                message: '只有已取消、已退货或退货已通过的订单才能申请退款'
+                message: '当前订单状态不允许申请退款'
             });
         }
 

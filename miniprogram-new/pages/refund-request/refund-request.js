@@ -53,13 +53,13 @@ Page({
       if (res.code === 0 && res.data && res.data.order) {
         const order = res.data.order;
         
-        // 检查订单状态
-        const canRefund = ['cancelled', 'returned'].includes(order.status) || 
+        // 检查订单状态：已支付(未发货)、已取消、已退货、退货已通过 均可申请退款
+        const canRefund = ['paid', 'cancelled', 'returned'].includes(order.status) ||
                           (order.returnStatus === 'approved');
-        
+
         if (!canRefund) {
           wx.showToast({
-            title: '只有已取消、已退货或退货已通过的订单才能申请退款',
+            title: '当前订单状态不允许申请退款',
             icon: 'none'
           });
           setTimeout(() => {

@@ -27,7 +27,7 @@
     "pages/daan-membership/daan-membership"
   ],
   "window": {
-    "navigationBarTextStyle": "white",
+    "navigationBarTextStyle": "black",
     "navigationBarTitleText": "MMBS商城",
     "navigationBarBackgroundColor": "#FFFFFF",
     "backgroundColor": "#F5F7FA",

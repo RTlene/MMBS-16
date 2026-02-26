@@ -5,13 +5,36 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// 云环境常见 ECONNRESET：数据库连接被重置时自动重试
+const DB_RETRY_CODES = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST'];
+function isDbConnectionError(err) {
+    const code = err && (err.code || (err.original && err.original.code));
+    return DB_RETRY_CODES.includes(code) || (err.original && err.original.errno === -104);
+}
+async function withDbRetry(fn, maxAttempts = 3) {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastErr = err;
+            if (attempt < maxAttempts && err.name === 'SequelizeDatabaseError' && isDbConnectionError(err)) {
+                await new Promise(r => setTimeout(r, 100 * attempt));
+                continue;
+            }
+            throw err;
+        }
+    }
+    throw lastErr;
+}
+
 // 获取优惠券统计（管理端）
 router.get('/stats', authenticateToken, async (req, res) => {
     try {
-        const total = await Coupon.count();
-        const active = await Coupon.count({ where: { status: 'active' } });
-        const inactive = await Coupon.count({ where: { status: 'inactive' } });
-        const expired = await Coupon.count({ where: { status: 'expired' } });
+        const total = await withDbRetry(() => Coupon.count());
+        const active = await withDbRetry(() => Coupon.count({ where: { status: 'active' } }));
+        const inactive = await withDbRetry(() => Coupon.count({ where: { status: 'inactive' } }));
+        const expired = await withDbRetry(() => Coupon.count({ where: { status: 'expired' } }));
         res.json({
             code: 0,
             message: '获取成功',
@@ -48,12 +71,12 @@ router.get('/', authenticateToken, async (req, res) => {
         if (status) where.status = status;
         if (type) where.type = type;
 
-        const { count, rows } = await Coupon.findAndCountAll({
+        const { count, rows } = await withDbRetry(() => Coupon.findAndCountAll({
             where,
             limit: parseInt(limit),
             offset,
             order: [[sortBy, sortOrder.toUpperCase()]]
-        });
+        }));
 
         res.json({
             code: 0,
@@ -74,7 +97,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // 获取单个优惠券（管理端）
 router.get('/:id', authenticateToken, async (req, res) => {
     try {
-        const coupon = await Coupon.findByPk(req.params.id);
+        const coupon = await withDbRetry(() => Coupon.findByPk(req.params.id));
         if (!coupon) {
             return res.status(404).json({ code: 1, message: '优惠券不存在' });
         }
@@ -98,7 +121,7 @@ router.post('/', authenticateToken, async (req, res) => {
             });
         }
 
-        const existing = await Coupon.findOne({ where: { code: body.code.trim() } });
+        const existing = await withDbRetry(() => Coupon.findOne({ where: { code: body.code.trim() } }));
         if (existing) {
             return res.status(400).json({ code: 1, message: '优惠券代码已存在' });
         }
@@ -109,7 +132,7 @@ router.post('/', authenticateToken, async (req, res) => {
             return res.status(400).json({ code: 1, message: '有效期结束时间必须晚于开始时间' });
         }
 
-        const coupon = await Coupon.create({
+        const coupon = await withDbRetry(() => Coupon.create({
             name: body.name,
             code: String(body.code).trim(),
             type: body.type,
@@ -135,7 +158,7 @@ router.post('/', authenticateToken, async (req, res) => {
             fullDiscountRules: body.fullDiscountRules || null,
             createdBy: userId,
             updatedBy: userId
-        });
+        }));
 
         res.json({ code: 0, message: '创建成功', data: coupon });
     } catch (error) {
@@ -147,7 +170,7 @@ router.post('/', authenticateToken, async (req, res) => {
 // 更新优惠券（管理端）
 router.put('/:id', authenticateToken, async (req, res) => {
     try {
-        const coupon = await Coupon.findByPk(req.params.id);
+        const coupon = await withDbRetry(() => Coupon.findByPk(req.params.id));
         if (!coupon) {
             return res.status(404).json({ code: 1, message: '优惠券不存在' });
         }
@@ -156,7 +179,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const userId = req.user.id;
 
         if (body.code && body.code !== coupon.code) {
-            const existing = await Coupon.findOne({ where: { code: String(body.code).trim() } });
+            const existing = await withDbRetry(() => Coupon.findOne({ where: { code: String(body.code).trim() } }));
             if (existing) {
                 return res.status(400).json({ code: 1, message: '优惠券代码已存在' });
             }
@@ -185,7 +208,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         if (body.fullDiscountRules !== undefined) coupon.fullDiscountRules = body.fullDiscountRules;
         coupon.updatedBy = userId;
 
-        await coupon.save();
+        await withDbRetry(() => coupon.save());
         res.json({ code: 0, message: '更新成功', data: coupon });
     } catch (error) {
         console.error('更新优惠券失败:', error);
@@ -196,11 +219,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
 // 删除优惠券（管理端）
 router.delete('/:id', authenticateToken, async (req, res) => {
     try {
-        const coupon = await Coupon.findByPk(req.params.id);
+        const coupon = await withDbRetry(() => Coupon.findByPk(req.params.id));
         if (!coupon) {
             return res.status(404).json({ code: 1, message: '优惠券不存在' });
         }
-        await coupon.destroy();
+        await withDbRetry(() => coupon.destroy());
         res.json({ code: 0, message: '删除成功' });
     } catch (error) {
         console.error('删除优惠券失败:', error);
