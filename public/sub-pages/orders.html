@@ -171,6 +171,56 @@
             color: white;
         }
 
+        /* 订单管理弹窗统一样式：居中、内边距、圆角、表单项间距 */
+        .order-modal .modal-dialog {
+            max-width: 480px;
+        }
+        .order-modal .modal-content {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        }
+        .order-modal .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            background: #fafafa;
+            border-radius: 12px 12px 0 0;
+        }
+        .order-modal .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        .order-modal .modal-body {
+            padding: 20px;
+        }
+        .order-modal .modal-body .mb-3 {
+            margin-bottom: 16px;
+        }
+        .order-modal .modal-body .form-label {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .order-modal .modal-body .form-control {
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .order-modal .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding: 16px 20px;
+            border-top: 1px solid #f0f0f0;
+            gap: 10px;
+        }
+        .order-modal .modal-footer .btn {
+            min-width: 80px;
+        }
+        .order-modal .alert-info {
+            border-radius: 8px;
+            padding: 12px 14px;
+        }
+
         .table-section {
             overflow-x: auto;
         }
@@ -1106,56 +1156,48 @@
     </div>
 
     <!-- 退货处理模态框 -->
-    <div class="modal fade" id="processReturnModal" tabindex="-1">
-        <div class="modal-dialog">
+    <div class="modal fade order-modal" id="processReturnModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">处理退货申请</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" onclick="if(window.orderManagement) orderManagement.closeProcessReturnModal();"></button>
                 </div>
                 <div class="modal-body">
                     <form id="processReturnForm">
                         <input type="hidden" id="processReturnOrderId">
-                        <input type="hidden" id="processReturnAction">
-                        
                         <div class="mb-3">
                             <label class="form-label">处理结果</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="returnAction" id="approveReturn" value="approve">
-                                <label class="form-check-label" for="approveReturn">
-                                    通过退货申请
-                                </label>
+                                <label class="form-check-label" for="approveReturn">通过退货申请</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="returnAction" id="rejectReturn" value="reject">
-                                <label class="form-check-label" for="rejectReturn">
-                                    拒绝退货申请
-                                </label>
+                                <label class="form-check-label" for="rejectReturn">拒绝退货申请</label>
                             </div>
                         </div>
-                        
                         <div class="mb-3" id="returnAmountSection" style="display: none;">
                             <label for="returnAmount" class="form-label">退货金额</label>
-                            <input type="number" class="form-control" id="returnAmount" step="0.01" min="0">
+                            <input type="number" class="form-control" id="returnAmount" step="0.01" min="0" placeholder="通过时必填">
                         </div>
-                        
                         <div class="mb-3">
                             <label for="adminRemark" class="form-label">处理备注</label>
-                            <textarea class="form-control" id="adminRemark" rows="3"></textarea>
+                            <textarea class="form-control" id="adminRemark" rows="3" placeholder="选填"></textarea>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" onclick="confirmProcessReturn()">确认处理</button>
+                    <button type="button" class="btn btn-secondary" onclick="if(window.orderManagement) orderManagement.closeProcessReturnModal();">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="if(window.orderManagement) orderManagement.confirmProcessReturn();">确认处理</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- 处理退款申请 -->
-    <div class="modal fade" id="processRefundModal" tabindex="-1">
-        <div class="modal-dialog">
+    <div class="modal fade order-modal" id="processRefundModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">处理退款申请</h5>
@@ -1190,8 +1232,8 @@
     </div>
 
     <!-- 完成退款 -->
-    <div class="modal fade" id="completeRefundModal" tabindex="-1">
-        <div class="modal-dialog">
+    <div class="modal fade order-modal" id="completeRefundModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">完成退款</h5>
@@ -1217,8 +1259,8 @@
     </div>
 
     <!-- 删除订单（需密码验证） -->
-    <div class="modal fade" id="deleteOrderModal" tabindex="-1">
-        <div class="modal-dialog">
+    <div class="modal fade order-modal" id="deleteOrderModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">删除订单</h5>

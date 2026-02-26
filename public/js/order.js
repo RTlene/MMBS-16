@@ -1373,14 +1373,27 @@ class OrderManagement {
     }
 
     // 处理退货
-    async processReturn(orderId) {
+    processReturn(orderId) {
         document.getElementById('processReturnOrderId').value = orderId;
         const el = document.getElementById('processReturnModal');
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            new bootstrap.Modal(el).show();
+            this._processReturnModal = this._processReturnModal || new bootstrap.Modal(el);
+            this._processReturnModal.show();
         } else {
             el.style.display = 'flex';
             el.classList.add('show');
+        }
+    }
+
+    closeProcessReturnModal() {
+        const el = document.getElementById('processReturnModal');
+        if (this._processReturnModal) {
+            this._processReturnModal.hide();
+        } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal && bootstrap.Modal.getInstance(el)) {
+            bootstrap.Modal.getInstance(el).hide();
+        } else {
+            el.style.display = 'none';
+            el.classList.remove('show');
         }
     }
 
@@ -1527,7 +1540,7 @@ class OrderManagement {
             
             if (result.code === 0) {
                 showAlert('退货处理成功', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('processReturnModal')).hide();
+                this.closeProcessReturnModal();
                 this.loadOrders();
             } else {
                 showAlert('退货处理失败: ' + result.message, 'error');
