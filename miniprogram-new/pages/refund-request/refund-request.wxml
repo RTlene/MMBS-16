@@ -1,5 +1,6 @@
 <view class="refund-request-page">
   <scroll-view class="content" scroll-y>
+    <view class="page-tip">未发货订单可直接退款；已退货通过的订单可在此申请退款。</view>
     <!-- 订单信息 -->
     <view class="order-info" wx:if="{{order}}">
       <view class="section-title">订单信息</view>

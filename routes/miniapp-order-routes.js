@@ -1107,7 +1107,7 @@ router.post('/orders/:id/refund', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 检查订单状态：已支付(未发货)、已取消、已退货、退货已通过 均可申请退款
+        // 规则：未发货(paid)可直接退款；已发货/已收货(shipped/delivered)须先退货，退货通过(returnStatus=approved)后再可申请退款
         const canRefund = ['paid', 'cancelled', 'returned'].includes(order.status) || order.returnStatus === 'approved';
         if (!canRefund) {
             return res.status(400).json({

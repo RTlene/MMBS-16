@@ -8,6 +8,15 @@
   height: calc(100vh - 120rpx);
 }
 
+.page-tip {
+  font-size: 26rpx;
+  color: #666;
+  padding: 20rpx 30rpx;
+  background-color: #f0f8ff;
+  margin: 0 20rpx 20rpx;
+  border-radius: 8rpx;
+}
+
 .section-title {
   font-size: 32rpx;
   font-weight: bold;

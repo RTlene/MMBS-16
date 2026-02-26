@@ -1,5 +1,6 @@
 <view class="return-request-page">
   <scroll-view class="content" scroll-y>
+    <view class="page-tip">已发货或已收货的订单可在此申请退货；如需换货请在原因与描述中说明。</view>
     <!-- 订单信息 -->
     <view class="order-info" wx:if="{{order}}">
       <view class="section-title">订单信息</view>

@@ -261,6 +261,7 @@
   right: 0;
   bottom: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 16rpx;
@@ -269,6 +270,16 @@
   border-top: 1rpx solid #F0F0F0;
   box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.05);
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+}
+
+.bottom-bar-hint {
+  width: 100%;
+  flex: 0 0 100%;
+  order: -1;
+  font-size: 24rpx;
+  color: #999;
+  text-align: center;
+  padding-bottom: 12rpx;
 }
 
 .action-btn {

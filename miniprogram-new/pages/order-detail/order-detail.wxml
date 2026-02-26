@@ -147,8 +147,12 @@
     </view>
   </scroll-view>
 
-  <!-- 底部操作栏 -->
+  <!-- 底部操作栏：未发货可申请退款，已发货/已收货可申请退货 -->
   <view class="bottom-bar" wx:if="{{order && !loading}}">
+    <view class="bottom-bar-hint" wx:if="{{order.status === 'paid' || order.status === 'shipped' || order.status === 'delivered'}}">
+      <text wx:if="{{order.status === 'paid'}}">未发货可直接申请退款</text>
+      <text wx:elif="{{order.status === 'shipped' || order.status === 'delivered'}}">已发货/已收货可申请退货（换货请在退货原因中说明）</text>
+    </view>
     <button
       class="action-btn primary"
       wx:if="{{order.status === 'pending'}}"
@@ -170,13 +174,15 @@
     >
       确认收货
     </button>
+    <!-- 已发货/已收货：申请退货（含换货说明） -->
     <button
       class="action-btn secondary"
       wx:if="{{(order.status === 'delivered' || order.status === 'shipped') && (!order.returnStatus || order.returnStatus === 'none')}}"
       bindtap="onRequestReturn"
     >
-      申请退货
+      申请退货/换货
     </button>
+    <!-- 未发货可退款；已取消/已退货/退货通过后可申请退款 -->
     <button
       class="action-btn secondary"
       wx:if="{{((order.status === 'paid' || order.status === 'cancelled' || order.status === 'returned') || order.returnStatus === 'approved') && (!order.refundStatus || order.refundStatus === 'none')}}"
