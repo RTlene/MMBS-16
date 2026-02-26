@@ -1271,6 +1271,7 @@ router.put('/:id/refund/complete', async (req, res) => {
         }
 
         await order.update({
+            status: 'refunded',
             refundStatus: 'completed',
             refundedAt: new Date(),
             updatedBy: req.user?.id
