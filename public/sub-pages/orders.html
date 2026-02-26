@@ -146,15 +146,20 @@
             font-size: 12px;
         }
 
-        /* 订单操作列：文字+图标，清晰可识别且不过大 */
+        /* 订单操作列：查看详情与发货/退款/删除等统一尺寸，适中不臃肿 */
+        .order-actions-cell {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
         .btn-action {
-            padding: 6px 10px;
-            font-size: 13px;
-            margin: 2px 3px 2px 0;
+            padding: 5px 8px;
+            font-size: 12px;
             white-space: nowrap;
         }
         .btn-action i {
-            margin-right: 4px;
+            margin-right: 3px;
         }
         .btn-outline-danger {
             background: transparent;

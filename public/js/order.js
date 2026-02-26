@@ -271,12 +271,10 @@ class OrderManagement {
             // 创建时间
             rowHtml += `<td>${this.formatDate(order.createdAt)}</td>`;
             
-            // 操作
+            // 操作（查看详情与其它操作统一为 btn-action，大小一致）
             rowHtml += `<td>
-                <div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-info" onclick="orderManagement.viewOrder(${order.id})" title="查看详情">
-                        <i class="fas fa-eye"></i>
-                    </button>
+                <div class="order-actions-cell">
+                    <button class="btn btn-action btn-info" onclick="orderManagement.viewOrder(${order.id})" title="查看详情"><i class="fas fa-eye"></i> 查看详情</button>
                     ${this.getActionButtons(order)}
                 </div>
             </td>`;
