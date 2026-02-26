@@ -78,6 +78,11 @@ const pageInitFunctions = {
     'wechat-payment-config': () => {
         if (typeof loadConfig === 'function') loadConfig();
     },
+    'point-settings': () => {
+        if (window.PointSettings && window.PointSettings.init) {
+            window.PointSettings.init();
+        }
+    },
     'withdrawal-management': () => {
         if (window.WithdrawalManagement && window.WithdrawalManagement.init) {
             window.WithdrawalManagement.init();
@@ -101,6 +106,36 @@ const pageInitFunctions = {
     'coupon-management': () => {
         if (window.CouponManagement && window.CouponManagement.init) {
             window.CouponManagement.init();
+        }
+    },
+    'promotion-management': () => {
+        if (window.PromotionManagement && window.PromotionManagement.init) {
+            window.PromotionManagement.init();
+        }
+    },
+    'point-mall-management': () => {
+        if (window.PointMallManagement && window.PointMallManagement.init) {
+            window.PointMallManagement.init();
+        }
+    },
+    'lucky-draw-management': () => {
+        if (window.LuckyDrawManagement && window.LuckyDrawManagement.init) {
+            window.LuckyDrawManagement.init();
+        }
+    },
+    'popup-management': () => {
+        if (window.PopupManagement && window.PopupManagement.init) {
+            window.PopupManagement.init();
+        }
+    },
+    'return-management': () => {
+        if (typeof window.initReturnManagement === 'function') {
+            window.initReturnManagement();
+        }
+    },
+    'refund-management': () => {
+        if (typeof window.initRefundManagement === 'function') {
+            window.initRefundManagement();
         }
     }
 };

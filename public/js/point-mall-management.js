@@ -523,7 +523,8 @@ function formatDate(dateString) {
     return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', { hour12: false });
 }
 
-// 页面加载完成后初始化
+// 供 PageLoader 调用；直接打开页面时也执行一次
+window.PointMallManagement = { init: initPointMallManagement };
 document.addEventListener('DOMContentLoaded', function() {
     initPointMallManagement();
 });

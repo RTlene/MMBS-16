@@ -427,7 +427,8 @@ function formatDateTimeLocal(dateString) {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-// 页面加载完成后初始化
+// 供 PageLoader 调用；直接打开页面时也执行一次
+window.LuckyDrawManagement = { init: initLuckyDrawManagement };
 document.addEventListener('DOMContentLoaded', function() {
     initLuckyDrawManagement();
 });

@@ -4,7 +4,9 @@ let currentPage = 1;
 let totalPages = 1;
 let currentPopup = null;
 
-// 页面初始化
+// 供 PageLoader 调用；直接打开页面时也执行一次
+window.PopupManagement = { init: initPopupManagement };
+
 document.addEventListener('DOMContentLoaded', function() {
     initPopupManagement();
 });

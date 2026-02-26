@@ -651,3 +651,6 @@ function showAlert(message, type) {
         }
     }, 3000);
 }
+
+// 供 PageLoader 调用
+window.PointSettings = { init: runInit };
