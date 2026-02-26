@@ -288,65 +288,45 @@ class OrderManagement {
         console.log('[OrderManagement] 订单列表渲染完成，共渲染', this.orders.length, '条订单');
     }
 
-    // 获取操作按钮
+    // 获取操作按钮（退款、退货均在订单管理内处理）
     getActionButtons(order) {
         let buttons = '';
 
         // 修改订单（仅待支付状态）
         if (order.status === 'pending') {
-            buttons += `<button class="btn btn-sm btn-warning" onclick="orderManagement.editOrder(${order.id})" title="修改订单">
-                <i class="fas fa-edit"></i>
-            </button>`;
+            buttons += `<button class="btn btn-action btn-warning" onclick="orderManagement.editOrder(${order.id})" title="修改订单"><i class="fas fa-edit"></i> 修改</button>`;
         }
 
-        // 发货（已支付状态）- 检查是否为服务商品
+        // 发货（已支付状态）
         if (order.status === 'paid') {
             const isServiceOrder = this.isServiceOrder(order);
             if (isServiceOrder) {
-                // 服务商品显示核销按钮
-                buttons += `<button class="btn btn-sm btn-success" onclick="orderManagement.verifyOrder(${order.id})" title="核销">
-                    <i class="fas fa-check-circle"></i>
-                </button>`;
+                buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.verifyOrder(${order.id})" title="核销"><i class="fas fa-check-circle"></i> 核销</button>`;
             } else {
-                // 实物商品显示发货按钮
-                buttons += `<button class="btn btn-sm btn-primary" onclick="orderManagement.shipOrder(${order.id})" title="发货">
-                    <i class="fas fa-truck"></i>
-                </button>`;
+                buttons += `<button class="btn btn-action btn-primary" onclick="orderManagement.shipOrder(${order.id})" title="发货"><i class="fas fa-truck"></i> 发货</button>`;
             }
         }
 
         // 确认收货（已发货状态）
         if (order.status === 'shipped') {
-            buttons += `<button class="btn btn-sm btn-success" onclick="orderManagement.deliverOrder(${order.id})" title="确认收货">
-                <i class="fas fa-check"></i>
-            </button>`;
+            buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.deliverOrder(${order.id})" title="确认收货"><i class="fas fa-check"></i> 确认收货</button>`;
         }
 
         // 处理退货申请
         if (order.returnStatus === 'requested') {
-            buttons += `<button class="btn btn-sm btn-warning" onclick="orderManagement.processReturn(${order.id})" title="处理退货">
-                <i class="fas fa-undo"></i>
-            </button>`;
+            buttons += `<button class="btn btn-action btn-warning" onclick="orderManagement.processReturn(${order.id})" title="处理退货"><i class="fas fa-undo"></i> 处理退货</button>`;
         }
 
-        // 处理退款申请
+        // 处理退款申请 / 完成退款（集成在订单管理）
         if (order.refundStatus === 'requested') {
-            buttons += `<button class="btn btn-sm btn-danger" onclick="orderManagement.processRefund(${order.id})" title="处理退款">
-                <i class="fas fa-money-bill-wave"></i>
-            </button>`;
+            buttons += `<button class="btn btn-action btn-danger" onclick="orderManagement.processRefund(${order.id})" title="处理退款"><i class="fas fa-money-bill-wave"></i> 处理退款</button>`;
         }
-
-        // 完成退款
         if (order.refundStatus === 'processing') {
-            buttons += `<button class="btn btn-sm btn-success" onclick="orderManagement.completeRefund(${order.id})" title="完成退款">
-                <i class="fas fa-check-circle"></i>
-            </button>`;
+            buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.completeRefund(${order.id})" title="完成退款"><i class="fas fa-check-circle"></i> 完成退款</button>`;
         }
 
         // 删除订单（需密码验证）
-        buttons += `<button class="btn btn-sm btn-danger" onclick="orderManagement.showDeleteOrderModal(${order.id}, '${(order.orderNo || '').replace(/'/g, "\\'")}')" title="删除订单">
-            <i class="fas fa-trash-alt"></i>
-        </button>`;
+        buttons += `<button class="btn btn-action btn-danger" onclick="orderManagement.showDeleteOrderModal(${order.id}, '${(order.orderNo || '').replace(/'/g, "\\'")}')" title="删除订单"><i class="fas fa-trash-alt"></i> 删除</button>`;
 
         return buttons;
     }
@@ -1397,8 +1377,121 @@ class OrderManagement {
     // 处理退货
     async processReturn(orderId) {
         document.getElementById('processReturnOrderId').value = orderId;
-        const modal = new bootstrap.Modal(document.getElementById('processReturnModal'));
-        modal.show();
+        const el = document.getElementById('processReturnModal');
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            new bootstrap.Modal(el).show();
+        } else {
+            el.style.display = 'flex';
+            el.classList.add('show');
+        }
+    }
+
+    // 处理退款申请
+    processRefund(orderId) {
+        document.getElementById('processRefundOrderId').value = orderId;
+        document.getElementById('refundRemark').value = '';
+        const approveEl = document.getElementById('approveRefund');
+        const rejectEl = document.getElementById('rejectRefund');
+        if (approveEl) approveEl.checked = false;
+        if (rejectEl) rejectEl.checked = false;
+        const el = document.getElementById('processRefundModal');
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            this._processRefundModal = this._processRefundModal || new bootstrap.Modal(el);
+            this._processRefundModal.show();
+        } else {
+            el.style.display = 'flex';
+            el.classList.add('show');
+        }
+    }
+
+    closeProcessRefundModal() {
+        const el = document.getElementById('processRefundModal');
+        if (this._processRefundModal) {
+            this._processRefundModal.hide();
+        } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal && bootstrap.Modal.getInstance(el)) {
+            bootstrap.Modal.getInstance(el).hide();
+        } else {
+            el.style.display = 'none';
+            el.classList.remove('show');
+        }
+    }
+
+    async confirmProcessRefund() {
+        const orderId = document.getElementById('processRefundOrderId').value;
+        const action = document.querySelector('input[name="refundAction"]:checked')?.value;
+        const refundRemark = document.getElementById('refundRemark').value;
+        if (!action) {
+            showAlert('请选择处理结果', 'error');
+            return;
+        }
+        try {
+            const response = await fetch(`/api/orders/${orderId}/refund/process`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, adminRemark: refundRemark })
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert('退款处理成功', 'success');
+                this.closeProcessRefundModal();
+                await this.loadOrders();
+            } else {
+                showAlert('退款处理失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } catch (error) {
+            console.error('退款处理失败:', error);
+            showAlert('退款处理失败', 'error');
+        }
+    }
+
+    // 完成退款
+    completeRefund(orderId) {
+        document.getElementById('completeRefundOrderId').value = orderId;
+        document.getElementById('thirdPartyRefundNo').value = '';
+        const el = document.getElementById('completeRefundModal');
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            this._completeRefundModal = this._completeRefundModal || new bootstrap.Modal(el);
+            this._completeRefundModal.show();
+        } else {
+            el.style.display = 'flex';
+            el.classList.add('show');
+        }
+    }
+
+    closeCompleteRefundModal() {
+        const el = document.getElementById('completeRefundModal');
+        if (this._completeRefundModal) {
+            this._completeRefundModal.hide();
+        } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal && bootstrap.Modal.getInstance(el)) {
+            bootstrap.Modal.getInstance(el).hide();
+        } else {
+            el.style.display = 'none';
+            el.classList.remove('show');
+        }
+    }
+
+    async confirmCompleteRefund() {
+        const orderId = document.getElementById('completeRefundOrderId').value;
+        const thirdPartyRefundNo = document.getElementById('thirdPartyRefundNo').value?.trim();
+        if (!confirm('确认退款已完成？此操作不可撤销。')) return;
+        try {
+            const response = await fetch(`/api/orders/${orderId}/refund/complete`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ thirdPartyRefundNo: thirdPartyRefundNo || undefined })
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert('退款完成', 'success');
+                this.closeCompleteRefundModal();
+                await this.loadOrders();
+            } else {
+                showAlert('退款完成失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } catch (error) {
+            console.error('退款完成失败:', error);
+            showAlert('退款完成失败', 'error');
+        }
     }
 
     // 确认处理退货
@@ -1444,93 +1537,6 @@ class OrderManagement {
         } catch (error) {
             console.error('退货处理失败:', error);
             showAlert('退货处理失败', 'error');
-        }
-    }
-
-    // 处理退款
-    async processRefund(orderId) {
-        document.getElementById('processRefundOrderId').value = orderId;
-        const modal = new bootstrap.Modal(document.getElementById('processRefundModal'));
-        modal.show();
-    }
-
-    // 确认处理退款
-    async confirmProcessRefund() {
-        const orderId = document.getElementById('processRefundOrderId').value;
-        const action = document.querySelector('input[name="refundAction"]:checked')?.value;
-        const refundRemark = document.getElementById('refundRemark').value;
-
-        if (!action) {
-            showAlert('请选择处理结果', 'error');
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/orders/${orderId}/refund/process`, {
-                method: 'PUT',
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    action,
-                    adminRemark: refundRemark
-                })
-            });
-
-            const result = await response.json();
-            
-            if (result.code === 0) {
-                showAlert('退款处理成功', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('processRefundModal')).hide();
-                this.loadOrders();
-            } else {
-                showAlert('退款处理失败: ' + result.message, 'error');
-            }
-        } catch (error) {
-            console.error('退款处理失败:', error);
-            showAlert('退款处理失败', 'error');
-        }
-    }
-
-    // 完成退款
-    async completeRefund(orderId) {
-        document.getElementById('completeRefundOrderId').value = orderId;
-        const modal = new bootstrap.Modal(document.getElementById('completeRefundModal'));
-        modal.show();
-    }
-
-    // 确认完成退款
-    async confirmCompleteRefund() {
-        const orderId = document.getElementById('completeRefundOrderId').value;
-        const thirdPartyRefundNo = document.getElementById('thirdPartyRefundNo').value;
-
-        if (!confirm('确认退款已完成？此操作不可撤销。')) return;
-
-        try {
-            const response = await fetch(`/api/orders/${orderId}/refund/complete`, {
-                method: 'PUT',
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    thirdPartyRefundNo
-                })
-            });
-
-            const result = await response.json();
-            
-            if (result.code === 0) {
-                showAlert('退款完成', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('completeRefundModal')).hide();
-                this.loadOrders();
-            } else {
-                showAlert('退款完成失败: ' + result.message, 'error');
-            }
-        } catch (error) {
-            console.error('退款完成失败:', error);
-            showAlert('退款完成失败', 'error');
         }
     }
 
@@ -1606,17 +1612,6 @@ window.closeOrderDetailModal = function() {
     }
 };
 console.log('[OrderJS] orderManagement 已挂载到 window 对象');
-
-window.showAddOrderModal = function() {
-    // 这里可以添加创建订单的功能
-    alert('创建订单功能待实现');
-};
-
-window.showCreateOrderModal = function() {
-    console.log('[OrderJS] showCreateOrderModal 被调用');
-    // 这里可以添加创建订单的功能
-    alert('创建订单功能待实现');
-};
 
 window.exportOrders = function() {
     console.log('[OrderJS] exportOrders 被调用');

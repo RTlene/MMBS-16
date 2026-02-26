@@ -146,6 +146,26 @@
             font-size: 12px;
         }
 
+        /* 订单操作列：文字+图标，清晰可识别且不过大 */
+        .btn-action {
+            padding: 6px 10px;
+            font-size: 13px;
+            margin: 2px 3px 2px 0;
+            white-space: nowrap;
+        }
+        .btn-action i {
+            margin-right: 4px;
+        }
+        .btn-outline-danger {
+            background: transparent;
+            color: #ff4d4f;
+            border: 1px solid #ff4d4f;
+        }
+        .btn-outline-danger:hover {
+            background: #ff4d4f;
+            color: white;
+        }
+
         .table-section {
             overflow-x: auto;
         }
@@ -602,7 +622,6 @@
                     <button class="btn btn-outline-primary" onclick="resetFilters()">重置</button>
                 </div>
                 <div>
-                    <button class="btn btn-success" onclick="showCreateOrderModal()">创建测试订单</button>
                     <button class="btn btn-primary" onclick="exportOrders()">导出订单</button>
                     <button class="btn btn-warning" onclick="triggerImportShipping()">导入发货</button>
                     <button class="btn btn-outline-primary" onclick="downloadShippingTemplate()">下载发货模板</button>
@@ -642,71 +661,6 @@
 
     <!-- 订单详情模态框 -->
 
-    <!-- 创建测试订单模态框 -->
-    <div id="createOrderModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">创建测试订单</h3>
-                <button class="modal-close" onclick="closeCreateOrderModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="createOrderForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="createMemberId">选择会员 *</label>
-                            <select id="createMemberId" class="form-select" required>
-                                <option value="">请选择会员</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="createProductId">选择商品 *</label>
-                            <select id="createProductId" class="form-select" required>
-                                <option value="">请选择商品</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="createQuantity">购买数量 *</label>
-                            <input type="number" id="createQuantity" class="form-input" value="1" min="1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="createUnitPrice">单价 *</label>
-                            <input type="number" id="createUnitPrice" class="form-input" step="0.01" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="createTotalAmount">总金额 *</label>
-                            <input type="number" id="createTotalAmount" class="form-input" step="0.01" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="createPaymentMethod">支付方式</label>
-                            <select id="createPaymentMethod" class="form-select">
-                                <option value="test">测试支付</option>
-                                <option value="wechat">微信支付</option>
-                                <option value="alipay">支付宝</option>
-                                <option value="points">积分支付</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="createShippingAddress">收货地址</label>
-                        <textarea id="createShippingAddress" class="form-textarea" placeholder="请输入收货地址"></textarea>
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="createRemark">订单备注</label>
-                        <textarea id="createRemark" class="form-textarea" placeholder="请输入订单备注"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline-primary" onclick="closeCreateOrderModal()">取消</button>
-                <button class="btn btn-primary" onclick="submitCreateOrder()">创建订单</button>
-            </div>
-        </div>
-    </div>
-
     <!-- 更新订单状态模态框 -->
     <div id="updateStatusModal" class="modal">
         <div class="modal-content" style="max-width: 400px;">
@@ -740,9 +694,6 @@
 
     <!-- 订单操作按钮区域 -->
     <div class="order-actions" style="margin-bottom: 20px;">
-        <button class="btn btn-primary" onclick="showAddOrderModal()">
-            <i class="fas fa-plus"></i> 创建订单
-        </button>
         <button class="btn btn-info" onclick="refreshOrders()">
             <i class="fas fa-sync"></i> 刷新
         </button>
@@ -1197,35 +1148,28 @@
         </div>
     </div>
 
-    <!-- 退款处理模态框 -->
+    <!-- 处理退款申请 -->
     <div class="modal fade" id="processRefundModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">处理退款申请</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" onclick="if(window.orderManagement) orderManagement.closeProcessRefundModal();"></button>
                 </div>
                 <div class="modal-body">
                     <form id="processRefundForm">
                         <input type="hidden" id="processRefundOrderId">
-                        <input type="hidden" id="processRefundAction">
-                        
                         <div class="mb-3">
                             <label class="form-label">处理结果</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="refundAction" id="approveRefund" value="approve">
-                                <label class="form-check-label" for="approveRefund">
-                                    通过退款申请
-                                </label>
+                                <label class="form-check-label" for="approveRefund">通过退款申请</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="refundAction" id="rejectRefund" value="reject">
-                                <label class="form-check-label" for="rejectRefund">
-                                    拒绝退款申请
-                                </label>
+                                <label class="form-check-label" for="rejectRefund">拒绝退款申请</label>
                             </div>
                         </div>
-                        
                         <div class="mb-3">
                             <label for="refundRemark" class="form-label">处理备注</label>
                             <textarea class="form-control" id="refundRemark" rows="3"></textarea>
@@ -1233,39 +1177,34 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" onclick="confirmProcessRefund()">确认处理</button>
+                    <button type="button" class="btn btn-secondary" onclick="if(window.orderManagement) orderManagement.closeProcessRefundModal();">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="if(window.orderManagement) orderManagement.confirmProcessRefund();">确认处理</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 完成退款模态框 -->
+    <!-- 完成退款 -->
     <div class="modal fade" id="completeRefundModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">完成退款</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" onclick="if(window.orderManagement) orderManagement.closeCompleteRefundModal();"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="completeRefundForm">
-                        <input type="hidden" id="completeRefundOrderId">
-                        
-                        <div class="mb-3">
-                            <label for="thirdPartyRefundNo" class="form-label">第三方退款单号</label>
-                            <input type="text" class="form-control" id="thirdPartyRefundNo">
-                        </div>
-                        
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            确认退款已完成，此操作不可撤销。
-                        </div>
-                    </form>
+                    <input type="hidden" id="completeRefundOrderId">
+                    <div class="mb-3">
+                        <label for="thirdPartyRefundNo" class="form-label">第三方退款单号（选填）</label>
+                        <input type="text" class="form-control" id="thirdPartyRefundNo" placeholder="如微信退款单号">
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle"></i> 确认退款已完成，此操作不可撤销。
+                    </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-success" onclick="confirmCompleteRefund()">确认完成退款</button>
+                    <button type="button" class="btn btn-secondary" onclick="if(window.orderManagement) orderManagement.closeCompleteRefundModal();">取消</button>
+                    <button type="button" class="btn btn-success" onclick="if(window.orderManagement) orderManagement.confirmCompleteRefund();">确认完成退款</button>
                 </div>
             </div>
         </div>
