@@ -84,10 +84,15 @@ async function ensureMember() {
     return;
   }
   const r = await req('GET', '/api/members?page=1&limit=1');
-  if (r.status !== 200 || r.data?.code !== 0 || !r.data?.data?.members?.length) {
-    throw new Error('无可用会员，请先创建会员或设置 MEMBER_ID');
+  const list = r.data?.data?.members ?? r.data?.data?.list ?? [];
+  if (r.status !== 200 || r.data?.code !== 0) {
+    const msg = r.data?.message || r.status;
+    throw new Error(`会员列表接口异常（${r.status} ${msg}）。请先登录后台确认会员存在，或设置环境变量 MEMBER_ID=某会员ID 后重试。`);
   }
-  memberId = r.data.data.members[0].id;
+  if (!Array.isArray(list) || list.length === 0) {
+    throw new Error('当前环境无会员数据（列表为空）。请先在后台「会员管理」创建至少一名会员，或设置环境变量 MEMBER_ID=某会员ID 后重试。');
+  }
+  memberId = list[0].id;
 }
 
 async function createProduct() {
@@ -114,13 +119,13 @@ async function createProduct() {
 
 async function createPromotion() {
   const now = new Date();
-  const end = new Date(now);
-  end.setMonth(end.getMonth() + 1);
+  const start = new Date(now.getTime() - 2 * 60 * 1000); // 开始时间提前 2 分钟，避免服务端时钟/时区导致「未开始」
+  const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 约 30 天后结束
   const r = await req('POST', '/api/promotions', {
     name: '[场景测试] 满' + PROMO_FULL_REDUCTION.minAmount + '减' + PROMO_FULL_REDUCTION.discountAmount,
     type: 'full_reduction',
     description: '脚本场景测试',
-    startTime: iso(now),
+    startTime: iso(start),
     endTime: iso(end),
     status: 'active',
     rules: {
@@ -142,8 +147,8 @@ async function createPromotion() {
 
 async function createCoupon() {
   const now = new Date();
-  const end = new Date(now);
-  end.setMonth(end.getMonth() + 1);
+  const validFrom = new Date(now.getTime() - 2 * 60 * 1000); // 提前 2 分钟生效，避免服务端时钟/时区导致未生效
+  const validTo = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 约 30 天后失效
   const code = 'SCENARIO_' + Date.now();
   const r = await req('POST', '/api/coupons', {
     name: '[场景测试] ' + COUPON_DISCOUNT + '元券',
@@ -154,8 +159,8 @@ async function createCoupon() {
     discountValue: COUPON_DISCOUNT,
     minOrderAmount: COUPON_MIN_ORDER,
     totalCount: 100,
-    validFrom: iso(now),
-    validTo: iso(end),
+    validFrom: iso(validFrom),
+    validTo: iso(validTo),
     status: 'active',
     description: '脚本场景测试'
   });
@@ -255,6 +260,10 @@ async function run() {
 
   console.log('\n========== 结果 ==========');
   console.log('通过:', passed, ' 失败:', failed);
+  if (passed === 4 && !USE_EXISTING_IDS) {
+    console.log('\n本次创建: 商品 id=' + productId + ' skuId=' + skuId + ' 促销 id=' + promotionId + ' 优惠券 id=' + couponId);
+    console.log('后台查看：请用与脚本相同的地址打开（' + BASE_URL + '），登录后进「促销管理」即可看到；若用其它域名打开会连到不同环境，列表可能为空。');
+  }
   process.exit(failed > 0 ? 1 : 0);
 }
 

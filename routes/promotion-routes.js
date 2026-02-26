@@ -72,6 +72,10 @@ router.get('/', authenticateToken, async (req, res) => {
             order: [[sortBy, sortOrder.toUpperCase()]]
         });
 
+        if (req.query._listDebug === '1') {
+            console.log('[GET /api/promotions] total=', count, 'rows=', rows.length, 'ids=', rows.map(r => r.id));
+        }
+
         res.json({
             code: 0,
             message: '获取成功',
