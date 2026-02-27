@@ -280,7 +280,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
 });
 
 // ---------- 商品会员价（需放在 /:id 之前） ----------
-// 获取某商品的会员价列表
+// 获取某商品的会员价列表（含按 SKU 的配置，skuId=0 为整品默认）
 router.get('/:id/member-prices', async (req, res) => {
   try {
     const productId = safeInt(req.params.id);
@@ -289,8 +289,11 @@ router.get('/:id/member-prices', async (req, res) => {
     if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
     const list = await ProductMemberPrice.findAll({
       where: { productId },
-      include: [{ model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] }],
-      order: [['memberLevelId', 'ASC']]
+      include: [
+        { model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] },
+        { model: ProductSKU, as: 'sku', attributes: ['id', 'name', 'sku'], required: false }
+      ],
+      order: [['memberLevelId', 'ASC'], ['skuId', 'ASC']]
     });
     res.json({ code: 0, message: '获取成功', data: list });
   } catch (err) {
@@ -299,31 +302,75 @@ router.get('/:id/member-prices', async (req, res) => {
   }
 });
 
-// 为某商品添加/更新一条会员价（同一商品同一等级仅保留一条）
+// 为某商品添加/更新一条会员价（支持按 SKU：skuId=0 为整品默认，否则为指定 SKU）
 router.post('/:id/member-prices', async (req, res) => {
   try {
     const productId = safeInt(req.params.id);
-    const { memberLevelId, price } = req.body || {};
+    const { memberLevelId, skuId: bodySkuId, price } = req.body || {};
     if (!productId) return res.status(400).json({ code: 1, message: '商品ID无效' });
     const levelId = safeInt(memberLevelId);
     if (!levelId) return res.status(400).json({ code: 1, message: '请选择会员等级' });
+    const skuId = bodySkuId != null && bodySkuId !== '' ? safeInt(bodySkuId) : 0;
     const priceNum = parseFloat(price);
     if (!Number.isFinite(priceNum) || priceNum < 0) return res.status(400).json({ code: 1, message: '会员价必须为有效非负数' });
     const product = await Product.findByPk(productId);
     if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
     const level = await MemberLevel.findByPk(levelId);
     if (!level) return res.status(400).json({ code: 1, message: '会员等级不存在' });
-    const [row] = await ProductMemberPrice.upsert(
-      { productId, memberLevelId: levelId, price: priceNum },
-      { conflictFields: ['productId', 'memberLevelId'] }
+    if (skuId > 0) {
+      const sku = await ProductSKU.findOne({ where: { id: skuId, productId } });
+      if (!sku) return res.status(400).json({ code: 1, message: '该 SKU 不属于本商品' });
+    }
+    await ProductMemberPrice.upsert(
+      { productId, memberLevelId: levelId, skuId, price: priceNum },
+      { conflictFields: ['productId', 'memberLevelId', 'skuId'] }
     );
     const created = await ProductMemberPrice.findOne({
-      where: { productId, memberLevelId: levelId },
-      include: [{ model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] }]
+      where: { productId, memberLevelId: levelId, skuId },
+      include: [
+        { model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] },
+        { model: ProductSKU, as: 'sku', attributes: ['id', 'name', 'sku'], required: false }
+      ]
     });
     res.json({ code: 0, message: '保存成功', data: created });
   } catch (err) {
     console.error('保存商品会员价失败:', err);
+    res.status(500).json({ code: 1, message: err.message || '服务器错误' });
+  }
+});
+
+// 批量保存某商品的会员价（新建商品后一次性提交用）
+router.post('/:id/member-prices/batch', async (req, res) => {
+  try {
+    const productId = safeInt(req.params.id);
+    const { memberPrices } = req.body || {};
+    if (!productId) return res.status(400).json({ code: 1, message: '商品ID无效' });
+    const product = await Product.findByPk(productId, { include: [{ model: ProductSKU, as: 'skus', attributes: ['id'] }] });
+    if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
+    const skuIds = (product.skus || []).map(s => s.id);
+    const list = Array.isArray(memberPrices) ? memberPrices : [];
+    for (const item of list) {
+      const levelId = safeInt(item.memberLevelId);
+      const skuId = item.skuId != null && item.skuId !== '' ? safeInt(item.skuId) : 0;
+      const priceNum = parseFloat(item.price);
+      if (!levelId || !Number.isFinite(priceNum) || priceNum < 0) continue;
+      if (skuId > 0 && !skuIds.includes(skuId)) continue;
+      await ProductMemberPrice.upsert(
+        { productId, memberLevelId: levelId, skuId, price: priceNum },
+        { conflictFields: ['productId', 'memberLevelId', 'skuId'] }
+      );
+    }
+    const updated = await ProductMemberPrice.findAll({
+      where: { productId },
+      include: [
+        { model: MemberLevel, as: 'memberLevel', attributes: ['id', 'name', 'level'] },
+        { model: ProductSKU, as: 'sku', attributes: ['id', 'name', 'sku'], required: false }
+      ],
+      order: [['memberLevelId', 'ASC'], ['skuId', 'ASC']]
+    });
+    res.json({ code: 0, message: '保存成功', data: updated });
+  } catch (err) {
+    console.error('批量保存会员价失败:', err);
     res.status(500).json({ code: 1, message: err.message || '服务器错误' });
   }
 });

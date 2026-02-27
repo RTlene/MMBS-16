@@ -317,7 +317,7 @@ const ProductSKU = sequelize.define('ProductSKU', {
     timestamps: true
 });
 
-// 商品会员价：按商品+会员等级配置，该等级会员下单直接使用此价，不参与优惠
+// 商品会员价：按商品+会员等级+SKU配置，skuId=0 表示该等级整品默认价，否则为指定 SKU 的会员价
 const ProductMemberPrice = sequelize.define('ProductMemberPrice', {
     id: {
         type: DataTypes.INTEGER,
@@ -333,6 +333,12 @@ const ProductMemberPrice = sequelize.define('ProductMemberPrice', {
         type: DataTypes.INTEGER,
         allowNull: false,
         comment: '会员等级ID'
+    },
+    skuId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: 'SKU ID，0 表示该等级整品默认会员价'
     },
     price: {
         type: DataTypes.DECIMAL(10, 2),
@@ -354,7 +360,7 @@ const ProductMemberPrice = sequelize.define('ProductMemberPrice', {
     timestamps: true,
     comment: '商品会员价表',
     indexes: [
-        { unique: true, fields: ['productId', 'memberLevelId'] }
+        { unique: true, fields: ['productId', 'memberLevelId', 'skuId'] }
     ]
 });
 
@@ -3012,6 +3018,7 @@ ProductAttribute.belongsTo(Product, {
 // 商品会员价关联
 Product.hasMany(ProductMemberPrice, { foreignKey: 'productId', as: 'memberPrices', onDelete: 'CASCADE' });
 ProductMemberPrice.belongsTo(Product, { foreignKey: 'productId', as: 'product', onDelete: 'CASCADE' });
+ProductMemberPrice.belongsTo(ProductSKU, { foreignKey: 'skuId', as: 'sku', onDelete: 'CASCADE' });
 ProductMemberPrice.belongsTo(MemberLevel, { foreignKey: 'memberLevelId', as: 'memberLevel', onDelete: 'CASCADE' });
 MemberLevel.hasMany(ProductMemberPrice, { foreignKey: 'memberLevelId', as: 'productMemberPrices' });
 

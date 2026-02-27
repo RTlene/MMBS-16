@@ -15,6 +15,7 @@ window.productManagementData = window.productManagementData || {
     status: '',
     attributes: [],
     skus: [],
+    memberPriceMatrix: {}, // { levelId: { skuKey: price } }  skuKey=0 默认，新建时 1,2.. 为 SKU 序号，编辑时为 skuId
     mediaData: {
         mainImages: [],
         detailImages: [],
@@ -351,11 +352,10 @@ function openAddProductModal() {
     document.getElementById('detailContentEditor').innerHTML = '<p>请输入商品详情内容...</p>';
     document.getElementById('detailContent').value = '';
     
-    // 添加商品时不显示会员价区块
     window.productManagementData.editingProductId = null;
-    var memberPricesSection = document.getElementById('memberPricesSection');
-    if (memberPricesSection) memberPricesSection.style.display = 'none';
-    
+    window.productManagementData.memberPriceMatrix = {};
+    updateMemberPriceSectionVisibility();
+    loadMemberLevelsForSelect().then(function () { renderMemberPriceMatrix(); });
     document.getElementById('productModal').style.display = 'block';
 }
 
@@ -364,7 +364,15 @@ function closeProductModal() {
     document.getElementById('productModal').style.display = 'none';
 }
 
-// ---------- 会员价（仅编辑时） ----------
+// ---------- 会员价（按等级×SKU 矩阵，新建/编辑均可设置） ----------
+function updateMemberPriceSectionVisibility() {
+    var section = document.getElementById('memberPricesSection');
+    if (!section) return;
+    var skus = window.productManagementData.skus || [];
+    var editingId = window.productManagementData.editingProductId;
+    section.style.display = (editingId || skus.length > 0) ? 'block' : 'none';
+}
+
 async function loadMemberLevelsForSelect() {
     try {
         const res = await fetch('/api/member-levels?limit=200', { headers: getAuthHeaders() });
@@ -380,14 +388,76 @@ async function loadMemberLevelsForSelect() {
     }
 }
 
-function renderMemberPriceSelect(usedLevelIds) {
+function renderMemberPriceMatrix() {
     var levels = window.productManagementData.memberLevels || [];
-    var select = document.getElementById('memberPriceLevelSelect');
-    if (!select) return;
-    select.innerHTML = '<option value="">选择会员等级</option>' + levels
-        .filter(function (l) { return !usedLevelIds || usedLevelIds.indexOf(l.id) === -1; })
-        .map(function (l) { return '<option value="' + l.id + '">' + (l.name || '等级' + l.level) + '</option>'; })
-        .join('');
+    var skus = window.productManagementData.skus || [];
+    var matrix = window.productManagementData.memberPriceMatrix || {};
+    var editingId = window.productManagementData.editingProductId;
+    var headerRow = document.getElementById('memberPriceMatrixHeaderRow');
+    var tbody = document.getElementById('memberPricesMatrixBody');
+    if (!tbody) return;
+    var cols = [{ key: 0, label: '默认（整品）' }];
+    for (var i = 0; i < skus.length; i++) {
+        var s = skus[i];
+        var key = editingId && s.id ? s.id : (i + 1);
+        var label = (s.name || s.sku || ('SKU' + (i + 1))).slice(0, 12);
+        cols.push({ key: key, label: label });
+    }
+    if (headerRow) {
+        headerRow.innerHTML = '<th>会员等级</th>' + cols.map(function (c) { return '<th style="min-width:80px;">' + (c.label || c.key) + '</th>'; }).join('');
+    }
+    if (levels.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="' + (cols.length + 1) + '" style="color:#888;">请先加载会员等级；无等级时可不填会员价。</td></tr>';
+        return;
+    }
+    tbody.innerHTML = levels.map(function (level) {
+        var levelId = level.id;
+        var row = matrix[levelId] || {};
+        var cells = cols.map(function (c) {
+            var val = row[c.key] != null && row[c.key] !== '' ? row[c.key] : '';
+            return '<td><input type="number" min="0" step="0.01" placeholder="—" data-level-id="' + levelId + '" data-sku-key="' + c.key + '" value="' + (val !== '' ? val : '') + '" style="width:80px;padding:4px 6px;"></td>';
+        });
+        return '<tr><td>' + (level.name || ('等级' + level.level)) + '</td>' + cells.join('') + '</tr>';
+    }).join('');
+}
+
+function collectMemberPricesFromMatrix() {
+    var inputs = document.querySelectorAll('#memberPricesMatrixBody input[data-level-id][data-sku-key]');
+    var arr = [];
+    inputs.forEach(function (inp) {
+        var levelId = parseInt(inp.getAttribute('data-level-id'), 10);
+        var skuKey = inp.getAttribute('data-sku-key');
+        var price = parseFloat(inp.value);
+        if (!levelId || !Number.isFinite(price) || price < 0) return;
+        var skuId = skuKey === '0' ? 0 : parseInt(skuKey, 10);
+        arr.push({ memberLevelId: levelId, skuId: isNaN(skuId) ? 0 : skuId, price: price });
+    });
+    return arr;
+}
+
+async function saveMemberPricesBatch(productId, memberPrices, createdSkus) {
+    if (!memberPrices || memberPrices.length === 0) return;
+    var resolved = memberPrices.map(function (p) {
+        var skuId = p.skuId;
+        if (createdSkus && createdSkus.length > 0 && skuId > 0) {
+            var byId = createdSkus.find(function (s) { return s.id === skuId; });
+            if (!byId && skuId <= createdSkus.length) {
+                skuId = createdSkus[skuId - 1] ? createdSkus[skuId - 1].id : 0;
+            } else if (byId) {
+                skuId = byId.id;
+            }
+        }
+        return { memberLevelId: p.memberLevelId, skuId: skuId, price: p.price };
+    });
+    var res = await fetch('/api/products/' + productId + '/member-prices/batch', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ memberPrices: resolved })
+    });
+    var result = await res.json();
+    if (result.code !== 0) {
+        console.warn('会员价批量保存失败:', result.message);
+    }
 }
 
 async function loadMemberPrices(productId) {
@@ -395,87 +465,27 @@ async function loadMemberPrices(productId) {
         const res = await fetch('/api/products/' + productId + '/member-prices', { headers: getAuthHeaders() });
         const result = await res.json();
         if (result.code === 0 && result.data) {
-            window.productManagementData.memberPrices = result.data;
-            renderMemberPrices(result.data);
-            var usedIds = (result.data || []).map(function (p) { return p.memberLevelId; });
-            renderMemberPriceSelect(usedIds);
+            var list = result.data;
+            var matrix = {};
+            (list || []).forEach(function (p) {
+                var levelId = p.memberLevelId;
+                var skuId = p.skuId != null ? p.skuId : 0;
+                if (!matrix[levelId]) matrix[levelId] = {};
+                matrix[levelId][skuId] = p.price;
+            });
+            window.productManagementData.memberPriceMatrix = matrix;
+            window.productManagementData.memberPrices = list;
         } else {
+            window.productManagementData.memberPriceMatrix = {};
             window.productManagementData.memberPrices = [];
-            renderMemberPrices([]);
-            renderMemberPriceSelect([]);
         }
+        renderMemberPriceMatrix();
     } catch (e) {
         console.error('加载会员价失败:', e);
-        window.productManagementData.memberPrices = [];
-        renderMemberPrices([]);
-        renderMemberPriceSelect([]);
+        window.productManagementData.memberPriceMatrix = {};
+        renderMemberPriceMatrix();
     }
 }
-
-function renderMemberPrices(list) {
-    var container = document.getElementById('memberPricesList');
-    if (!container) return;
-    if (!list || list.length === 0) {
-        container.innerHTML = '<p style="color:#888;font-size:13px;">暂无会员价，可在下方添加。</p>';
-        return;
-    }
-    container.innerHTML = '<table class="product-table" style="max-width:400px;"><thead><tr><th>会员等级</th><th>会员价</th><th></th></tr></thead><tbody>' +
-        list.map(function (p) {
-            var name = (p.memberLevel && p.memberLevel.name) ? p.memberLevel.name : ('等级' + (p.memberLevel && p.memberLevel.level ? p.memberLevel.level : p.memberLevelId));
-            var price = Number(p.price);
-            var priceStr = Number.isFinite(price) ? price.toFixed(2) : p.price;
-            return '<tr><td>' + (name || '-') + '</td><td>¥' + priceStr + '</td><td><button type="button" class="btn btn-danger btn-sm" onclick="deleteMemberPrice(' + p.productId + ',' + p.id + ')">删除</button></td></tr>';
-        }).join('') +
-        '</tbody></table>';
-}
-
-window.addMemberPrice = async function addMemberPrice() {
-    var productId = window.productManagementData.editingProductId;
-    if (!productId) return;
-    var levelSelect = document.getElementById('memberPriceLevelSelect');
-    var priceInput = document.getElementById('memberPriceInput');
-    var levelId = levelSelect && levelSelect.value ? levelSelect.value : '';
-    var price = priceInput ? parseFloat(priceInput.value) : NaN;
-    if (!levelId) { alert('请选择会员等级'); return; }
-    if (!Number.isFinite(price) || price < 0) { alert('请输入有效的会员价（非负数）'); return; }
-    try {
-        const res = await fetch('/api/products/' + productId + '/member-prices', {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ memberLevelId: parseInt(levelId, 10), price: price })
-        });
-        const result = await res.json();
-        if (result.code === 0) {
-            priceInput.value = '';
-            loadMemberPrices(productId);
-        } else {
-            alert(result.message || '保存失败');
-        }
-    } catch (e) {
-        console.error('添加会员价失败:', e);
-        alert('添加会员价失败: ' + (e.message || e));
-    }
-};
-
-window.deleteMemberPrice = async function deleteMemberPrice(productId, priceId) {
-    if (!productId || !priceId) return;
-    if (!confirm('确定删除该会员价？')) return;
-    try {
-        const res = await fetch('/api/products/' + productId + '/member-prices/' + priceId, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
-        });
-        const result = await res.json();
-        if (result.code === 0) {
-            loadMemberPrices(productId);
-        } else {
-            alert(result.message || '删除失败');
-        }
-    } catch (e) {
-        console.error('删除会员价失败:', e);
-        alert('删除失败: ' + (e.message || e));
-    }
-};
 
 // ==================== 小程序详情页预览（后台） ====================
 
@@ -672,13 +682,10 @@ async function editProduct(id) {
             document.getElementById('detailContent').value = product.detailContent || '';
             
             document.getElementById('modalTitle').textContent = '编辑商品';
-            // 存储当前编辑的商品ID并显示会员价区块
             window.productManagementData.editingProductId = id;
-            var memberPricesSection = document.getElementById('memberPricesSection');
-            if (memberPricesSection) memberPricesSection.style.display = 'block';
+            updateMemberPriceSectionVisibility();
             await loadMemberLevelsForSelect();
             await loadMemberPrices(id);
-            
             document.getElementById('productModal').style.display = 'block';
         } else {
             console.error('获取商品信息失败:', result.message);
@@ -1087,6 +1094,7 @@ function updateAttributeOption(index, optionIndex, value) {
 // 添加SKU
 function addSKU() {
     const skus = window.productManagementData.skus;
+    updateMemberPriceSectionVisibility();
     skus.push({
         sku: '',
         name: '',
@@ -1100,12 +1108,15 @@ function addSKU() {
         status: 'active'
     });
     renderSKUs();
+    renderMemberPriceMatrix();
 }
 
 // 删除SKU
 function removeSKU(index) {
     window.productManagementData.skus.splice(index, 1);
+    updateMemberPriceSectionVisibility();
     renderSKUs();
+    renderMemberPriceMatrix();
 }
 
 // 渲染SKU
@@ -1364,10 +1375,12 @@ async function submitProductForm(event) {
         
         if (result.code === 0) {
             const productId = editingProductId || result.data.id;
-            
-            // 处理文件上传和删除（images/detailImages/videos 由 /api/product-files 维护）
             await handleProductFiles(productId);
-            
+            var memberPrices = collectMemberPricesFromMatrix();
+            if (memberPrices.length > 0) {
+                var createdSkus = editingProductId ? null : (result.data.skus || []);
+                await saveMemberPricesBatch(productId, memberPrices, createdSkus);
+            }
             alert(editingProductId ? '商品更新成功' : '商品创建成功');
             closeProductModal();
             loadProducts();

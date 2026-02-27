@@ -88,12 +88,20 @@ class PromotionService {
             // 确保数量是有效数字
             const safeQuantity = Number(quantity) || 1;
 
-            // 会员价：当前会员等级在该商品上配置了会员价时，直接使用会员价，不参与任何优惠
+            // 会员价：先按 SKU 查，再按整品(skuId=0)查
             let isMemberPrice = false;
             if (member && member.memberLevelId) {
-                const memberPriceRow = await ProductMemberPrice.findOne({
-                    where: { productId: product.id, memberLevelId: member.memberLevelId }
-                });
+                const searchSkuId = skuId ? Number(skuId) : 0;
+                let memberPriceRow = searchSkuId > 0
+                    ? await ProductMemberPrice.findOne({
+                        where: { productId: product.id, memberLevelId: member.memberLevelId, skuId: searchSkuId }
+                    })
+                    : null;
+                if (!memberPriceRow) {
+                    memberPriceRow = await ProductMemberPrice.findOne({
+                        where: { productId: product.id, memberLevelId: member.memberLevelId, skuId: 0 }
+                    });
+                }
                 if (memberPriceRow) {
                     unitPrice = Number(memberPriceRow.price) || unitPrice;
                     isMemberPrice = true;
