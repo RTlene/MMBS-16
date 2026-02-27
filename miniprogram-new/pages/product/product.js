@@ -231,12 +231,8 @@ Page({
       
       const preferredMain = mainHttp.length ? mainHttp : mainImages;
       const preferredDetail = detailHttp.length ? detailHttp : detailImages;
-      const carouselImages = preferredMain.length > 0
-        ? preferredMain
-        : (preferredDetail.length > 0
-            ? preferredDetail
-            : (skuHttp.length > 0 ? skuHttp : (mainData.length > 0 ? mainData : detailImages)));
-      // 轮播项：主图在前，视频接在主图后面（主图滑到最后再滑即视频）
+      // 轮播仅使用主图+视频，主图未上传时不使用详情图兜底
+      const carouselImages = preferredMain;
       const carouselItems = [
         ...carouselImages.map(url => ({ type: 'image', url })),
         ...videos.map(url => ({ type: 'video', url }))
@@ -420,22 +416,10 @@ Page({
         duration: duration + 'ms'
       });
       
-      // 无论是否有详情图，都更新到页面
-      const updateData = {
+      // 无论是否有详情图，都更新到页面（轮播不再用详情图兜底，仅主图+视频）
+      this.setData({
         detailImages: mergedDetailImages
-      };
-      
-      // 如果主图只有1张或没有主图，补充详情图到轮播
-      if (this.data.carouselImages.length <= 1 && allImages.length > 0) {
-        updateData.carouselImages = allImages;
-        const videos = this.data.videos || [];
-        updateData.carouselItems = [
-          ...allImages.map(url => ({ type: 'image', url })),
-          ...videos.map(url => ({ type: 'video', url }))
-        ];
-      }
-      
-      this.setData(updateData);
+      });
       if (updateData.carouselItems) this.resolveVideoSignedUrls();
       
       if (detailImages.length > 0) {

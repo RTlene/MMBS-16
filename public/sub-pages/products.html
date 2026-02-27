@@ -642,6 +642,33 @@
             background: rgba(220, 53, 69, 1);
         }
         
+        .media-item .media-sort-btns {
+            position: absolute;
+            left: 2px;
+            bottom: 2px;
+            display: flex;
+            gap: 2px;
+        }
+        .media-item .btn-sort {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            font-size: 12px;
+            line-height: 1;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+        .media-item .btn-sort:hover:not(:disabled) {
+            background: rgba(0, 123, 255, 0.9);
+        }
+        .media-item .btn-sort:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
         .media-upload-controls {
             display: flex;
             gap: 10px;

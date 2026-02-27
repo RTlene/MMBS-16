@@ -824,17 +824,31 @@ function handleVideoUpload(event) {
     event.target.value = '';
 }
 
+// 上移/下移媒体项（主图、详情图排序）
+function moveMediaItem(type, index, direction) {
+    const mediaData = window.productManagementData.mediaData[type];
+    if (!mediaData || mediaData.length < 2) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= mediaData.length) return;
+    const a = mediaData[index];
+    const b = mediaData[targetIndex];
+    mediaData[index] = b;
+    mediaData[targetIndex] = a;
+    renderMediaPreview(type);
+}
+
 // 渲染媒体预览
 function renderMediaPreview(type) {
     const preview = document.getElementById(`${type}Preview`);
     const mediaData = window.productManagementData.mediaData[type];
-    
+    const canSort = (type === 'mainImages' || type === 'detailImages');
+
     if (mediaData.length === 0) {
         preview.innerHTML = '<div class="empty">暂无媒体文件</div>';
         preview.classList.add('empty');
         return;
     }
-    
+
     preview.classList.remove('empty');
     const placeholderImg = getMediaDisplayUrl('/images/default-product.svg') || '/images/default-product.svg';
     preview.innerHTML = mediaData.map((item, index) => {
@@ -850,10 +864,17 @@ function renderMediaPreview(type) {
         </div>
     `;
         }
+        const sortBtns = canSort ? `
+            <span class="media-sort-btns">
+                <button type="button" class="btn btn-sm btn-sort" onclick="moveMediaItem('${type}', ${index}, 'up')" ${index === 0 ? 'disabled' : ''} title="上移">↑</button>
+                <button type="button" class="btn btn-sm btn-sort" onclick="moveMediaItem('${type}', ${index}, 'down')" ${index === mediaData.length - 1 ? 'disabled' : ''} title="下移">↓</button>
+            </span>
+        ` : '';
         return `
         <div class="media-item">
             <img src="${_escapeText(displayUrl)}" alt="${_escapeText(item.name || '')}"
                 onerror="this.onerror=null; this.src='${_escapeText(placeholderImg)}'; this.alt='图片加载失败'; this.title='${_escapeText(failTip)}';">
+            ${sortBtns}
             <button class="remove-btn" onclick="removeMediaItem('${type}', ${index})">&times;</button>
         </div>
     `;
