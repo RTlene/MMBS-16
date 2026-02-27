@@ -38,11 +38,12 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
             }
         });
 
-        // 查询所有可用优惠券
+        // 仅展示「用户领取」发放模式的优惠券（系统发放、自动发放不在此列表）
         const where = {
             status: 'active',
             validFrom: { [Op.lte]: now },
-            validTo: { [Op.gte]: now }
+            validTo: { [Op.gte]: now },
+            distributionMode: { [Op.in]: ['user_claim', null] }
         };
 
         const { count, rows } = await Coupon.findAndCountAll({
@@ -264,6 +265,15 @@ router.post('/coupons/:id/receive', authenticateMiniappUser, async (req, res) =>
             return res.status(400).json({
                 code: 1,
                 message: '优惠券不可用'
+            });
+        }
+
+        // 仅「用户领取」模式可被用户主动领取
+        const mode = coupon.distributionMode || 'user_claim';
+        if (mode !== 'user_claim') {
+            return res.status(400).json({
+                code: 1,
+                message: '该优惠券不支持用户领取'
             });
         }
 

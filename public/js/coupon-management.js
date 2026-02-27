@@ -121,9 +121,11 @@ window.CouponManagement = {
         if (!tbody) return;
         tbody.innerHTML = '';
         var self = this;
+        var distributionModeText = { auto: '自动', system: '系统发放', user_claim: '用户领取' };
         this.data.coupons.forEach(function (c) {
             var tr = document.createElement('tr');
             var typeText = { discount: '折扣券', cash: '代金券', gift: '礼品券' }[c.type] || c.type;
+            var modeText = distributionModeText[c.distributionMode] || distributionModeText.user_claim;
             var discountText = c.discountType === 'percentage' ? (c.discountValue + '%') : ('¥' + (parseFloat(c.discountValue) || 0));
             var minText = c.minOrderAmount != null && c.minOrderAmount > 0 ? '满¥' + c.minOrderAmount : '-';
             var useText = (c.totalCount || 0) + ' / ' + (c.usedCount || 0);
@@ -135,6 +137,7 @@ window.CouponManagement = {
                 '<td>' + (c.name || '') + '</td>' +
                 '<td><code>' + (c.code || '') + '</code></td>' +
                 '<td><span class="type-badge">' + typeText + '</span></td>' +
+                '<td>' + modeText + '</td>' +
                 '<td>' + discountText + '</td>' +
                 '<td>' + minText + '</td>' +
                 '<td>' + useText + '</td>' +
@@ -203,6 +206,8 @@ window.CouponManagement = {
         }
         document.getElementById('couponValue').value = '100';
         document.getElementById('couponTotalCount').value = '100';
+        var modeEl = document.getElementById('couponDistributionMode');
+        if (modeEl) modeEl.value = 'user_claim';
         this.toggleGiftConfig();
         document.getElementById('couponModal').classList.add('show');
     },
@@ -220,6 +225,8 @@ window.CouponManagement = {
         document.getElementById('couponDiscountValue').value = c.discountValue != null ? c.discountValue : '';
         document.getElementById('couponMinOrderAmount').value = c.minOrderAmount != null && c.minOrderAmount > 0 ? c.minOrderAmount : '';
         document.getElementById('couponTotalCount').value = c.totalCount != null ? c.totalCount : 100;
+        var modeEl = document.getElementById('couponDistributionMode');
+        if (modeEl) modeEl.value = (c.distributionMode === 'auto' || c.distributionMode === 'system') ? c.distributionMode : 'user_claim';
         document.getElementById('couponValidFrom').value = this.formatDateTimeLocal(c.validFrom);
         document.getElementById('couponValidTo').value = this.formatDateTimeLocal(c.validTo);
         document.getElementById('couponStatus').value = c.status || 'active';
@@ -279,6 +286,8 @@ window.CouponManagement = {
             fullGiftRules = [{ conditionType: 'amount', minAmount: giftMinAmount || 0, giftProductId: giftProductId, giftQuantity: giftQuantity }];
         }
 
+        var distributionModeEl = document.getElementById('couponDistributionMode');
+        var distributionMode = (distributionModeEl && distributionModeEl.value) ? distributionModeEl.value : 'user_claim';
         var body = {
             name: name,
             code: code,
@@ -291,6 +300,7 @@ window.CouponManagement = {
             validFrom: validFrom.replace('T', ' ').substring(0, 19),
             validTo: validTo.replace('T', ' ').substring(0, 19),
             status: status,
+            distributionMode: distributionMode,
             description: description || undefined
         };
         if (fullGiftRules) body.fullGiftRules = fullGiftRules;

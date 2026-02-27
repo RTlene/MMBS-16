@@ -1986,6 +1986,12 @@ const Coupon = sequelize.define('Coupon', {
         defaultValue: 'active',
         comment: '状态：active-启用，inactive-禁用，expired-已过期'
     },
+    distributionMode: {
+        type: DataTypes.ENUM('auto', 'system', 'user_claim'),
+        allowNull: true,
+        defaultValue: 'user_claim',
+        comment: '发放模式：auto-自动，system-系统发放，user_claim-用户领取'
+    },
     description: {
         type: DataTypes.TEXT,
         allowNull: true,

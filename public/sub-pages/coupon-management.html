@@ -119,6 +119,7 @@
                         <th>名称</th>
                         <th>代码</th>
                         <th>类型</th>
+                        <th>发放模式</th>
                         <th>面值/折扣</th>
                         <th>门槛</th>
                         <th>发放/已用</th>
@@ -176,6 +177,15 @@
                             <label class="form-label">折扣值 <span style="color:#ff4d4f">*</span></label>
                             <input type="number" class="form-input" id="couponDiscountValue" min="0" step="0.01" required placeholder="金额或折扣%">
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">发放模式</label>
+                        <select class="form-input" id="couponDistributionMode">
+                            <option value="user_claim" selected>用户领取</option>
+                            <option value="system">系统发放</option>
+                            <option value="auto">自动</option>
+                        </select>
+                        <p class="form-hint">用户领取：用户可在优惠券中心主动领取；系统发放：由后台/规则发放给指定用户；自动：按规则自动发放。</p>
                     </div>
                     <div class="form-row">
                         <div class="form-group">

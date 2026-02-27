@@ -132,6 +132,7 @@ router.post('/', authenticateToken, async (req, res) => {
             return res.status(400).json({ code: 1, message: '有效期结束时间必须晚于开始时间' });
         }
 
+        const distributionMode = ['auto', 'system', 'user_claim'].includes(body.distributionMode) ? body.distributionMode : 'user_claim';
         const coupon = await withDbRetry(() => Coupon.create({
             name: body.name,
             code: String(body.code).trim(),
@@ -152,6 +153,7 @@ router.post('/', authenticateToken, async (req, res) => {
             validFrom,
             validTo,
             status: body.status || 'active',
+            distributionMode,
             description: body.description || null,
             fullReductionRules: body.fullReductionRules || null,
             fullGiftRules: body.fullGiftRules || null,
@@ -206,6 +208,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
         if (body.fullReductionRules !== undefined) coupon.fullReductionRules = body.fullReductionRules;
         if (body.fullGiftRules !== undefined) coupon.fullGiftRules = body.fullGiftRules;
         if (body.fullDiscountRules !== undefined) coupon.fullDiscountRules = body.fullDiscountRules;
+        if (body.distributionMode !== undefined && ['auto', 'system', 'user_claim'].includes(body.distributionMode)) {
+            coupon.distributionMode = body.distributionMode;
+        }
         coupon.updatedBy = userId;
 
         await withDbRetry(() => coupon.save());
