@@ -77,7 +77,7 @@ Page({
         status: currentTab
       };
 
-      const res = await request.get(API.COUPON.MY_LIST, { data: params }, { needAuth: true });
+      const res = await request.get(API.COUPON.MY_LIST, params, { needAuth: true });
 
       if (res.code === 0) {
         const newCoupons = res.data.coupons || [];

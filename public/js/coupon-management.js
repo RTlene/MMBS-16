@@ -18,6 +18,7 @@ window.CouponManagement = {
         this.bindEvents();
     },
     bindEvents: function () {
+        var self = this;
         var searchEl = document.getElementById('searchInput');
         if (searchEl) searchEl.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') window.CouponManagement.searchCoupons();
@@ -26,6 +27,45 @@ window.CouponManagement = {
         var statusEl = document.getElementById('statusFilter');
         if (typeEl) typeEl.addEventListener('change', function () { window.CouponManagement.searchCoupons(); });
         if (statusEl) statusEl.addEventListener('change', function () { window.CouponManagement.searchCoupons(); });
+        var couponTypeEl = document.getElementById('couponType');
+        if (couponTypeEl) couponTypeEl.addEventListener('change', function () {
+            self.toggleGiftConfig();
+        });
+    },
+    toggleGiftConfig: function () {
+        var type = document.getElementById('couponType') && document.getElementById('couponType').value;
+        var section = document.getElementById('giftConfigSection');
+        if (!section) return;
+        if (type === 'gift') {
+            section.style.display = 'block';
+            this.loadProductsForGift();
+        } else {
+            section.style.display = 'none';
+        }
+    },
+    loadProductsForGift: function (selectedProductId) {
+        var select = document.getElementById('giftProductId');
+        if (!select) return;
+        select.innerHTML = '<option value="">请选择商品</option>';
+        var self = this;
+        fetch('/api/products?limit=200&status=active', {
+            headers: { 'Authorization': 'Bearer ' + this.getToken() }
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (result) {
+                if (result.code === 0 && result.data && result.data.products) {
+                    result.data.products.forEach(function (p) {
+                        var opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = (p.name || '') + ' (ID:' + p.id + ')';
+                        select.appendChild(opt);
+                    });
+                    if (selectedProductId != null && selectedProductId !== '') {
+                        select.value = selectedProductId;
+                    }
+                }
+            })
+            .catch(function () {});
     },
     getToken: function () {
         return localStorage.getItem('token') || '';
@@ -163,6 +203,7 @@ window.CouponManagement = {
         }
         document.getElementById('couponValue').value = '100';
         document.getElementById('couponTotalCount').value = '100';
+        this.toggleGiftConfig();
         document.getElementById('couponModal').classList.add('show');
     },
     editCoupon: function (id) {
@@ -183,6 +224,15 @@ window.CouponManagement = {
         document.getElementById('couponValidTo').value = this.formatDateTimeLocal(c.validTo);
         document.getElementById('couponStatus').value = c.status || 'active';
         document.getElementById('couponDescription').value = c.description || '';
+        this.toggleGiftConfig();
+        if (c.type === 'gift' && c.fullGiftRules && Array.isArray(c.fullGiftRules) && c.fullGiftRules[0]) {
+            var r = c.fullGiftRules[0];
+            var giftQuantityEl = document.getElementById('giftQuantity');
+            var giftMinAmountEl = document.getElementById('giftMinAmount');
+            if (giftQuantityEl) giftQuantityEl.value = r.giftQuantity != null ? r.giftQuantity : 1;
+            if (giftMinAmountEl) giftMinAmountEl.value = r.minAmount != null ? r.minAmount : 0;
+            this.loadProductsForGift(r.giftProductId != null ? r.giftProductId : null);
+        }
         document.getElementById('couponModal').classList.add('show');
     },
     closeModal: function () {
@@ -210,6 +260,25 @@ window.CouponManagement = {
         if (!validFrom || !validTo) { alert('请选择有效期'); return; }
         if (new Date(validFrom) >= new Date(validTo)) { alert('结束时间必须晚于开始时间'); return; }
 
+        var fullGiftRules = null;
+        if (type === 'gift') {
+            var giftProductIdEl = document.getElementById('giftProductId');
+            var giftQuantityEl = document.getElementById('giftQuantity');
+            var giftMinAmountEl = document.getElementById('giftMinAmount');
+            var giftProductId = giftProductIdEl && giftProductIdEl.value ? parseInt(giftProductIdEl.value, 10) : 0;
+            var giftQuantity = giftQuantityEl && giftQuantityEl.value ? parseInt(giftQuantityEl.value, 10) : 1;
+            var giftMinAmount = giftMinAmountEl && giftMinAmountEl.value !== '' ? parseFloat(giftMinAmountEl.value) : 0;
+            if (!giftProductId || giftProductId < 1) {
+                alert('请选择赠品商品');
+                return;
+            }
+            if (!giftQuantity || giftQuantity < 1) {
+                alert('赠品数量至少为 1');
+                return;
+            }
+            fullGiftRules = [{ conditionType: 'amount', minAmount: giftMinAmount || 0, giftProductId: giftProductId, giftQuantity: giftQuantity }];
+        }
+
         var body = {
             name: name,
             code: code,
@@ -224,6 +293,7 @@ window.CouponManagement = {
             status: status,
             description: description || undefined
         };
+        if (fullGiftRules) body.fullGiftRules = fullGiftRules;
 
         var url = '/api/coupons';
         var method = 'POST';

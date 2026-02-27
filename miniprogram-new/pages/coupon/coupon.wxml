@@ -32,6 +32,11 @@
       </view>
       <view class="coupon-right">
         <view class="coupon-name">{{item.name}}</view>
+        <view class="coupon-condition">
+          <text class="condition-label">使用条件：</text>
+          <text class="condition-value" wx:if="{{item.minOrderAmount || item.minAmount}}">满{{formatAmount(item.minOrderAmount || item.minAmount)}}元可用</text>
+          <text class="condition-value" wx:else>无门槛</text>
+        </view>
         <view class="coupon-desc" wx:if="{{item.description}}">
           {{item.description}}
         </view>

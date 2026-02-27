@@ -68,6 +68,7 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
                 couponStatus = 'unavailable';
             }
 
+            const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
             return {
                 id: coupon.id,
                 name: coupon.name,
@@ -77,7 +78,7 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
                 value: parseFloat(coupon.value),
                 discountValue: parseFloat(coupon.discountValue),
                 minAmount: coupon.minAmount ? parseFloat(coupon.minAmount) : null,
-                minOrderAmount: coupon.minOrderAmount ? parseFloat(coupon.minOrderAmount) : null,
+                minOrderAmount: minOrder,
                 maxDiscount: coupon.maxDiscount ? parseFloat(coupon.maxDiscount) : null,
                 maxDiscountAmount: coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null,
                 validFrom: coupon.validFrom,

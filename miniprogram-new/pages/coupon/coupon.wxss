@@ -105,6 +105,20 @@
   margin-bottom: 10rpx;
 }
 
+.coupon-condition {
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 8rpx;
+}
+
+.coupon-condition .condition-label {
+  color: #888;
+}
+
+.coupon-condition .condition-value {
+  color: #333;
+}
+
 .coupon-desc {
   font-size: 26rpx;
   color: #666;
