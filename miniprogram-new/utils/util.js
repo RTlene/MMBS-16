@@ -320,7 +320,19 @@ function buildOptimizedImageUrl(url, options = {}) {
     }
     return apiBase ? `${apiBase.replace(/\/$/, '')}/api/storage/cos-url?url=${encodeURIComponent(url)}` : url;
   }
-  
+
+  // 云托管 file_id（cloud://）：小程序无法直接请求，需经后端 temp-url 换临时 HTTP 链接再加载
+  if (typeof url === 'string' && url.trim().startsWith('cloud://')) {
+    let apiBase = '';
+    try {
+      const { API_BASE_URL } = require('../config/api.js');
+      apiBase = (API_BASE_URL || '').replace(/\/$/, '');
+    } catch (e) {
+      apiBase = '';
+    }
+    return apiBase ? `${apiBase}/api/storage/temp-url?fileId=${encodeURIComponent(url.trim())}` : url;
+  }
+
   // 如果是完整URL，需要先提取路径部分
   let imagePath = url;
   let baseUrl = '';
