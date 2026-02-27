@@ -209,7 +209,13 @@ Page({
       const pricing = detail.pricing || {};
       const promotionBucket = detail.promotions || {};
       const coupons = detail.coupons || promotionBucket.availableCoupons || [];
-      const promotions = detail.promotionsList || promotionBucket.availablePromotions || [];
+      const rawPromotions = detail.promotionsList || promotionBucket.availablePromotions || [];
+      // 统一为 { id, type, description }，避免只显示红条无文字
+      const promotions = rawPromotions.map(p => ({
+        id: p.id,
+        type: p.type || p.name || '促销',
+        description: p.description || (p.discountType === 'fixed' && p.discountValue != null ? `满减 ¥${p.discountValue}` : p.discountType === 'percent' && p.discountValue != null ? `享 ${p.discountValue} 折` : p.name) || '促销优惠'
+      }));
       const skuList = normalizeSkus(detail.skus || product.skus || []);
       const discountFromPricing = Array.isArray(pricing.discounts) ? pricing.discounts[0] : null;
       

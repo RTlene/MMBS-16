@@ -197,16 +197,25 @@ class PromotionService {
                         minOrderAmount: coupon.minOrderAmount
                         // 移除其他字段，减少数据量
                     })),
-                    // 激进优化：只返回前5个促销，只保留最核心字段
+                    // 返回前5个促销，含 type/description 供商品详情页「促销活动」正确展示
                     availablePromotions: availablePromotions.slice(0, 5).map(promotion => {
-                        // 从 rules JSON 中提取 discountType 和 discountValue
                         const rules = promotion.rules || {};
+                        const discountType = rules.discountType || null;
+                        const discountValue = rules.discountValue != null ? rules.discountValue : null;
+                        let description = promotion.description || '';
+                        if (!description && (discountType || discountValue != null)) {
+                            if (discountType === 'fixed' && discountValue != null) description = `满减 ¥${discountValue}`;
+                            else if (discountType === 'percent' && discountValue != null) description = `享 ${discountValue} 折`;
+                            else description = promotion.name || '促销优惠';
+                        }
+                        if (!description) description = promotion.name || '促销';
                         return {
                             id: promotion.id,
                             name: promotion.name,
-                            discountType: rules.discountType || null,
-                            discountValue: rules.discountValue || null
-                            // 移除其他字段，减少数据量
+                            type: promotion.name || '促销',
+                            description,
+                            discountType,
+                            discountValue
                         };
                     }),
                     // 积分商品精简字段
