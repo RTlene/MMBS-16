@@ -82,6 +82,7 @@ const API = {
     RETURN_LOGISTICS: '/api/miniapp/orders/:id/return-logistics', // 提交退货物流
     REQUEST_REFUND: '/api/miniapp/orders/:id/refund', // 申请退款
     STATS: '/api/miniapp/orders/stats',         // 订单统计
+    UPLOAD_AFTER_SALES_IMAGE: '/api/miniapp/after-sales/upload-image', // 售后凭证图上传（对象存储）
   },
 
   // 支付相关

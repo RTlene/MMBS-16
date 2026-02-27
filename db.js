@@ -108,7 +108,13 @@ const Category = sequelize.define('Category', {
     icon: {
         type: DataTypes.STRING(500),
         allowNull: true,
-        comment: '分类图标'
+        comment: '分类图标（图片 URL）'
+    },
+    showOnHomepage: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        comment: '是否在首页展示'
     },
     status: {
         type: DataTypes.ENUM('active', 'inactive'),
@@ -2277,6 +2283,38 @@ const LuckyDraw = sequelize.define('LuckyDraw', {
     timestamps: true
 });
 
+// 自定义奖品模型（抽奖用：名称、描述、图片等，供“自定义奖品”类型引用）
+const CustomPrize = sequelize.define('CustomPrize', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    name: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        comment: '奖品名称'
+    },
+    description: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: '奖品描述'
+    },
+    image: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        comment: '奖品图片 URL'
+    },
+    sortOrder: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '排序'
+    }
+}, {
+    tableName: 'custom_prizes',
+    timestamps: true
+});
+
 // 轮播图模型
 const Banner = sequelize.define('Banner', {
     id: {
@@ -3148,6 +3186,7 @@ async function init() {
       ['PointProducts', PointProduct],
       ['PointExchanges', PointExchange],
       ['LuckyDraws', LuckyDraw],
+      ['CustomPrizes', CustomPrize],
       ['Banners', Banner],
       ['Popups', Popup],
       ['Articles', Article],
@@ -3252,6 +3291,7 @@ module.exports = {
     PointProduct,
     PointExchange,
     LuckyDraw,
+    CustomPrize,
     Banner,
     Popup,
     Article,

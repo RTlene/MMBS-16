@@ -242,6 +242,8 @@
             <tr>
                 <th>ID</th>
                 <th>分类名称</th>
+                <th>图标</th>
+                <th>首页展示</th>
                 <th>描述</th>
                 <th>父分类</th>
                 <th>排序</th>
@@ -289,6 +291,21 @@
                 <input type="number" id="addSortOrder" name="sortOrder" value="0">
             </div>
             <div class="form-group">
+                <label>展示在首页</label>
+                <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+                    <input type="checkbox" id="addShowOnHomepage" name="showOnHomepage" value="1" checked> 在首页展示该分类
+                </label>
+            </div>
+            <div class="form-group">
+                <label>分类图标</label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="text" id="addIcon" name="icon" placeholder="上传后自动填充或输入图片地址" style="flex:1;min-width:180px;">
+                    <input type="file" id="addIconFile" accept="image/*" style="display:none">
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('addIconFile').click()">上传图标</button>
+                </div>
+                <div id="addIconPreview" style="margin-top:8px;min-height:40px;"></div>
+            </div>
+            <div class="form-group">
                 <label for="addStatus">状态</label>
                 <select id="addStatus" name="status">
                     <option value="active">启用</option>
@@ -329,6 +346,21 @@
             <div class="form-group">
                 <label for="editSortOrder">排序顺序</label>
                 <input type="number" id="editSortOrder" name="sortOrder" value="0">
+            </div>
+            <div class="form-group">
+                <label>展示在首页</label>
+                <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+                    <input type="checkbox" id="editShowOnHomepage" name="showOnHomepage" value="1"> 在首页展示该分类
+                </label>
+            </div>
+            <div class="form-group">
+                <label>分类图标</label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="text" id="editIcon" name="icon" placeholder="上传后自动填充或输入图片地址" style="flex:1;min-width:180px;">
+                    <input type="file" id="editIconFile" accept="image/*" style="display:none">
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('editIconFile').click()">上传图标</button>
+                </div>
+                <div id="editIconPreview" style="margin-top:8px;min-height:40px;"></div>
             </div>
             <div class="form-group">
                 <label for="editStatus">状态</label>

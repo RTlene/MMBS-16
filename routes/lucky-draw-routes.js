@@ -343,36 +343,54 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// 验证奖品配置
+// 奖品类型枚举
+const PRIZE_TYPES = ['product', 'coupon', 'points', 'commission', 'custom'];
+
+// 验证奖品配置（支持 type: product|coupon|points|commission|custom 及对应关联字段）
 function validatePrizesConfig(prizes) {
     const prizeList = Object.values(prizes);
-    
     if (prizeList.length === 0) {
         return { valid: false, message: '至少需要配置一个奖品' };
     }
 
     let totalProbability = 0;
-    
     for (const prize of prizeList) {
-        if (!prize.name || prize.name.trim() === '') {
+        const type = (prize.type || 'custom').toLowerCase();
+        if (!PRIZE_TYPES.includes(type)) {
+            return { valid: false, message: '奖品类型只能是：商品、优惠券、积分、佣金奖励、自定义' };
+        }
+        if (!prize.name || String(prize.name).trim() === '') {
             return { valid: false, message: '奖品名称不能为空' };
         }
-        
-        if (!prize.probability || prize.probability <= 0 || prize.probability > 100) {
+        const prob = parseFloat(prize.probability);
+        if (isNaN(prob) || prob <= 0 || prob > 100) {
             return { valid: false, message: '奖品中奖概率必须在1-100之间' };
         }
-        
-        if (!prize.quantity || prize.quantity <= 0) {
+        const qty = parseInt(prize.quantity, 10);
+        if (isNaN(qty) || qty <= 0) {
             return { valid: false, message: '奖品数量必须大于0' };
         }
-        
-        totalProbability += prize.probability;
+        if (type === 'product' && (!prize.productId || parseInt(prize.productId, 10) <= 0)) {
+            return { valid: false, message: '商品类型奖品请选择商品' };
+        }
+        if (type === 'coupon' && (!prize.couponId || parseInt(prize.couponId, 10) <= 0)) {
+            return { valid: false, message: '优惠券类型奖品请选择优惠券' };
+        }
+        if (type === 'points' && (prize.points == null || isNaN(Number(prize.points)) || Number(prize.points) < 0)) {
+            return { valid: false, message: '积分类型奖品请填写积分数量' };
+        }
+        if (type === 'commission' && (prize.commissionAmount == null || isNaN(Number(prize.commissionAmount)) || Number(prize.commissionAmount) < 0)) {
+            return { valid: false, message: '佣金奖励类型奖品请填写佣金金额' };
+        }
+        // 自定义类型：可选 customPrizeId（无则仅用名称，兼容旧数据）
+        if (type === 'custom' && prize.customPrizeId != null && prize.customPrizeId !== '' && parseInt(prize.customPrizeId, 10) <= 0) {
+            return { valid: false, message: '自定义奖品ID无效' };
+        }
+        totalProbability += prob;
     }
-
     if (Math.abs(totalProbability - 100) > 0.01) {
         return { valid: false, message: '所有奖品的中奖概率总和必须等于100%' };
     }
-
     return { valid: true };
 }
 

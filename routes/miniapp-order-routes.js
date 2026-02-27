@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, sequelize } = require('../db');
+const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, ReturnRequest, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
 const configStore = require('../services/configStore');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
@@ -1010,7 +1010,7 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
     }
 });
 
-// 申请退货（小程序端）
+// 申请退货（小程序端）：创建退货单（含凭证图），订单关联
 router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1024,7 +1024,9 @@ router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        const order = await Order.findByPk(id);
+        const order = await Order.findByPk(id, {
+            include: [{ model: OrderItem, as: 'items', required: false }]
+        });
         if (!order) {
             return res.status(404).json({
                 code: 1,
@@ -1032,7 +1034,6 @@ router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 检查订单是否属于当前用户
         if (order.memberId !== member.id) {
             return res.status(403).json({
                 code: 1,
@@ -1040,7 +1041,6 @@ router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 检查订单状态
         if (!['delivered', 'shipped'].includes(order.status)) {
             return res.status(400).json({
                 code: 1,
@@ -1048,7 +1048,6 @@ router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 检查是否已有退货申请
         if (order.returnStatus !== 'none') {
             return res.status(400).json({
                 code: 1,
@@ -1056,31 +1055,44 @@ router.post('/orders/:id/return', authenticateMiniappUser, async (req, res) => {
             });
         }
 
+        const items = order.items || [];
+        const firstItem = items[0];
+        const productId = firstItem ? firstItem.productId : (order.productId || 0);
+        const quantity = firstItem ? firstItem.quantity : 1;
+        const imageUrls = Array.isArray(images) ? images.filter(u => u && String(u).trim()) : [];
+
+        const returnNo = 'RT' + Date.now();
+        await ReturnRequest.create({
+            returnNo,
+            orderId: order.id,
+            memberId: member.id,
+            productId: productId || 0,
+            quantity,
+            reason,
+            reasonDetail: description || null,
+            images: imageUrls.length ? imageUrls : null,
+            status: 'pending'
+        });
+
         await order.update({
             returnStatus: 'requested',
             returnReason: reason,
             updatedBy: member.id
         });
 
-        // 记录操作日志
         await OrderOperationLog.create({
             orderId: order.id,
             operation: 'return',
-            operatorId: null, // 小程序用户不在 users 表中，设为 null
+            operatorId: null,
             operatorType: 'member',
             description: `申请退货，原因：${reason}（会员ID: ${member.id}）`,
-            data: { 
-                memberId: member.id, // 在 data 中记录会员ID
-                reason, 
-                description, 
-                images 
-            }
+            data: { memberId: member.id, reason, description, images: imageUrls }
         });
 
         res.json({
             code: 0,
             message: '退货申请提交成功',
-            data: { 
+            data: {
                 order: {
                     id: order.id,
                     orderNo: order.orderNo,

@@ -469,6 +469,29 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
             // 清理 undefined（避免覆盖）
             Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
+            // 校验会员等级、分销等级、团队拓展等级是否存在；不存在则置空并记录警告，避免写入无效 ID
+            if (payload.memberLevelId != null) {
+                const memberLevel = await MemberLevel.findByPk(payload.memberLevelId);
+                if (!memberLevel) {
+                    results.errors.push({ line, reason: '会员等级 ID ' + payload.memberLevelId + ' 不存在，已置空' });
+                    payload.memberLevelId = null;
+                }
+            }
+            if (payload.distributorLevelId != null) {
+                const distributorLevel = await DistributorLevel.findByPk(payload.distributorLevelId);
+                if (!distributorLevel) {
+                    results.errors.push({ line, reason: '分销等级 ID ' + payload.distributorLevelId + ' 不存在，已置空' });
+                    payload.distributorLevelId = null;
+                }
+            }
+            if (payload.teamExpansionLevelId != null) {
+                const teamExpansionLevel = await TeamExpansionLevel.findByPk(payload.teamExpansionLevelId);
+                if (!teamExpansionLevel) {
+                    results.errors.push({ line, reason: '团队拓展等级 ID ' + payload.teamExpansionLevelId + ' 不存在，已置空' });
+                    payload.teamExpansionLevelId = null;
+                }
+            }
+
             const id = safeInt(r.id);
             const openid = payload.openid;
             let target = null;

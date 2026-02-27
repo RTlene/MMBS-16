@@ -14,7 +14,9 @@ const pageInitFunctions = {
         }
     },
     'category-management': () => {
-        if (window.CategoryManagement && window.CategoryManagement.loadCategories) {
+        if (window.CategoryManagement && window.CategoryManagement.init) {
+            window.CategoryManagement.init();
+        } else if (window.CategoryManagement && window.CategoryManagement.loadCategories) {
             window.CategoryManagement.loadCategories();
         }
     },

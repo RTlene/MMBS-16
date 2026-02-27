@@ -7,7 +7,10 @@ window.luckyDrawData = {
     searchKeyword: '',
     statusFilter: '',
     currentDraw: null,
-    prizeCount: 0
+    prizeCount: 0,
+    productsList: [],
+    couponsList: [],
+    customPrizesList: []
 };
 
 // 页面初始化
@@ -162,31 +165,57 @@ function searchDraws() {
     loadDraws();
 }
 
+// 加载奖品类型所需的下拉数据（商品、优惠券、自定义奖品）
+async function loadPrizeOptions() {
+    const token = localStorage.getItem('token');
+    const headers = { 'Authorization': 'Bearer ' + token };
+    try {
+        const [productsRes, couponsRes, customRes] = await Promise.all([
+            fetch('/api/products?page=1&limit=500&status=active', { headers }),
+            fetch('/api/coupons?page=1&limit=500&status=active', { headers }),
+            fetch('/api/custom-prizes/all', { headers })
+        ]);
+        const productsData = await productsRes.json();
+        const couponsData = await couponsRes.json();
+        const customData = await customRes.json();
+        if (productsData.code === 0 && productsData.data && productsData.data.products) {
+            window.luckyDrawData.productsList = productsData.data.products;
+        }
+        if (couponsData.code === 0 && couponsData.data && couponsData.data.coupons) {
+            window.luckyDrawData.couponsList = couponsData.data.coupons;
+        }
+        if (customData.code === 0 && customData.data && customData.data.list) {
+            window.luckyDrawData.customPrizesList = customData.data.list;
+        }
+    } catch (e) {
+        console.error('加载奖品选项失败:', e);
+    }
+}
+
 // 显示添加抽奖活动模态框
-function showAddDrawModal() {
+async function showAddDrawModal() {
     window.luckyDrawData.currentDraw = null;
     document.getElementById('drawModalTitle').textContent = '添加抽奖活动';
     document.getElementById('drawForm').reset();
     window.luckyDrawData.prizeCount = 0;
+    await loadPrizeOptions();
     renderPrizeList();
     document.getElementById('drawModal').classList.add('show');
 }
 
 // 编辑抽奖活动
-function editDraw(drawId) {
+async function editDraw(drawId) {
     const draw = window.luckyDrawData.draws.find(d => d.id === drawId);
     if (!draw) return;
 
     window.luckyDrawData.currentDraw = draw;
     document.getElementById('drawModalTitle').textContent = '编辑抽奖活动';
-    
-    // 填充表单数据
     document.getElementById('drawName').value = draw.name;
     document.getElementById('drawDescription').value = draw.description || '';
     document.getElementById('startTime').value = formatDateTimeLocal(draw.startTime);
     document.getElementById('endTime').value = formatDateTimeLocal(draw.endTime);
-    
-    // 渲染奖品列表
+
+    await loadPrizeOptions();
     if (draw.prizes) {
         window.luckyDrawData.prizeCount = Object.keys(draw.prizes).length;
         renderPrizeList(draw.prizes);
@@ -194,26 +223,79 @@ function editDraw(drawId) {
         window.luckyDrawData.prizeCount = 0;
         renderPrizeList();
     }
-    
     document.getElementById('drawModal').classList.add('show');
 }
 
-// 渲染奖品列表
+// 奖品类型选项
+const PRIZE_TYPE_OPTIONS = [
+    { value: 'product', label: '商品' },
+    { value: 'coupon', label: '优惠券' },
+    { value: 'points', label: '积分' },
+    { value: 'commission', label: '佣金奖励' },
+    { value: 'custom', label: '自定义' }
+];
+
+// 渲染奖品列表（含类型与关联配置）
 function renderPrizeList(prizes = {}) {
     const prizeList = document.getElementById('prizeList');
     prizeList.innerHTML = '';
+    const products = window.luckyDrawData.productsList || [];
+    const coupons = window.luckyDrawData.couponsList || [];
+    const customPrizes = window.luckyDrawData.customPrizesList || [];
 
     for (let i = 0; i < window.luckyDrawData.prizeCount; i++) {
+        const p = prizes['prize' + i] || {};
+        const type = (p.type || 'custom').toLowerCase();
         const prizeItem = document.createElement('div');
         prizeItem.className = 'prize-item';
+        prizeItem.dataset.index = i;
+
+        const typeSelectOpts = PRIZE_TYPE_OPTIONS.map(o => '<option value="' + o.value + '"' + (type === o.value ? ' selected' : '') + '>' + o.label + '</option>').join('');
+        const productOpts = '<option value="">请选择商品</option>' + products.map(pr => '<option value="' + pr.id + '"' + (p.productId == pr.id ? ' selected' : '') + '>' + (pr.name || '') + '</option>').join('');
+        const couponOpts = '<option value="">请选择优惠券</option>' + coupons.map(c => '<option value="' + c.id + '"' + (p.couponId == c.id ? ' selected' : '') + '>' + (c.name || c.code || '') + '</option>').join('');
+        const customOpts = '<option value="">请选择自定义奖品</option>' + customPrizes.map(cp => '<option value="' + cp.id + '"' + (p.customPrizeId == cp.id ? ' selected' : '') + '>' + (cp.name || '') + '</option>').join('');
+
         prizeItem.innerHTML = `
-            <input type="text" placeholder="奖品名称" value="${prizes[`prize${i}`]?.name || ''}" data-field="name">
-            <input type="number" placeholder="中奖概率(%)" min="0" max="100" step="0.01" value="${prizes[`prize${i}`]?.probability || ''}" data-field="probability">
-            <input type="number" placeholder="奖品数量" min="1" value="${prizes[`prize${i}`]?.quantity || ''}" data-field="quantity">
-            <button type="button" class="btn btn-danger" onclick="removePrize(${i})">删除</button>
+            <select class="prize-type-select" data-field="type" onchange="onPrizeTypeChange(${i})">${typeSelectOpts}</select>
+            <div class="prize-ref prize-ref-product" data-type-ref="product" style="display:${type === 'product' ? 'inline-block' : 'none'}">
+                <select class="prize-ref" data-field="productId"><option value="">请选择商品</option>${products.map(pr => '<option value="' + pr.id + '"' + (p.productId == pr.id ? ' selected' : '') + '>' + (pr.name || '') + '</option>').join('')}</select>
+            </div>
+            <div class="prize-ref prize-ref-coupon" data-type-ref="coupon" style="display:${type === 'coupon' ? 'inline-block' : 'none'}">
+                <select class="prize-ref" data-field="couponId"><option value="">请选择优惠券</option>${coupons.map(c => '<option value="' + c.id + '"' + (p.couponId == c.id ? ' selected' : '') + '>' + (c.name || c.code || '') + '</option>').join('')}</select>
+            </div>
+            <div class="prize-ref prize-ref-points" data-type-ref="points" style="display:${type === 'points' ? 'inline-block' : 'none'}">
+                <input type="number" class="prize-ref" data-field="points" min="0" placeholder="积分" value="${p.points != null ? p.points : ''}" style="width:100px">
+            </div>
+            <div class="prize-ref prize-ref-commission" data-type-ref="commission" style="display:${type === 'commission' ? 'inline-block' : 'none'}">
+                <input type="number" class="prize-ref" data-field="commissionAmount" min="0" step="0.01" placeholder="佣金金额" value="${p.commissionAmount != null ? p.commissionAmount : ''}" style="width:100px">
+            </div>
+            <div class="prize-ref prize-ref-custom" data-type-ref="custom" style="display:${type === 'custom' ? 'inline-block' : 'none'}">
+                <select class="prize-ref" data-field="customPrizeId"><option value="">可选自定义奖品</option>${customPrizes.map(cp => '<option value="' + cp.id + '"' + (p.customPrizeId == cp.id ? ' selected' : '') + '>' + (cp.name || '') + '</option>').join('')}</select>
+            </div>
+            <input type="text" class="prize-name" placeholder="奖品名称" value="${escapeHtml(p.name || '')}" data-field="name">
+            <input type="number" class="prize-prob" placeholder="概率%" min="0" max="100" step="0.01" value="${p.probability != null ? p.probability : ''}" data-field="probability">
+            <input type="number" class="prize-qty" placeholder="数量" min="1" value="${p.quantity != null ? p.quantity : ''}" data-field="quantity">
+            <button type="button" class="btn btn-danger btn-remove-prize" onclick="removePrize(${i})">删除</button>
         `;
         prizeList.appendChild(prizeItem);
     }
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+// 切换奖品类型时显示/隐藏对应控件
+function onPrizeTypeChange(index) {
+    const container = document.querySelector('.prize-item[data-index="' + index + '"]');
+    if (!container) return;
+    const type = (container.querySelector('[data-field="type"]') || {}).value;
+    container.querySelectorAll('[data-type-ref]').forEach(el => {
+        el.style.display = el.getAttribute('data-type-ref') === type ? 'inline-block' : 'none';
+    });
 }
 
 // 添加奖品
@@ -222,15 +304,19 @@ function addPrize() {
     renderPrizeList();
 }
 
-// 删除奖品
+// 删除奖品（保留其余行数据）
 function removePrize(index) {
     if (window.luckyDrawData.prizeCount <= 1) {
         alert('至少需要保留一个奖品');
         return;
     }
-    
-    window.luckyDrawData.prizeCount--;
-    renderPrizeList();
+    const current = getPrizesConfig();
+    const keys = Object.keys(current).sort();
+    keys.splice(index, 1);
+    const next = {};
+    keys.forEach((k, i) => { next['prize' + i] = current[k]; });
+    window.luckyDrawData.prizeCount = keys.length;
+    renderPrizeList(next);
 }
 
 // 保存抽奖活动
@@ -288,25 +374,41 @@ async function saveDraw() {
     }
 }
 
-// 获取奖品配置
+// 获取奖品配置（含 type 及关联字段）
 function getPrizesConfig() {
     const prizes = {};
     const prizeItems = document.querySelectorAll('.prize-item');
-    
     prizeItems.forEach((item, index) => {
-        const name = item.querySelector('[data-field="name"]').value;
-        const probability = parseFloat(item.querySelector('[data-field="probability"]').value);
-        const quantity = parseInt(item.querySelector('[data-field="quantity"]').value);
-        
-        if (name && !isNaN(probability) && !isNaN(quantity)) {
-            prizes[`prize${index}`] = {
-                name: name,
-                probability: probability,
-                quantity: quantity
-            };
+        const name = (item.querySelector('[data-field="name"]') || {}).value;
+        const probability = parseFloat((item.querySelector('[data-field="probability"]') || {}).value);
+        const quantity = parseInt((item.querySelector('[data-field="quantity"]') || {}).value, 10);
+        const type = ((item.querySelector('[data-field="type"]') || {}).value || 'custom').toLowerCase();
+        if (!name || isNaN(probability) || isNaN(quantity)) return;
+
+        const row = {
+            type: type,
+            name: name,
+            probability: probability,
+            quantity: quantity
+        };
+        if (type === 'product') {
+            const v = (item.querySelector('[data-field="productId"]') || {}).value;
+            if (v) row.productId = parseInt(v, 10);
+        } else if (type === 'coupon') {
+            const v = (item.querySelector('[data-field="couponId"]') || {}).value;
+            if (v) row.couponId = parseInt(v, 10);
+        } else if (type === 'points') {
+            const v = (item.querySelector('[data-field="points"]') || {}).value;
+            if (v !== '' && v != null) row.points = parseInt(v, 10);
+        } else if (type === 'commission') {
+            const v = (item.querySelector('[data-field="commissionAmount"]') || {}).value;
+            if (v !== '' && v != null) row.commissionAmount = parseFloat(v);
+        } else if (type === 'custom') {
+            const v = (item.querySelector('[data-field="customPrizeId"]') || {}).value;
+            if (v) row.customPrizeId = parseInt(v, 10);
         }
+        prizes['prize' + index] = row;
     });
-    
     return prizes;
 }
 
@@ -425,6 +527,129 @@ function formatDateTimeLocal(dateString) {
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// ---------- 自定义奖品管理 ----------
+function openCustomPrizeManage() {
+    document.getElementById('customPrizeModal').classList.add('show');
+    hideCustomPrizeForm();
+    loadCustomPrizes();
+}
+
+function closeCustomPrizeModal() {
+    document.getElementById('customPrizeModal').classList.remove('show');
+}
+
+async function loadCustomPrizes() {
+    try {
+        const res = await fetch('/api/custom-prizes?page=1&limit=200', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+        const data = await res.json();
+        const list = (data.code === 0 && data.data && data.data.list) ? data.data.list : [];
+        window.luckyDrawData.customPrizesList = list;
+        renderCustomPrizeTable(list);
+    } catch (e) {
+        console.error('加载自定义奖品失败:', e);
+        renderCustomPrizeTable([]);
+    }
+}
+
+function renderCustomPrizeTable(list) {
+    const tbody = document.getElementById('customPrizeTableBody');
+    tbody.innerHTML = '';
+    list.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + item.id + '</td><td>' + escapeHtml(item.name || '') + '</td><td>' + escapeHtml((item.description || '').slice(0, 50)) + '</td><td><button type="button" class="btn btn-primary" onclick="editCustomPrize(' + item.id + ')">编辑</button> <button type="button" class="btn btn-danger" onclick="deleteCustomPrize(' + item.id + ')">删除</button></td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function showAddCustomPrizeForm() {
+    document.getElementById('customPrizeFormBox').style.display = 'block';
+    document.getElementById('customPrizeId').value = '';
+    document.getElementById('customPrizeName').value = '';
+    document.getElementById('customPrizeDesc').value = '';
+    document.getElementById('customPrizeImage').value = '';
+    document.getElementById('customPrizeSort').value = '0';
+}
+
+function hideCustomPrizeForm() {
+    document.getElementById('customPrizeFormBox').style.display = 'none';
+}
+
+async function editCustomPrize(id) {
+    try {
+        const res = await fetch('/api/custom-prizes/' + id, {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+        const data = await res.json();
+        if (data.code !== 0 || !data.data) { alert('获取失败'); return; }
+        const item = data.data;
+        document.getElementById('customPrizeFormBox').style.display = 'block';
+        document.getElementById('customPrizeId').value = item.id;
+        document.getElementById('customPrizeName').value = item.name || '';
+        document.getElementById('customPrizeDesc').value = item.description || '';
+        document.getElementById('customPrizeImage').value = item.image || '';
+        document.getElementById('customPrizeSort').value = item.sortOrder != null ? item.sortOrder : 0;
+    } catch (e) {
+        console.error(e);
+        alert('获取失败');
+    }
+}
+
+async function saveCustomPrize() {
+    const id = document.getElementById('customPrizeId').value;
+    const name = document.getElementById('customPrizeName').value.trim();
+    if (!name) { alert('请输入名称'); return; }
+    const body = {
+        name: name,
+        description: document.getElementById('customPrizeDesc').value.trim() || null,
+        image: document.getElementById('customPrizeImage').value.trim() || null,
+        sortOrder: parseInt(document.getElementById('customPrizeSort').value, 10) || 0
+    };
+    try {
+        const url = id ? '/api/custom-prizes/' + id : '/api/custom-prizes';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+            alert('保存成功');
+            hideCustomPrizeForm();
+            loadCustomPrizes();
+            if (!id) window.luckyDrawData.customPrizesList = (window.luckyDrawData.customPrizesList || []).concat([data.data]);
+        } else {
+            alert('保存失败: ' + (data.message || ''));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('保存失败');
+    }
+}
+
+async function deleteCustomPrize(id) {
+    if (!confirm('确定删除该自定义奖品？')) return;
+    try {
+        const res = await fetch('/api/custom-prizes/' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+            alert('删除成功');
+            loadCustomPrizes();
+            window.luckyDrawData.customPrizesList = (window.luckyDrawData.customPrizesList || []).filter(cp => cp.id !== id);
+        } else {
+            alert('删除失败: ' + (data.message || ''));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('删除失败');
+    }
 }
 
 // 供 PageLoader 调用；直接打开页面时也执行一次

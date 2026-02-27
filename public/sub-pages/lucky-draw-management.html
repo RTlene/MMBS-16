@@ -339,32 +339,30 @@
 
         .prize-item {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 10px;
-            margin-bottom: 10px;
-            padding: 10px;
-            background: white;
-            border-radius: 4px;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: #fff;
             border: 1px solid #e8e8e8;
+            border-radius: 6px;
         }
 
-        .prize-item:last-child {
-            margin-bottom: 0;
-        }
+        .prize-item:last-child { margin-bottom: 0; }
+        .prize-item .prize-type-select { width: 120px; min-width: 100px; }
+        .prize-item .prize-ref { width: 160px; min-width: 120px; }
+        .prize-item .prize-name { flex: 1; min-width: 100px; }
+        .prize-item .prize-prob { width: 90px; }
+        .prize-item .prize-qty { width: 80px; }
+        .prize-item input, .prize-item select { padding: 6px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; }
+        .prize-item button.btn-remove-prize { padding: 4px 10px; font-size: 12px; }
 
-        .prize-item input {
-            flex: 1;
-        }
+        .add-prize-btn { width: 100%; margin-top: 10px; }
 
-        .prize-item button {
-            padding: 4px 8px;
-            font-size: 12px;
-        }
-
-        .add-prize-btn {
-            width: 100%;
-            margin-top: 10px;
-        }
+        .custom-prize-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .custom-prize-table th, .custom-prize-table td { padding: 8px 12px; text-align: left; border: 1px solid #e8e8e8; }
+        .custom-prize-table th { background: #fafafa; }
     </style>
 </head>
 <body>
@@ -422,6 +420,7 @@
             <div class="table-header">
                 <h2 class="table-title">抽奖活动列表</h2>
                 <div class="table-actions">
+                    <button class="btn btn-primary" onclick="openCustomPrizeManage()">管理自定义奖品</button>
                     <button class="btn btn-success" onclick="showAddDrawModal()">添加活动</button>
                 </div>
             </div>
@@ -489,6 +488,48 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="saveDraw()">保存</button>
                 <button class="btn" onclick="closeDrawModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义奖品管理模态框 -->
+    <div class="modal" id="customPrizeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">自定义奖品管理</h3>
+                <button class="close-btn" onclick="closeCustomPrizeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary" onclick="showAddCustomPrizeForm()">新增自定义奖品</button>
+                </div>
+                <div id="customPrizeFormBox" style="display:none; margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <input type="hidden" id="customPrizeId">
+                    <div class="form-group">
+                        <label class="form-label">名称</label>
+                        <input type="text" class="form-input" id="customPrizeName" placeholder="奖品名称">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-input" id="customPrizeDesc" rows="2" placeholder="可选"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">图片URL</label>
+                        <input type="text" class="form-input" id="customPrizeImage" placeholder="可选">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">排序</label>
+                        <input type="number" class="form-input" id="customPrizeSort" value="0">
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveCustomPrize()">保存</button>
+                    <button type="button" class="btn" onclick="hideCustomPrizeForm()">取消</button>
+                </div>
+                <table class="custom-prize-table">
+                    <thead>
+                        <tr><th>ID</th><th>名称</th><th>描述</th><th>操作</th></tr>
+                    </thead>
+                    <tbody id="customPrizeTableBody"></tbody>
+                </table>
             </div>
         </div>
     </div>

@@ -76,6 +76,21 @@
         </div>
 
         <div class="card">
+            <div class="card-header">售后凭证图（退款/退货上传图）</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">凭证图保留天数</label>
+                    <input type="number" id="afterSalesImageRetentionDays" name="afterSalesImageRetentionDays" class="form-input" min="1" max="3650" value="90" style="max-width:120px;">
+                    <p class="form-hint">用户售后单上传的凭证图在超过该天数后将被清除，转为轻量化存储（仅保留记录，不保留图片）。可随时点击下方按钮立即清理已超期的凭证图。</p>
+                </div>
+                <div class="form-group form-row" style="gap:12px;">
+                    <button type="button" class="btn btn-primary" id="saveAfterSalesImageSettingsBtn">保存</button>
+                    <button type="button" class="btn" id="cleanupAfterSalesImagesBtn" style="background:#f0f0f0;">立即清理超期凭证图</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-header">退货地址</div>
             <div class="card-body">
                 <div class="form-group">

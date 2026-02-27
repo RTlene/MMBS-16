@@ -113,7 +113,7 @@ Page({
   },
 
   /**
-   * 选择图片
+   * 选择图片并上传到对象存储，返回 URL 存入 images
    */
   async onChooseImage() {
     try {
@@ -123,16 +123,52 @@ Page({
         sourceType: ['album', 'camera']
       });
 
-      if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-        // 这里应该上传图片到服务器，暂时使用临时路径
-        // TODO: 实现图片上传功能
-        const newImages = [...this.data.images, ...res.tempFilePaths];
-        this.setData({
-          images: newImages.slice(0, 3) // 最多3张
-        });
+      if (!res.tempFilePaths || res.tempFilePaths.length === 0) return;
+
+      wx.showLoading({ title: '上传中...' });
+      const { API, BASE_URL } = require('../../config/api.js');
+      const token = wx.getStorageSync('token');
+      const uploadUrl = BASE_URL + API.ORDER.UPLOAD_AFTER_SALES_IMAGE;
+      const newUrls = [...this.data.images];
+
+      for (const filePath of res.tempFilePaths) {
+        if (newUrls.length >= 3) break;
+        try {
+          const uploadRes = await new Promise((resolve, reject) => {
+            wx.uploadFile({
+              url: uploadUrl,
+              filePath: filePath,
+              name: 'image',
+              header: { 'Authorization': 'Bearer ' + (token || '') },
+              success: (r) => {
+                try {
+                  const data = r.data && JSON.parse(r.data);
+                  resolve(data);
+                } catch (e) {
+                  reject(e);
+                }
+              },
+              fail: reject
+            });
+          });
+          if (uploadRes && uploadRes.code === 0 && uploadRes.data && uploadRes.data.url) {
+            const fullUrl = uploadRes.data.url.startsWith('http') ? uploadRes.data.url : (BASE_URL + (uploadRes.data.url.startsWith('/') ? uploadRes.data.url : '/' + uploadRes.data.url));
+            newUrls.push(fullUrl);
+          }
+        } catch (e) {
+          console.error('单张上传失败', e);
+        }
+      }
+
+      wx.hideLoading();
+      this.setData({ images: newUrls.slice(0, 3) });
+      if (newUrls.length < res.tempFilePaths.length + this.data.images.length) {
+        wx.showToast({ title: '部分图片上传失败', icon: 'none' });
       }
     } catch (error) {
+      wx.hideLoading();
       console.error('选择图片失败:', error);
+      wx.showToast({ title: '选择图片失败', icon: 'none' });
     }
   },
 
@@ -171,7 +207,7 @@ Page({
       const payload = {
         reason: this.data.reason,
         description: this.data.description,
-        images: this.data.images // TODO: 上传图片后使用服务器URL
+        images: this.data.images // 已上传到对象存储的凭证图 URL 数组
       };
 
       const res = await request.post(url, payload, { needAuth: true });

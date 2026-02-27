@@ -742,12 +742,15 @@ router.get('/products/:id', async (req, res) => {
     }
 });
 
-// 获取商品分类（小程序端）
+// 获取商品分类（小程序端）；homepage=1 时仅返回“展示在首页”的分类
 router.get('/categories', async (req, res) => {
     try {
-        const { parentId, level = 0 } = req.query;
+        const { parentId, level = 0, homepage } = req.query;
 
         const where = { status: 'active' };
+        if (homepage === '1' || homepage === 1) {
+            where.showOnHomepage = true;
+        }
         // 处理 parentId 参数，确保 null 值正确处理
         let parsedParentId = null;
         if (parentId !== undefined && parentId !== null && parentId !== 'null' && parentId !== '') {
@@ -762,7 +765,7 @@ router.get('/categories', async (req, res) => {
 
         const categories = await Category.findAll({
             where,
-            attributes: ['id', 'name', 'description', 'parentId', 'sortOrder', 'icon'],
+            attributes: ['id', 'name', 'description', 'parentId', 'sortOrder', 'icon', 'showOnHomepage'],
             order: [['sortOrder', 'ASC'], ['createdAt', 'ASC']]
         });
 
@@ -844,6 +847,7 @@ function buildCategoryTree(categories, parentId = null) {
                 parentId: category.parentId,
                 sortOrder: category.sortOrder,
                 icon: category.icon,
+                showOnHomepage: category.showOnHomepage,
                 children: children.length > 0 ? children : undefined
             };
             tree.push(node);

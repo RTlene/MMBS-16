@@ -24,6 +24,7 @@ const pointMallRoutes = require('./routes/point-mall-routes');
 const promotionRoutes = require('./routes/promotion-routes');
 const couponRoutes = require('./routes/coupon-routes');
 const luckyDrawRoutes = require('./routes/lucky-draw-routes');
+const customPrizeRoutes = require('./routes/custom-prize-routes');
 const bannerRoutes = require('./routes/banner-routes');
 const popupRoutes = require('./routes/popup-routes');
 const pointSettingsRoutes = require('./routes/point-settings-routes');
@@ -41,6 +42,7 @@ const miniappCommissionRoutes = require('./routes/miniapp-commission-routes');
 const miniappCouponRoutes = require('./routes/miniapp-coupon-routes');
 const miniappArticleRoutes = require('./routes/miniapp-article-routes');
 const miniappVerificationRoutes = require('./routes/miniapp-verification-routes');
+const miniappAfterSalesRoutes = require('./routes/miniapp-after-sales-routes');
 const staffRoutes = require('./routes/staff-routes');
 
 const logger = morgan("tiny");
@@ -107,6 +109,7 @@ app.use('/api/promotions', require('./middleware/auth').authenticateToken, promo
 app.use('/api/coupons', require('./middleware/auth').authenticateToken, couponRoutes);
 // 添加抽奖活动管理路由
 app.use('/api/lucky-draws', require('./middleware/auth').authenticateToken, luckyDrawRoutes);
+app.use('/api/custom-prizes', require('./middleware/auth').authenticateToken, customPrizeRoutes);
 // 添加横幅管理路由（内部在各自路由上控制权限）
 app.use('/api/banners', bannerRoutes);
 // 添加弹窗管理路由
@@ -148,6 +151,7 @@ app.use('/api/miniapp', miniappCouponRoutes);
 app.use('/api/miniapp', miniappArticleRoutes);
 // 小程序核销码API
 app.use('/api/miniapp', miniappVerificationRoutes);
+app.use('/api/miniapp', miniappAfterSalesRoutes);
 // 支付相关API
 const paymentRoutes = require('./routes/payment-routes');
 app.use('/api/payment', paymentRoutes);

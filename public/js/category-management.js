@@ -28,6 +28,10 @@ function getAuthHeaders() {
 function initCategoryManagement() {
     console.log('商品分类管理模块初始化');
     loadCategories();
+    var addFile = document.getElementById('addIconFile');
+    if (addFile) addFile.addEventListener('change', onAddIconFileChange);
+    var editFile = document.getElementById('editIconFile');
+    if (editFile) editFile.addEventListener('change', onEditIconFileChange);
 }
 
 /**
@@ -70,22 +74,28 @@ function renderCategoryTable() {
     if (!tbody) return;
     
     if (window.categoryManagementData.categories.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #6c757d;">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6c757d;">暂无数据</td></tr>';
         return;
     }
     
+    const iconSrc = (icon) => {
+        if (!icon) return '';
+        return icon.startsWith('http') ? icon : (window.location.origin + (icon.startsWith('/') ? icon : '/' + icon));
+    };
     tbody.innerHTML = window.categoryManagementData.categories.map(category => `
         <tr>
             <td>${category.id}</td>
             <td>${category.name}</td>
+            <td>${category.icon ? '<img src="' + iconSrc(category.icon) + '" style="max-width:40px;max-height:40px;object-fit:contain" alt="">' : '-'}</td>
+            <td>${category.showOnHomepage !== false ? '是' : '否'}</td>
             <td>${category.description || '-'}</td>
-            <td>${category.parentId ? `父分类ID: ${category.parentId}` : '顶级分类'}</td>
+            <td>${category.parentId ? '父分类ID: ' + category.parentId : '顶级分类'}</td>
             <td>${category.sortOrder}</td>
             <td><span class="status-badge status-${category.status}">${getStatusText(category.status)}</span></td>
             <td>${formatDate(category.createdAt)}</td>
             <td>
                 <button onclick="editCategory(${category.id})" class="btn btn-primary" style="margin-right: 5px;">编辑</button>
-                <button onclick="deleteCategory(${category.id}, '${category.name}')" class="btn btn-danger">删除</button>
+                <button onclick="deleteCategory(${category.id}, '${(category.name || '').replace(/'/g, "\\'")}')" class="btn btn-danger">删除</button>
             </td>
         </tr>
     `).join('');
@@ -131,9 +141,78 @@ function searchCategories() {
 function openAddCategoryModal() {
     const modal = document.getElementById('addCategoryModal');
     if (modal) {
+        if (document.getElementById('addShowOnHomepage')) document.getElementById('addShowOnHomepage').checked = true;
+        if (document.getElementById('addIcon')) document.getElementById('addIcon').value = '';
+        document.getElementById('addIconPreview').innerHTML = '';
         modal.style.display = 'block';
         loadParentCategories('addParentId');
     }
+}
+
+function updateAddIconPreview(url) {
+    const el = document.getElementById('addIconPreview');
+    if (!el) return;
+    if (!url) { el.innerHTML = ''; return; }
+    const src = url.startsWith('http') ? url : (window.location.origin + (url.startsWith('/') ? url : '/' + url));
+    el.innerHTML = '<img src="' + src + '" style="max-width:60px;max-height:60px;object-fit:contain" alt="">';
+}
+
+function updateEditIconPreview(url) {
+    const el = document.getElementById('editIconPreview');
+    if (!el) return;
+    if (!url) { el.innerHTML = ''; return; }
+    const src = url.startsWith('http') ? url : (window.location.origin + (url.startsWith('/') ? url : '/' + url));
+    el.innerHTML = '<img src="' + src + '" style="max-width:60px;max-height:60px;object-fit:contain" alt="">';
+}
+
+/**
+ * 上传分类图标（新增）
+ */
+function onAddIconFileChange(e) {
+    const file = e.target && e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('icon', file);
+    fetch('/api/categories/upload-icon', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
+        body: fd
+    }).then(function (res) { return res.json(); }).then(function (result) {
+        if (result.code === 0 && result.data && result.data.url) {
+            document.getElementById('addIcon').value = result.data.url;
+            updateAddIconPreview(result.data.url);
+        } else {
+            alert('上传失败: ' + (result.message || ''));
+        }
+    }).catch(function (err) {
+        alert('上传失败: ' + (err.message || ''));
+    });
+    e.target.value = '';
+}
+
+/**
+ * 上传分类图标（编辑）
+ */
+function onEditIconFileChange(e) {
+    const file = e.target && e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('icon', file);
+    fetch('/api/categories/upload-icon', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
+        body: fd
+    }).then(function (res) { return res.json(); }).then(function (result) {
+        if (result.code === 0 && result.data && result.data.url) {
+            document.getElementById('editIcon').value = result.data.url;
+            updateEditIconPreview(result.data.url);
+        } else {
+            alert('上传失败: ' + (result.message || ''));
+        }
+    }).catch(function (err) {
+        alert('上传失败: ' + (err.message || ''));
+    });
+    e.target.value = '';
 }
 
 /**
@@ -160,7 +239,9 @@ async function submitAddCategory() {
         description: formData.get('description'),
         parentId: formData.get('parentId') || null,
         sortOrder: parseInt(formData.get('sortOrder')) || 0,
-        status: formData.get('status')
+        status: formData.get('status'),
+        icon: (document.getElementById('addIcon') && document.getElementById('addIcon').value.trim()) || null,
+        showOnHomepage: document.getElementById('addShowOnHomepage') ? document.getElementById('addShowOnHomepage').checked : true
     };
     
     try {
@@ -209,8 +290,10 @@ async function editCategory(categoryId) {
             document.getElementById('editName').value = category.name;
             document.getElementById('editDescription').value = category.description || '';
             document.getElementById('editSortOrder').value = category.sortOrder;
-            document.getElementById('editStatus').value = category.status;
-            
+            document.getElementById('editStatus').value = category.status || 'active';
+            if (document.getElementById('editShowOnHomepage')) document.getElementById('editShowOnHomepage').checked = category.showOnHomepage !== false;
+            if (document.getElementById('editIcon')) document.getElementById('editIcon').value = category.icon || '';
+            updateEditIconPreview(category.icon);
             loadParentCategories('editParentId', category.id);
             
             const modal = document.getElementById('editCategoryModal');
@@ -251,7 +334,9 @@ async function submitEditCategory() {
         description: formData.get('description'),
         parentId: formData.get('parentId') || null,
         sortOrder: parseInt(formData.get('sortOrder')) || 0,
-        status: formData.get('status')
+        status: formData.get('status'),
+        icon: (document.getElementById('editIcon') && document.getElementById('editIcon').value.trim()) || null,
+        showOnHomepage: document.getElementById('editShowOnHomepage') ? document.getElementById('editShowOnHomepage').checked : true
     };
     
     try {

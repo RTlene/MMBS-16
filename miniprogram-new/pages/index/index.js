@@ -246,14 +246,18 @@ Page({
    */
   async loadCategories() {
     try {
-      const result = await request.get(API.CATEGORY.LIST, {}, {
+      const result = await request.get(API.CATEGORY.LIST, { homepage: 1 }, {
         showLoading: false,
         showError: false
       });
       
       if (result.data && result.data.categories) {
-        // 只显示前8个分类
-        const categories = result.data.categories.slice(0, 8);
+        // 只显示前8个“展示在首页”的分类，图标转为完整 URL
+        const base = API_BASE_URL || '';
+        const categories = result.data.categories.slice(0, 8).map(c => ({
+          ...c,
+          icon: c.icon ? (c.icon.startsWith('http') ? c.icon : base + (c.icon.startsWith('/') ? c.icon : '/' + c.icon)) : ''
+        }));
         this.setData({ categories });
       } else {
         // 数据为空，设置为空数组
