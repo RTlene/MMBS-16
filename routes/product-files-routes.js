@@ -194,17 +194,36 @@ router.delete('/:productId/:filename', async (req, res) => {
             });
         }
 
-        // 删除服务器文件
+        // 删除本地文件（若存在）
         const filePath = path.join(uploadDir, productId, filename);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
 
-        // 更新商品数据
+        // 从商品数据中移除该文件：数据库可能存的是 cloud:// 或 /uploads/ 等，按 filename 匹配
         const currentData = product[field] || [];
-        const fileUrl = `/uploads/products/${productId}/${filename}`;
-        const newData = currentData.filter(url => url !== fileUrl);
-        
+        const safeFilename = (filename || '').replace(/[?#].*$/, '');
+        let removedUrl = null;
+        const newData = currentData.filter(url => {
+            if (typeof url !== 'string' || !url.trim()) return true;
+            const u = url.trim();
+            const localPath = `/uploads/products/${productId}/${safeFilename}`;
+            const matches = u === localPath || u.endsWith(safeFilename) || u.endsWith('/' + safeFilename);
+            if (matches) removedUrl = u;
+            return !matches;
+        });
+
+        if (removedUrl && removedUrl.trim().startsWith('cloud://') && wxCloudStorage.isConfigured()) {
+            try {
+                const result = await wxCloudStorage.deleteFiles([removedUrl.trim()]);
+                if (result.failed && result.failed.length > 0) {
+                    console.warn('[ProductFiles] 云托管删除单文件失败:', result.failed[0]);
+                }
+            } catch (e) {
+                console.warn('[ProductFiles] 云托管删除失败:', e.message);
+            }
+        }
+
         await product.update({
             [field]: newData
         });
