@@ -176,10 +176,10 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 获取优惠券显示值（面值/折扣）
+  // 获取优惠券显示值（面值/折扣）：固定金额显示面值 value，折扣显示 x折
   getCouponValue(coupon) {
     if (!coupon) return '';
-    const type = coupon.discountType || 'fixed';
+    const type = (coupon.discountType || 'fixed').toLowerCase();
     if (type === 'percentage' || type === 'percent') {
       const v = Number(coupon.discountValue != null ? coupon.discountValue : coupon.value);
       let zhe = v;
@@ -187,12 +187,9 @@ Page({
       else if (v > 0 && v < 1) zhe = v * 10;
       return `${Number.isFinite(zhe) ? zhe : 0}折`;
     }
-    if (type === 'fixed') {
-      const val = coupon.discountValue != null ? coupon.discountValue : coupon.value;
-      return `¥${this.formatAmount(val != null ? val : 0)}`;
-    }
-    const val = coupon.value != null ? coupon.value : coupon.discountValue;
-    return `¥${this.formatAmount(val != null ? val : 0)}`;
+    // 固定金额/代金券：优先显示面值 value
+    const face = coupon.value != null ? coupon.value : coupon.discountValue;
+    return `¥${this.formatAmount(face != null ? face : 0)}`;
   },
 
   // 使用门槛文案（统一显示，避免不显示或不全）

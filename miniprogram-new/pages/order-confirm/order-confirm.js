@@ -380,13 +380,21 @@ Page({
    * 选择优惠券
    */
   onSelectCoupon(e) {
-    const { coupon } = e.currentTarget.dataset;
-    if (!coupon) return;
-    // 再次点击已选中的优惠券则取消选择
-    if (this.data.selectedCoupon && this.data.selectedCoupon.id === coupon.id) {
-      this.onRemoveCoupon();
+    const { coupon, id: tapId } = e.currentTarget.dataset;
+    const selected = this.data.selectedCoupon;
+    // 再次点击已选中的优惠券则取消选择（兼容 id 为数字或字符串）
+    const isSame = selected && (selected.id === (coupon && coupon.id) || selected.id == tapId || (tapId != null && selected.id == tapId));
+    if (isSame) {
+      this.setData({
+        selectedCoupon: null,
+        discountAmount: 0,
+        totalAmount: this.data.originalAmount,
+        showCouponPicker: false
+      });
+      this.calculateFinalAmount();
       return;
     }
+    if (!coupon) return;
     
     // 计算优惠金额（discountType: fixed-固定金额, percentage/percent-折扣）
     let discountAmount = 0;
@@ -518,13 +526,15 @@ Page({
 
   _formatCouponDisplayValue(c) {
     if (!c) return '';
-    const type = c.discountType || 'fixed';
-    const v = c.discountValue != null ? Number(c.discountValue) : Number(c.value);
+    const type = (c.discountType || 'fixed').toLowerCase();
     if (type === 'percentage' || type === 'percent') {
+      const v = c.discountValue != null ? Number(c.discountValue) : Number(c.value);
       const zhe = v > 10 ? v / 10 : (v > 0 && v < 1 ? v * 10 : v);
       return (Number.isFinite(zhe) ? zhe : 0) + '折';
     }
-    return '¥' + (Number.isFinite(v) ? v.toFixed(2) : '0.00');
+    // 固定金额/代金券：优先显示面值 value，没有再用 discountValue
+    const face = c.value != null ? Number(c.value) : (c.discountValue != null ? Number(c.discountValue) : 0);
+    return '¥' + (Number.isFinite(face) ? face.toFixed(2) : '0.00');
   },
   _formatCouponThreshold(c) {
     const min = c.minOrderAmount != null ? Number(c.minOrderAmount) : (c.minAmount != null ? Number(c.minAmount) : null);

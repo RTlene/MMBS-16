@@ -250,11 +250,12 @@
       </view>
       <scroll-view class="picker-content" scroll-y>
         <view 
-          class="coupon-item {{selectedCoupon && selectedCoupon.id === item.id ? 'selected' : ''}}"
+          class="coupon-item {{selectedCoupon && (selectedCoupon.id === item.id || selectedCoupon.id == item.id) ? 'selected' : ''}}"
           wx:for="{{availableCoupons}}"
           wx:key="id"
           bindtap="onSelectCoupon"
           data-coupon="{{item}}"
+          data-id="{{item.id}}"
         >
           <view class="coupon-info">
             <text class="coupon-name">{{item.name}}</text>
@@ -263,7 +264,7 @@
           </view>
           <view class="coupon-action">
             <text class="coupon-discount-value">{{item.displayValue}}</text>
-            <text class="coupon-tap-hint" wx:if="{{selectedCoupon && selectedCoupon.id === item.id}}">点击取消</text>
+            <text class="coupon-tap-hint" wx:if="{{selectedCoupon && (selectedCoupon.id === item.id || selectedCoupon.id == item.id)}}">点击取消</text>
           </view>
         </view>
         <view class="no-coupon" wx:if="{{availableCoupons.length === 0}}">
