@@ -523,6 +523,30 @@ router.post('/', async (req, res) => {
   }
 });
 
+// 同步商品主图/详情图/视频顺序（仅更新 media 字段，不触及其他）
+router.put('/:id/media', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { images, detailImages, videos } = req.body || {};
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ code: 1, message: '商品不存在' });
+    }
+    const updatePayload = {};
+    if (Array.isArray(images)) updatePayload.images = images;
+    if (Array.isArray(detailImages)) updatePayload.detailImages = detailImages;
+    if (Array.isArray(videos)) updatePayload.videos = videos;
+    if (Object.keys(updatePayload).length === 0) {
+      return res.json({ code: 0, message: '无需更新' });
+    }
+    await product.update(updatePayload);
+    return res.json({ code: 0, message: '媒体顺序已更新' });
+  } catch (error) {
+    console.error('更新商品媒体顺序失败:', error);
+    return res.status(500).json({ code: 1, message: '服务器错误: ' + error.message });
+  }
+});
+
 // 更新商品
 router.put('/:id', async (req, res) => {
   try {

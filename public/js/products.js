@@ -1397,6 +1397,24 @@ async function submitProductForm(event) {
         if (result.code === 0) {
             const productId = editingProductId || result.data.id;
             await handleProductFiles(productId);
+            // 同步主图/详情图/视频顺序（含仅调整顺序未上传删除的情况）
+            const mainImages = (window.productManagementData.mediaData.mainImages || []).map(x => x.url).filter(Boolean);
+            const detailImages = (window.productManagementData.mediaData.detailImages || []).map(x => x.url).filter(Boolean);
+            const videos = (window.productManagementData.mediaData.videos || []).map(x => x.url).filter(Boolean);
+            if (mainImages.length > 0 || detailImages.length > 0 || videos.length > 0) {
+                try {
+                    const mediaRes = await fetch(`/api/products/${productId}/media`, {
+                        method: 'PUT',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ images: mainImages, detailImages, videos })
+                    });
+                    if (!mediaRes.ok) {
+                        console.warn('同步媒体顺序失败:', mediaRes.status);
+                    }
+                } catch (e) {
+                    console.warn('同步媒体顺序失败:', e);
+                }
+            }
             var memberPrices = collectMemberPricesFromMatrix();
             if (memberPrices.length > 0) {
                 var createdSkus = editingProductId ? null : (result.data.skus || []);
