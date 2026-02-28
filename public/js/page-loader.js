@@ -139,6 +139,11 @@ const pageInitFunctions = {
         if (typeof window.initRefundManagement === 'function') {
             window.initRefundManagement();
         }
+    },
+    'store-management': () => {
+        if (window.StoreManagement && window.StoreManagement.init) {
+            window.StoreManagement.init();
+        }
     }
 };
 

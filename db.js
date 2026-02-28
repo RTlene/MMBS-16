@@ -1263,6 +1263,17 @@ const Order = sequelize.define('Order', {
         allowNull: true,
         comment: '收货人电话'
     },
+    deliveryType: {
+        type: DataTypes.ENUM('delivery', 'pickup'),
+        allowNull: true,
+        defaultValue: 'delivery',
+        comment: '配送方式：delivery-配送上门，pickup-门店自提'
+    },
+    storeId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '门店自提时的门店ID'
+    },
     // 发货信息
     shippingMethod: {
         type: DataTypes.STRING(50),
@@ -1373,6 +1384,66 @@ const Order = sequelize.define('Order', {
 }, {
     tableName: 'orders',
     comment: '订单表',
+    timestamps: true
+});
+
+// 门店模型（用于门店自提）
+const Store = sequelize.define('Store', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    name: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        comment: '门店名称'
+    },
+    address: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        comment: '详细地址'
+    },
+    region: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        comment: '省市区'
+    },
+    latitude: {
+        type: DataTypes.DECIMAL(10, 7),
+        allowNull: true,
+        comment: '纬度'
+    },
+    longitude: {
+        type: DataTypes.DECIMAL(10, 7),
+        allowNull: true,
+        comment: '经度'
+    },
+    phone: {
+        type: DataTypes.STRING(30),
+        allowNull: true,
+        comment: '联系电话'
+    },
+    businessHours: {
+        type: DataTypes.STRING(200),
+        allowNull: true,
+        comment: '营业时间'
+    },
+    status: {
+        type: DataTypes.ENUM('active', 'inactive'),
+        allowNull: false,
+        defaultValue: 'active',
+        comment: '状态'
+    },
+    sortOrder: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '排序值，越小越靠前'
+    }
+}, {
+    tableName: 'stores',
+    comment: '门店表',
     timestamps: true
 });
 
@@ -2033,6 +2104,41 @@ const Coupon = sequelize.define('Coupon', {
     tableName: 'coupons',
     timestamps: true,
     comment: '优惠券表'
+});
+
+// 会员优惠券发放记录（系统发放模式：后台给指定会员发券，每条记录代表一次可用权益）
+const MemberCoupon = sequelize.define('MemberCoupon', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    memberId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        comment: '会员ID'
+    },
+    couponId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        comment: '优惠券ID'
+    },
+    usedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '使用时间'
+    },
+    orderId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '使用时的订单ID'
+    }
+}, {
+    tableName: 'member_coupons',
+    timestamps: true,
+    updatedAt: false,
+    createdAt: true,
+    comment: '会员优惠券发放记录'
 });
 
 // 促销活动模型
@@ -3025,6 +3131,8 @@ MemberLevel.hasMany(ProductMemberPrice, { foreignKey: 'memberLevelId', as: 'prod
 // 定义关联关系
 Order.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
 Order.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Order.belongsTo(Store, { foreignKey: 'storeId', as: 'store' });
+Store.hasMany(Order, { foreignKey: 'storeId', as: 'orders' });
 Member.hasMany(Order, { foreignKey: 'memberId', as: 'orders' });
 Product.hasMany(Order, { foreignKey: 'productId', as: 'orders' });
 
@@ -3106,6 +3214,13 @@ PointProduct.hasMany(PointExchange, { foreignKey: 'productId', as: 'exchanges' }
 PointExchange.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
 Member.hasMany(PointExchange, { foreignKey: 'memberId', as: 'pointExchanges' });
 
+// 会员优惠券发放记录（系统发放）
+MemberCoupon.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
+MemberCoupon.belongsTo(Coupon, { foreignKey: 'couponId', as: 'coupon' });
+MemberCoupon.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
+Member.hasMany(MemberCoupon, { foreignKey: 'memberId', as: 'memberCoupons' });
+Coupon.hasMany(MemberCoupon, { foreignKey: 'couponId', as: 'memberCoupons' });
+
 // 佣金计算记录关联
 CommissionCalculation.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
 CommissionCalculation.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
@@ -3185,6 +3300,7 @@ async function init() {
       ['DistributorLevels', DistributorLevel],
       ['TeamExpansionLevels', TeamExpansionLevel],
       ['Orders', Order],
+      ['Stores', Store],
       ['Members', Member],
       ['MemberAddresses', MemberAddress],
       ['MemberPointsRecords', MemberPointsRecord],
@@ -3194,6 +3310,7 @@ async function init() {
       ['ReturnRequests', ReturnRequest],
       ['RefundRecords', RefundRecord],
       ['Coupons', Coupon],
+      ['member_coupons', MemberCoupon],
       ['Promotions', Promotion],
       ['PointRecords', PointRecord],
       ['PointProducts', PointProduct],
@@ -3291,6 +3408,7 @@ module.exports = {
   Member,
   MemberAddress,
     Order,
+  Store,
     OrderItem,
     ReturnRequest,
     RefundRecord,
@@ -3299,6 +3417,7 @@ module.exports = {
   CommissionWithdrawal,
     MemberLevelChangeRecord,
     Coupon,
+    MemberCoupon,
     Promotion,
     PointRecord,
     PointProduct,

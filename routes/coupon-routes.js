@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Coupon } = require('../db');
+const { Coupon, Member, MemberCoupon } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -91,6 +91,90 @@ router.get('/', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('获取优惠券列表失败:', error);
         res.status(500).json({ code: 1, message: '获取优惠券列表失败' });
+    }
+});
+
+// 系统发放：给指定会员发放优惠券（仅 distributionMode=system 的券可发放）
+router.post('/grant', authenticateToken, async (req, res) => {
+    try {
+        const { couponId, memberIds } = req.body || {};
+        if (!couponId || !Array.isArray(memberIds) || memberIds.length === 0) {
+            return res.status(400).json({ code: 1, message: '请选择优惠券和至少一名会员' });
+        }
+        const cid = parseInt(couponId, 10);
+        const ids = [...new Set(memberIds.map(id => parseInt(id, 10)).filter(Number.isFinite))];
+        if (ids.length === 0) {
+            return res.status(400).json({ code: 1, message: '会员ID无效' });
+        }
+        const coupon = await withDbRetry(() => Coupon.findByPk(cid));
+        if (!coupon) {
+            return res.status(404).json({ code: 1, message: '优惠券不存在' });
+        }
+        if ((coupon.distributionMode || 'user_claim') !== 'system') {
+            return res.status(400).json({ code: 1, message: '仅「系统发放」模式的优惠券可在此发放' });
+        }
+        if (coupon.status !== 'active') {
+            return res.status(400).json({ code: 1, message: '优惠券已禁用或过期' });
+        }
+        const now = new Date();
+        if (new Date(coupon.validFrom) > now || new Date(coupon.validTo) < now) {
+            return res.status(400).json({ code: 1, message: '优惠券不在有效期内' });
+        }
+        const total = coupon.totalCount || 0;
+        const used = coupon.usedCount || 0;
+        const unpaidGrants = await MemberCoupon.count({
+            where: { couponId: cid, usedAt: null }
+        });
+        const available = Math.max(0, total - used - unpaidGrants);
+        if (available < ids.length) {
+            return res.status(400).json({ code: 1, message: `优惠券剩余可发放数量不足，当前剩余 ${available} 张` });
+        }
+        const members = await Member.findAll({ where: { id: { [Op.in]: ids } }, attributes: ['id'] });
+        const validMemberIds = members.map(m => m.id);
+        const toCreate = validMemberIds.map(memberId => ({ memberId, couponId: cid }));
+        await withDbRetry(() => MemberCoupon.bulkCreate(toCreate));
+        res.json({
+            code: 0,
+            message: '发放成功',
+            data: { granted: validMemberIds.length, memberIds: validMemberIds }
+        });
+    } catch (error) {
+        console.error('发放优惠券失败:', error);
+        res.status(500).json({ code: 1, message: error.message || '发放优惠券失败' });
+    }
+});
+
+// 批量删除优惠券
+router.post('/batch-delete', authenticateToken, async (req, res) => {
+    try {
+        const { ids } = req.body || {};
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ code: 1, message: '请选择要删除的优惠券' });
+        }
+        const idList = ids.map(id => parseInt(id, 10)).filter(Number.isFinite);
+        const deleted = await withDbRetry(() => Coupon.destroy({ where: { id: idList } }));
+        res.json({ code: 0, message: '删除成功', data: { deleted } });
+    } catch (error) {
+        console.error('批量删除优惠券失败:', error);
+        res.status(500).json({ code: 1, message: '批量删除失败' });
+    }
+});
+// 批量更新状态
+router.post('/batch-status', authenticateToken, async (req, res) => {
+    try {
+        const { ids, status } = req.body || {};
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ code: 1, message: '请选择优惠券' });
+        }
+        if (!['active', 'inactive', 'expired'].includes(status)) {
+            return res.status(400).json({ code: 1, message: '状态无效' });
+        }
+        const idList = ids.map(id => parseInt(id, 10)).filter(Number.isFinite);
+        const [affected] = await withDbRetry(() => Coupon.update({ status }, { where: { id: idList } }));
+        res.json({ code: 0, message: '更新成功', data: { affected } });
+    } catch (error) {
+        console.error('批量更新优惠券状态失败:', error);
+        res.status(500).json({ code: 1, message: '批量更新失败' });
     }
 });
 

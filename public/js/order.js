@@ -88,6 +88,16 @@ class OrderManagement {
                 }
             });
         });
+        // 全选
+        document.getElementById('selectAll')?.addEventListener('change', (e) => {
+            document.querySelectorAll('.order-checkbox').forEach(cb => {
+                cb.checked = e.target.checked;
+            });
+        });
+        // 批量发货确认
+        document.getElementById('batchShipConfirmBtn')?.addEventListener('click', () => {
+            if (window.confirmBatchShipOrders) window.confirmBatchShipOrders();
+        });
     }
 
     // 加载订单列表
@@ -1747,6 +1757,85 @@ window.exportOrders = function() {
             showAlert('导出订单失败: ' + error.message, 'error');
         }
     })();
+};
+
+// ==================== 批量发货（勾选订单） ====================
+function getSelectedOrderIds() {
+    const ids = [];
+    document.querySelectorAll('.order-checkbox:checked').forEach(cb => {
+        const v = parseInt(cb.value, 10);
+        if (Number.isFinite(v)) ids.push(v);
+    });
+    return ids;
+}
+function getSelectedPaidOrderIds() {
+    const ids = getSelectedOrderIds();
+    const orders = orderManagement.orders || [];
+    const paidSet = new Set(orders.filter(o => o.status === 'paid').map(o => o.id));
+    return ids.filter(id => paidSet.has(id));
+}
+window.batchShipOrders = function() {
+    const paidIds = getSelectedPaidOrderIds();
+    if (paidIds.length === 0) {
+        const selected = getSelectedOrderIds();
+        if (selected.length === 0) {
+            showAlert('请先勾选要发货的订单');
+        } else {
+            showAlert('仅支持对「已支付」状态的订单批量发货，当前勾选中有非已支付订单或不在本页，请勾选已支付订单后再试');
+        }
+        return;
+    }
+    document.getElementById('batchShipOrderCount').textContent = paidIds.length;
+    window._batchShipOrderIds = paidIds;
+    const modalEl = document.getElementById('batchShipModal');
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    } else {
+        modalEl.style.display = 'block';
+        modalEl.classList.add('show');
+    }
+};
+window.confirmBatchShipOrders = async function() {
+    const ids = window._batchShipOrderIds;
+    if (!ids || ids.length === 0) return;
+    const company = document.getElementById('batchShipCompany')?.value?.trim();
+    if (!company) {
+        showAlert('请选择物流公司');
+        return;
+    }
+    const tracking = document.getElementById('batchShipTracking')?.value?.trim() || '';
+    const method = document.getElementById('batchShipMethod')?.value?.trim() || 'express';
+    const btn = document.getElementById('batchShipConfirmBtn');
+    if (btn) btn.disabled = true;
+    const token = localStorage.getItem('token');
+    let ok = 0;
+    let fail = 0;
+    for (const id of ids) {
+        try {
+            const res = await fetch(`/api/orders/${id}/ship`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ shippingCompany: company, trackingNumber: tracking || undefined, shippingMethod: method })
+            });
+            const result = await res.json();
+            if (result.code === 0) ok++;
+            else fail++;
+        } catch (e) {
+            fail++;
+        }
+    }
+    if (btn) btn.disabled = false;
+    const modalEl = document.getElementById('batchShipModal');
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.hide();
+    } else {
+        modalEl.style.display = 'none';
+        modalEl.classList.remove('show');
+    }
+    showAlert(`批量发货完成：成功 ${ok}，失败 ${fail}`);
+    orderManagement.loadOrders();
 };
 
 // ==================== 批量发货导入（CSV） ====================

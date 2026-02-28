@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, ReturnRequest, sequelize } = require('../db');
+const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, ReturnRequest, Store, Coupon, MemberCoupon, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
 const configStore = require('../services/configStore');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
@@ -49,13 +49,15 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             shippingAddress,
             receiverName,
             receiverPhone,
+            deliveryType = 'delivery',  // delivery-配送上门, pickup-门店自提
+            storeId = null,             // 门店自提时的门店ID
             remark = '',
             paymentMethod = 'wechat',
             appliedCoupons = [],
             appliedPromotions = [],
             pointUsage = null,
-            commissionUsage = null,  // 佣金使用量
-            pointsUsage = null       // 积分使用量
+            commissionUsage = null,
+            pointsUsage = null
         } = req.body;
 
         const member = req.member;
@@ -82,12 +84,21 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             }
         }
 
-        // 如果不是纯服务商品订单，需要收货地址
-        if (!hasServiceProduct && (!shippingAddress || !receiverName || !receiverPhone)) {
-            return res.status(400).json({
-                code: 1,
-                message: '请填写收货信息'
-            });
+        const isPickup = deliveryType === 'pickup';
+        if (!hasServiceProduct) {
+            if (isPickup) {
+                if (!storeId) {
+                    return res.status(400).json({ code: 1, message: '请选择自提门店' });
+                }
+                const store = await Store.findByPk(storeId);
+                if (!store || store.status !== 'active') {
+                    return res.status(400).json({ code: 1, message: '所选门店不存在或已停用' });
+                }
+            } else {
+                if (!shippingAddress || !receiverName || !receiverPhone) {
+                    return res.status(400).json({ code: 1, message: '请填写收货信息' });
+                }
+            }
         }
 
         // 兼容旧参数，自动转换为单商品结算
@@ -246,13 +257,15 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             productId: primaryItem.productId,
             quantity: totalQuantity,
             unitPrice: primaryItem.unitPrice,
-            totalAmount: finalAmount,  // 使用最终金额
+            totalAmount: finalAmount,
             status: orderStatus,
             paymentMethod: actualPaymentMethod,
             paymentTime: orderStatus === 'paid' ? new Date() : null,
-            shippingAddress,
-            receiverName,
-            receiverPhone,
+            shippingAddress: isPickup ? null : shippingAddress,
+            receiverName: isPickup ? null : receiverName,
+            receiverPhone: isPickup ? null : receiverPhone,
+            deliveryType: isPickup ? 'pickup' : 'delivery',
+            storeId: isPickup ? parseInt(storeId, 10) : null,
             remark,
             isTest: false,
             createdBy: member.id
@@ -291,6 +304,23 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
         }));
 
         const createdOrderItems = await OrderItem.bulkCreate(orderItemPayloads);
+
+        // 系统发放券：订单使用后标记 MemberCoupon 为已用并增加 Coupon.usedCount
+        const appliedCodes = new Set();
+        normalizedItems.forEach(item => {
+            (item.appliedCoupons || []).forEach(c => { if (c && c.code) appliedCodes.add(c.code); });
+        });
+        for (const code of appliedCodes) {
+            const coupon = await Coupon.findOne({ where: { code } });
+            if (!coupon || (coupon.distributionMode || 'user_claim') !== 'system') continue;
+            const grant = await MemberCoupon.findOne({
+                where: { memberId: member.id, couponId: coupon.id, usedAt: null }
+            });
+            if (grant) {
+                await grant.update({ usedAt: new Date(), orderId: order.id });
+                await coupon.increment('usedCount', { by: 1 });
+            }
+        }
 
         // 如果是服务商品且订单已支付，立即生成核销码
         if (orderStatus === 'paid') {
@@ -433,6 +463,8 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                     shippingAddress: order.shippingAddress,
                     receiverName: order.receiverName,
                     receiverPhone: order.receiverPhone,
+                    deliveryType: order.deliveryType,
+                    storeId: order.storeId,
                     remark: order.remark,
                     createdAt: order.createdAt,
                     items: normalizedItems.map(item => ({
@@ -710,7 +742,8 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
                     as: 'operationLogs',
                     order: [['createdAt', 'DESC']],
                     limit: 10
-                }
+                },
+                { model: Store, as: 'store', required: false, attributes: ['id', 'name', 'address', 'region', 'latitude', 'longitude', 'phone', 'businessHours'] }
             ]
         });
 
@@ -793,6 +826,18 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             paymentMethod: order.paymentMethod,
             paymentMethodText: getPaymentMethodText(order.paymentMethod),
             paymentTime: order.paymentTime,
+            deliveryType: order.deliveryType || 'delivery',
+            storeId: order.storeId,
+            store: order.store ? {
+                id: order.store.id,
+                name: order.store.name,
+                address: order.store.address,
+                region: order.store.region,
+                latitude: order.store.latitude,
+                longitude: order.store.longitude,
+                phone: order.store.phone,
+                businessHours: order.store.businessHours
+            } : null,
             shippingAddress: order.shippingAddress,
             receiverName: order.receiverName,
             receiverPhone: order.receiverPhone,

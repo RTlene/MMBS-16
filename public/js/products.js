@@ -195,12 +195,13 @@ function renderProducts() {
     const { products } = window.productManagementData;
     
     if (products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #666;">暂无商品数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #666;">暂无商品数据</td></tr>';
         return;
     }
     
     tbody.innerHTML = products.map(product => `
         <tr>
+            <td><input type="checkbox" class="product-checkbox" value="${product.id}"></td>
             <td>${product.id}</td>
             <td>${product.name}</td>
             <td>${product.category ? product.category.name : '未分类'}</td>
@@ -1432,11 +1433,69 @@ async function submitProductForm(event) {
     }
 }
 
+// 批量操作
+function getSelectedProductIds() {
+    const ids = [];
+    document.querySelectorAll('.product-checkbox:checked').forEach(cb => {
+        const v = parseInt(cb.value, 10);
+        if (Number.isFinite(v)) ids.push(v);
+    });
+    return ids;
+}
+window.batchDeleteProducts = async function() {
+    const ids = getSelectedProductIds();
+    if (ids.length === 0) { alert('请先勾选要删除的商品'); return; }
+    if (!confirm('确定删除所选 ' + ids.length + ' 个商品吗？')) return;
+    try {
+        const res = await fetch('/api/products/batch-delete', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ ids })
+        });
+        const result = await res.json();
+        if (result.code === 0) {
+            alert('删除成功');
+            document.getElementById('productSelectAll').checked = false;
+            loadProducts();
+        } else {
+            alert(result.message || '删除失败');
+        }
+    } catch (e) {
+        alert('请求失败');
+    }
+};
+window.batchStatusProducts = async function(status) {
+    const ids = getSelectedProductIds();
+    if (ids.length === 0) { alert('请先勾选商品'); return; }
+    const text = status === 'active' ? '上架' : '下架';
+    if (!confirm('确定' + text + '所选 ' + ids.length + ' 个商品吗？')) return;
+    try {
+        const res = await fetch('/api/products/batch-status', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ ids, status })
+        });
+        const result = await res.json();
+        if (result.code === 0) {
+            alert('更新成功');
+            document.getElementById('productSelectAll').checked = false;
+            loadProducts();
+        } else {
+            alert(result.message || '更新失败');
+        }
+    } catch (e) {
+        alert('请求失败');
+    }
+};
+
 // 初始化商品管理
 function initProducts() {
     // 绑定表单提交事件
     document.getElementById('productForm').addEventListener('submit', submitProductForm);
-    
+    // 全选
+    document.getElementById('productSelectAll')?.addEventListener('change', function() {
+        document.querySelectorAll('.product-checkbox').forEach(cb => { cb.checked = this.checked; });
+    });
     // 绑定搜索事件
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {

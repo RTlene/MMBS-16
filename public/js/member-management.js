@@ -9,7 +9,8 @@ window.memberManagementData = {
     levelFilter: '',
     currentMemberDetail: null,
     editingMember: null,
-    selectedMembers: new Set()
+    selectedMembers: new Set(),
+    grantCouponMemberIds: []  // 发放优惠券弹窗当前选中的会员ID列表
 };
 
 // 直接调用初始化（移除DOMContentLoaded事件监听器）
@@ -31,6 +32,14 @@ function bindEventListeners() {
     if (batchDeleteBtn) {
         batchDeleteBtn.addEventListener('click', batchDeleteMembers);
         console.log('Batch delete button bound');
+    }
+    const batchGrantCouponBtn = document.getElementById('batchGrantCouponBtn');
+    if (batchGrantCouponBtn) {
+        batchGrantCouponBtn.addEventListener('click', showGrantCouponModalForBatch);
+    }
+    const submitGrantCouponBtn = document.getElementById('submitGrantCouponBtn');
+    if (submitGrantCouponBtn) {
+        submitGrantCouponBtn.addEventListener('click', submitGrantCoupon);
     }
 
     // 报表导出/导入
@@ -1348,6 +1357,96 @@ window.goToPage = goToPage;
 
 // 全选
 window.toggleSelectAll = toggleSelectAll;
+
+// 批量发放优惠券
+function showGrantCouponModalForBatch() {
+    const ids = Array.from(window.memberManagementData.selectedMembers);
+    if (ids.length === 0) {
+        alert('请先勾选要发放优惠券的会员');
+        return;
+    }
+    showGrantCouponModal(ids);
+}
+function showGrantCouponModalFromDetail() {
+    const member = window.memberManagementData.currentMemberDetail;
+    if (!member || !member.id) {
+        alert('请先选择会员');
+        return;
+    }
+    showGrantCouponModal([member.id]);
+}
+function showGrantCouponModal(memberIds) {
+    window.memberManagementData.grantCouponMemberIds = memberIds;
+    document.getElementById('grantCouponMemberCount').textContent = '已选 ' + memberIds.length + ' 人';
+    loadCouponsForGrant();
+    document.getElementById('grantCouponModal').style.display = 'flex';
+}
+function closeGrantCouponModal() {
+    document.getElementById('grantCouponModal').style.display = 'none';
+    window.memberManagementData.grantCouponMemberIds = [];
+}
+function loadCouponsForGrant() {
+    const select = document.getElementById('grantCouponSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">加载中...</option>';
+    fetch('/api/coupons?limit=500&status=active', {
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    }).then(res => res.json()).then(result => {
+        if (result.code !== 0 || !result.data || !result.data.coupons) {
+            select.innerHTML = '<option value="">暂无优惠券</option>';
+            return;
+        }
+        const systemCoupons = result.data.coupons.filter(c => (c.distributionMode || '') === 'system');
+        select.innerHTML = '<option value="">请选择优惠券</option>';
+        systemCoupons.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name + '（' + (c.code || '') + '）';
+            select.appendChild(opt);
+        });
+        if (systemCoupons.length === 0) {
+            select.innerHTML = '<option value="">无「系统发放」模式优惠券，请先在优惠券管理中创建</option>';
+        }
+    }).catch(() => {
+        select.innerHTML = '<option value="">加载失败</option>';
+    });
+}
+function submitGrantCoupon() {
+    const couponId = document.getElementById('grantCouponSelect').value;
+    const memberIds = window.memberManagementData.grantCouponMemberIds;
+    if (!couponId) {
+        alert('请选择优惠券');
+        return;
+    }
+    if (!memberIds || memberIds.length === 0) {
+        alert('未选择会员');
+        return;
+    }
+    const btn = document.getElementById('submitGrantCouponBtn');
+    if (btn) btn.disabled = true;
+    fetch('/api/coupons/grant', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+        },
+        body: JSON.stringify({ couponId: parseInt(couponId, 10), memberIds: memberIds })
+    }).then(res => res.json()).then(result => {
+        if (btn) btn.disabled = false;
+        if (result.code === 0) {
+            alert('发放成功，共 ' + (result.data && result.data.granted ? result.data.granted : memberIds.length) + ' 人');
+            closeGrantCouponModal();
+        } else {
+            alert(result.message || '发放失败');
+        }
+    }).catch(err => {
+        if (btn) btn.disabled = false;
+        alert('请求失败：' + (err.message || ''));
+    });
+}
+window.showGrantCouponModal = showGrantCouponModal;
+window.showGrantCouponModalFromDetail = showGrantCouponModalFromDetail;
+window.closeGrantCouponModal = closeGrantCouponModal;
 
 // 批量操作
 window.batchDeleteMembers = batchDeleteMembers;

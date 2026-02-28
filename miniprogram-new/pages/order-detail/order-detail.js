@@ -203,6 +203,64 @@ Page({
     }
   },
 
+  /** 打开门店地图（小程序内） */
+  onOpenStoreMap(e) {
+    const store = e.currentTarget.dataset.store;
+    if (!store || store.latitude == null || store.longitude == null) {
+      wx.showToast({ title: '该门店暂无坐标', icon: 'none' });
+      return;
+    }
+    wx.openLocation({
+      latitude: parseFloat(store.latitude),
+      longitude: parseFloat(store.longitude),
+      name: store.name || '门店',
+      address: store.address || '',
+      scale: 16
+    });
+  },
+
+  /** 打开外部地图 */
+  onOpenExternalMap(e) {
+    const store = e.currentTarget.dataset.store;
+    if (!store || !store.address) {
+      wx.showToast({ title: '暂无地址', icon: 'none' });
+      return;
+    }
+    const name = (store.name || '门店').replace(/"/g, '');
+    const address = (store.address || '').replace(/"/g, '');
+    const lat = store.latitude;
+    const lng = store.longitude;
+    const items = ['复制地址'];
+    if (lat != null && lng != null) items.push('腾讯地图', '高德地图', '苹果地图');
+    wx.showActionSheet({
+      itemList: items,
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          wx.setClipboardData({ data: address, success: () => wx.showToast({ title: '已复制', icon: 'success' }) });
+          return;
+        }
+        if (res.tapIndex === 1 && lat != null && lng != null) {
+          wx.setClipboardData({
+            data: `https://apis.map.qq.com/uri/v1/marker?marker=coord:${lat},${lng};title:${encodeURIComponent(name)};addr:${encodeURIComponent(address)}`,
+            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开腾讯地图', icon: 'none' })
+          });
+        }
+        if (res.tapIndex === 2 && lat != null && lng != null) {
+          wx.setClipboardData({
+            data: `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&address=${encodeURIComponent(address)}`,
+            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开高德地图', icon: 'none' })
+          });
+        }
+        if (res.tapIndex === 3 && lat != null && lng != null) {
+          wx.setClipboardData({
+            data: `https://maps.apple.com/?q=${encodeURIComponent(name)}&ll=${lat},${lng}`,
+            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开苹果地图', icon: 'none' })
+          });
+        }
+      }
+    });
+  },
+
   /**
    * 支付订单
    */

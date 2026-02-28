@@ -2,6 +2,7 @@ const express = require('express');
 const { Product, ProductSKU, ProductAttribute, Category, ProductMemberPrice, MemberLevel } = require('../db');
 const { Op } = require('sequelize');
 const { deleteProductFiles } = require('./product-files-routes');
+const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 const router = express.Router();
@@ -389,6 +390,40 @@ router.delete('/:id/member-prices/:priceId', async (req, res) => {
   } catch (err) {
     console.error('删除商品会员价失败:', err);
     res.status(500).json({ code: 1, message: err.message || '服务器错误' });
+  }
+});
+
+// 批量删除商品
+router.post('/batch-delete', authenticateToken, async (req, res) => {
+  try {
+    const { ids } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ code: 1, message: '请选择要删除的商品' });
+    }
+    const idList = ids.map(id => parseInt(id, 10)).filter(Number.isFinite);
+    const deleted = await withDbRetry(() => Product.destroy({ where: { id: idList } }));
+    res.json({ code: 0, message: '删除成功', data: { deleted } });
+  } catch (err) {
+    console.error('批量删除商品失败:', err);
+    res.status(500).json({ code: 1, message: '批量删除失败' });
+  }
+});
+// 批量更新商品状态
+router.post('/batch-status', authenticateToken, async (req, res) => {
+  try {
+    const { ids, status } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ code: 1, message: '请选择商品' });
+    }
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ code: 1, message: '状态无效' });
+    }
+    const idList = ids.map(id => parseInt(id, 10)).filter(Number.isFinite);
+    const [affected] = await withDbRetry(() => Product.update({ status }, { where: { id: idList } }));
+    res.json({ code: 0, message: '更新成功', data: { affected } });
+  } catch (err) {
+    console.error('批量更新商品状态失败:', err);
+    res.status(500).json({ code: 1, message: '批量更新失败' });
   }
 });
 

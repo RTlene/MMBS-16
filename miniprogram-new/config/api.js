@@ -116,6 +116,11 @@ const API = {
     RECEIVE: '/api/miniapp/coupons/:id/receive', // 领取优惠券
   },
 
+  // 门店相关（自提）
+  STORE: {
+    LIST: '/api/miniapp/stores',
+  },
+
   // 地址相关
   ADDRESS: {
     LIST: '/api/miniapp/addresses',               // 地址列表

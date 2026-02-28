@@ -721,8 +721,11 @@
                 <button class="btn btn-info" onclick="exportProducts()">导出报表</button>
                 <button class="btn btn-warning" onclick="triggerImportProducts()">导入报表</button>
                 <button class="btn btn-outline-primary" onclick="downloadProductsTemplate()">下载导入模板</button>
-                <input type="file" id="productsImportFile" accept=".csv" style="display:none;" />
+                <button class="btn btn-danger" onclick="batchDeleteProducts()">批量删除</button>
+                <button class="btn btn-success" onclick="batchStatusProducts('active')">批量上架</button>
+                <button class="btn btn-secondary" onclick="batchStatusProducts('inactive')">批量下架</button>
                 <button class="btn btn-primary" onclick="openAddProductModal()">添加商品</button>
+                <input type="file" id="productsImportFile" accept=".csv" style="display:none;" />
             </div>
         </div>
         
@@ -743,6 +746,7 @@
         <table class="product-table">
             <thead>
                 <tr>
+                    <th><input type="checkbox" id="productSelectAll" title="全选"></th>
                     <th>ID</th>
                     <th>商品名称</th>
                     <th>分类</th>
@@ -757,7 +761,7 @@
             </thead>
             <tbody id="productTableBody">
                 <tr>
-                    <td colspan="10" class="loading">加载中...</td>
+                    <td colspan="11" class="loading">加载中...</td>
                 </tr>
             </tbody>
         </table>

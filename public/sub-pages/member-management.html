@@ -698,6 +698,7 @@
                         <div class="table-actions">
                             <button class="btn btn-success" id="addMemberBtn">添加会员</button>
                             <button class="btn btn-danger" id="batchDeleteBtn">批量删除</button>
+                            <button class="btn btn-info" id="batchGrantCouponBtn">批量发放优惠券</button>
                             <button class="btn btn-info" id="exportMembersBtn">导出报表</button>
                             <button class="btn btn-warning" id="importMembersBtn">导入报表</button>
                             <button class="btn btn-outline-primary" id="downloadMembersTemplateBtn">下载导入模板</button>
@@ -979,6 +980,7 @@
                             <div class="detail-section">
                                 <h4 class="detail-section-title">佣金信息
                                     <button class="btn btn-sm btn-primary" onclick="showAdjustCommissionModal()" style="margin-left: 10px; padding: 4px 12px; font-size: 12px;">调整佣金</button>
+                                    <button class="btn btn-sm btn-info" onclick="showGrantCouponModalFromDetail()" style="margin-left: 8px; padding: 4px 12px; font-size: 12px;">发放优惠券</button>
                                 </h4>
                                 <div class="detail-item">
                                     <span class="detail-label">总佣金</span>
@@ -1360,6 +1362,32 @@
                     <button type="submit" class="btn btn-primary">确认调整</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 发放优惠券模态框 -->
+    <div class="modal" id="grantCouponModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">发放优惠券</h3>
+                <button class="modal-close" onclick="closeGrantCouponModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="form-label">仅支持「系统发放」模式的优惠券，发放后会员可在小程序「我的优惠券」中查看使用。</p>
+                <div class="form-group">
+                    <label class="form-label required">选择优惠券</label>
+                    <select id="grantCouponSelect" class="form-input">
+                        <option value="">请选择优惠券</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <span id="grantCouponMemberCount" class="form-text">已选 0 人</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" onclick="closeGrantCouponModal()">取消</button>
+                <button type="button" class="btn btn-primary" id="submitGrantCouponBtn">确定发放</button>
+            </div>
         </div>
     </div>
 

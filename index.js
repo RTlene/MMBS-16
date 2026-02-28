@@ -44,6 +44,8 @@ const miniappArticleRoutes = require('./routes/miniapp-article-routes');
 const miniappVerificationRoutes = require('./routes/miniapp-verification-routes');
 const miniappAfterSalesRoutes = require('./routes/miniapp-after-sales-routes');
 const staffRoutes = require('./routes/staff-routes');
+const storeRoutes = require('./routes/store-routes');
+const miniappStoreRoutes = require('./routes/miniapp-store-routes');
 
 const logger = morgan("tiny");
 
@@ -152,6 +154,9 @@ app.use('/api/miniapp', miniappArticleRoutes);
 // 小程序核销码API
 app.use('/api/miniapp', miniappVerificationRoutes);
 app.use('/api/miniapp', miniappAfterSalesRoutes);
+app.use('/api/miniapp', miniappStoreRoutes);
+// 门店管理（后台）
+app.use('/api/stores', require('./middleware/auth').authenticateToken, storeRoutes);
 // 支付相关API
 const paymentRoutes = require('./routes/payment-routes');
 app.use('/api/payment', paymentRoutes);

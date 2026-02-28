@@ -102,6 +102,86 @@
   color: #999;
 }
 
+/* 配送方式 */
+.delivery-type-card {
+  display: flex;
+  background: #fff;
+  border-radius: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.06);
+}
+.delivery-option {
+  flex: 1;
+  padding: 24rpx;
+  text-align: center;
+  border: 2rpx solid #eee;
+  border-radius: 16rpx;
+  margin: 0 8rpx;
+}
+.delivery-option:first-child { margin-left: 0; }
+.delivery-option:last-child { margin-right: 0; }
+.delivery-option.active {
+  border-color: #ff6b35;
+  background: rgba(255,107,53,0.06);
+}
+.delivery-option .option-label { font-size: 28rpx; font-weight: 600; color: #333; display: block; }
+.delivery-option .option-desc { font-size: 24rpx; color: #999; margin-top: 6rpx; display: block; }
+.delivery-option.active .option-label { color: #ff6b35; }
+
+/* 自提门店 */
+.store-card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.06);
+}
+.store-selected .store-name { font-size: 30rpx; font-weight: 600; color: #1a1a2e; display: block; }
+.store-selected .store-address { font-size: 26rpx; color: #666; margin-top: 8rpx; display: block; }
+.store-selected .store-distance { font-size: 24rpx; color: #999; margin-top: 6rpx; display: block; }
+.store-selected .store-actions { margin-top: 16rpx; display: flex; gap: 24rpx; }
+.store-action-link { font-size: 26rpx; color: #ff6b35; }
+.store-choose-placeholder { display: flex; justify-content: space-between; align-items: center; color: #666; font-size: 28rpx; }
+.store-choose-placeholder .choose-arrow { color: #999; font-size: 32rpx; }
+
+/* 门店选择弹窗 */
+.store-picker-mask {
+  position: fixed; left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+.store-picker {
+  width: 100%;
+  max-height: 70vh;
+  background: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.store-picker .picker-header { display: flex; justify-content: space-between; align-items: center; padding: 28rpx; border-bottom: 1rpx solid #f0f0f0; }
+.store-picker .picker-title { font-size: 32rpx; font-weight: 600; }
+.store-picker .picker-close { font-size: 40rpx; color: #999; }
+.store-picker-list { max-height: 60vh; padding: 16rpx; }
+.store-picker-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  margin-bottom: 12rpx;
+  background: #f8f9fa;
+  border: 2rpx solid transparent;
+}
+.store-picker-item.selected { border-color: #ff6b35; background: rgba(255,107,53,0.06); }
+.store-item-main { flex: 1; }
+.store-item-name { font-size: 28rpx; font-weight: 600; color: #333; display: block; }
+.store-item-address { font-size: 24rpx; color: #666; margin-top: 6rpx; display: block; }
+.store-item-distance { font-size: 22rpx; color: #999; margin-top: 4rpx; display: block; }
+.store-item-actions { display: flex; gap: 12rpx; flex-shrink: 0; }
+.store-item-btn { font-size: 24rpx; color: #ff6b35; padding: 8rpx 16rpx; background: rgba(255,107,53,0.1); border-radius: 8rpx; }
+.no-store { text-align: center; padding: 48rpx; color: #999; font-size: 28rpx; }
+
 .section-title {
   font-size: 28rpx;
   color: #666666;

@@ -27,6 +27,10 @@ window.CouponManagement = {
         var statusEl = document.getElementById('statusFilter');
         if (typeEl) typeEl.addEventListener('change', function () { window.CouponManagement.searchCoupons(); });
         if (statusEl) statusEl.addEventListener('change', function () { window.CouponManagement.searchCoupons(); });
+        var selectAllEl = document.getElementById('couponSelectAll');
+        if (selectAllEl) selectAllEl.addEventListener('change', function () {
+            document.querySelectorAll('.coupon-checkbox').forEach(function (cb) { cb.checked = selectAllEl.checked; });
+        });
         var couponTypeEl = document.getElementById('couponType');
         if (couponTypeEl) couponTypeEl.addEventListener('change', function () {
             self.toggleGiftConfig();
@@ -144,6 +148,7 @@ window.CouponManagement = {
             var statusClass = 'status-' + (c.status || 'inactive');
             var statusText = { active: '启用', inactive: '禁用', expired: '已过期' }[c.status] || c.status;
             tr.innerHTML =
+                '<td><input type="checkbox" class="coupon-checkbox" value="' + (c.id || '') + '"></td>' +
                 '<td>' + (c.id || '') + '</td>' +
                 '<td>' + (c.name || '') + '</td>' +
                 '<td><code>' + (c.code || '') + '</code></td>' +
@@ -366,6 +371,43 @@ window.CouponManagement = {
                 console.error(err);
                 alert('删除失败');
             });
+    },
+    getSelectedCouponIds: function () {
+        var ids = [];
+        document.querySelectorAll('.coupon-checkbox:checked').forEach(function (cb) {
+            var v = parseInt(cb.value, 10);
+            if (!isNaN(v)) ids.push(v);
+        });
+        return ids;
+    },
+    batchDelete: function () {
+        var ids = this.getSelectedCouponIds();
+        if (ids.length === 0) { alert('请先勾选要删除的优惠券'); return; }
+        if (!confirm('确定删除所选 ' + ids.length + ' 张优惠券吗？')) return;
+        var self = this;
+        fetch('/api/coupons/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.getToken() },
+            body: JSON.stringify({ ids: ids })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            if (res.code === 0) { alert('删除成功'); self.loadCoupons(); document.getElementById('couponSelectAll').checked = false; }
+            else alert(res.message || '删除失败');
+        }).catch(function () { alert('请求失败'); });
+    },
+    batchStatus: function (status) {
+        var ids = this.getSelectedCouponIds();
+        if (ids.length === 0) { alert('请先勾选优惠券'); return; }
+        var text = status === 'active' ? '启用' : '停用';
+        if (!confirm('确定' + text + '所选 ' + ids.length + ' 张优惠券吗？')) return;
+        var self = this;
+        fetch('/api/coupons/batch-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.getToken() },
+            body: JSON.stringify({ ids: ids, status: status })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+            if (res.code === 0) { alert('更新成功'); self.loadCoupons(); document.getElementById('couponSelectAll').checked = false; }
+            else alert(res.message || '更新失败');
+        }).catch(function () { alert('请求失败'); });
     },
     formatDate: function (d) {
         if (!d) return '-';

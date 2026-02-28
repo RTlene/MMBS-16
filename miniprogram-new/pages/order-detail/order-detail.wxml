@@ -23,8 +23,8 @@
       <text class="order-no">订单号：{{order.orderNo}}</text>
     </view>
 
-    <!-- 收货信息 -->
-    <view class="address-section" wx:if="{{order.receiverName}}">
+    <!-- 收货信息（配送上门） -->
+    <view class="address-section" wx:if="{{order.deliveryType !== 'pickup' && order.receiverName}}">
       <view class="section-title">收货信息</view>
       <view class="address-card">
         <view class="address-row">
@@ -32,6 +32,23 @@
           <text class="receiver-phone">{{order.receiverPhone}}</text>
         </view>
         <text class="address-text">{{order.shippingAddress}}</text>
+      </view>
+    </view>
+
+    <!-- 自提门店（门店自提） -->
+    <view class="store-section" wx:if="{{order.deliveryType === 'pickup' && order.store}}">
+      <view class="section-title">自提门店</view>
+      <view class="store-card">
+        <view class="store-row">
+          <text class="store-name">{{order.store.name}}</text>
+        </view>
+        <text class="store-address">{{order.store.address}}</text>
+        <text class="store-extra" wx:if="{{order.store.phone}}">电话：{{order.store.phone}}</text>
+        <text class="store-extra" wx:if="{{order.store.businessHours}}">营业时间：{{order.store.businessHours}}</text>
+        <view class="store-actions">
+          <text class="store-link" bindtap="onOpenStoreMap" data-store="{{order.store}}">查看地图</text>
+          <text class="store-link" bindtap="onOpenExternalMap" data-store="{{order.store}}">打开外部地图</text>
+        </view>
       </view>
     </view>
 

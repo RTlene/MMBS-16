@@ -110,11 +110,15 @@
                 <h2 class="table-title">优惠券列表</h2>
                 <div class="table-actions">
                     <button class="btn btn-success" onclick="showAddModal()">新增优惠券</button>
+                    <button class="btn btn-danger" onclick="window.CouponManagement.batchDelete()">批量删除</button>
+                    <button class="btn btn-primary" onclick="window.CouponManagement.batchStatus('active')">批量启用</button>
+                    <button class="btn btn-warning" onclick="window.CouponManagement.batchStatus('inactive')">批量停用</button>
                 </div>
             </div>
             <table class="table">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" id="couponSelectAll" title="全选"></th>
                         <th>ID</th>
                         <th>名称</th>
                         <th>代码</th>

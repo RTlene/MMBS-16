@@ -1,7 +1,33 @@
 <!--pages/order-confirm/order-confirm.wxml-->
 <view class="order-confirm-page">
-  <!-- 收货信息 -->
-  <view class="section-block address-block">
+  <!-- 配送方式 -->
+  <view class="section-block delivery-type-block">
+    <view class="block-title">
+      <text class="block-title-icon">🚚</text>
+      <text class="block-title-text">配送方式</text>
+    </view>
+    <view class="delivery-type-card">
+      <view 
+        class="delivery-option {{deliveryType === 'delivery' ? 'active' : ''}}"
+        data-type="delivery"
+        bindtap="onDeliveryTypeChange"
+      >
+        <text class="option-label">配送上门</text>
+        <text class="option-desc">快递配送到家</text>
+      </view>
+      <view 
+        class="delivery-option {{deliveryType === 'pickup' ? 'active' : ''}}"
+        data-type="pickup"
+        bindtap="onDeliveryTypeChange"
+      >
+        <text class="option-label">门店自提</text>
+        <text class="option-desc">到店自提</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 收货信息（仅配送上门显示） -->
+  <view class="section-block address-block" wx:if="{{deliveryType === 'delivery'}}">
     <view class="block-title">
       <text class="block-title-icon">📍</text>
       <text class="block-title-text">收货信息</text>
@@ -47,6 +73,29 @@
       <view class="field map-choose-row">
         <text class="field-label">地图选址</text>
         <button class="map-btn" size="mini" bindtap="onChooseLocation">选点</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 自提门店（仅门店自提显示） -->
+  <view class="section-block store-block" wx:if="{{deliveryType === 'pickup'}}">
+    <view class="block-title">
+      <text class="block-title-icon">🏪</text>
+      <text class="block-title-text">自提门店</text>
+    </view>
+    <view class="store-card" bindtap="onShowStorePicker">
+      <view class="store-selected" wx:if="{{selectedStore}}">
+        <text class="store-name">{{selectedStore.name}}</text>
+        <text class="store-address">{{selectedStore.address}}</text>
+        <text class="store-distance" wx:if="{{selectedStore.distance != null}}">约 {{selectedStore.distance}} km</text>
+        <view class="store-actions">
+          <text class="store-action-link" catchtap="onOpenStoreMap" data-store="{{selectedStore}}">查看地图</text>
+          <text class="store-action-link" catchtap="onOpenExternalMap" data-store="{{selectedStore}}">打开外部地图</text>
+        </view>
+      </view>
+      <view class="store-choose-placeholder" wx:else>
+        <text class="choose-text">请选择自提门店</text>
+        <text class="choose-arrow">›</text>
       </view>
     </view>
   </view>
@@ -224,6 +273,38 @@
       <view class="picker-footer" wx:if="{{selectedCoupon}}">
         <button class="remove-coupon-btn" bindtap="onRemoveCoupon">不使用优惠券</button>
       </view>
+    </view>
+  </view>
+
+  <!-- 门店选择弹窗 -->
+  <view class="store-picker-mask" wx:if="{{showStorePicker}}" bindtap="onHideStorePicker">
+    <view class="store-picker" catchtap="stopPropagation">
+      <view class="picker-header">
+        <text class="picker-title">选择自提门店</text>
+        <text class="picker-close" bindtap="onHideStorePicker">×</text>
+      </view>
+      <scroll-view class="store-picker-list" scroll-y>
+        <view 
+          class="store-picker-item {{selectedStore && selectedStore.id === item.id ? 'selected' : ''}}"
+          wx:for="{{storeList}}"
+          wx:key="id"
+          bindtap="onSelectStore"
+          data-store="{{item}}"
+        >
+          <view class="store-item-main">
+            <text class="store-item-name">{{item.name}}</text>
+            <text class="store-item-address">{{item.address}}</text>
+            <text class="store-item-distance" wx:if="{{item.distance != null}}">约 {{item.distance}} km</text>
+          </view>
+          <view class="store-item-actions">
+            <text class="store-item-btn" catchtap="onOpenStoreMap" data-store="{{item}}">地图</text>
+            <text class="store-item-btn" catchtap="onOpenExternalMap" data-store="{{item}}">外部地图</text>
+          </view>
+        </view>
+        <view class="no-store" wx:if="{{storeList.length === 0}}">
+          <text>暂无可选自提门店</text>
+        </view>
+      </scroll-view>
     </view>
   </view>
 

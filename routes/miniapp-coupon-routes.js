@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Coupon, Order, OrderItem, sequelize } = require('../db');
+const { Coupon, Order, OrderItem, MemberCoupon, sequelize } = require('../db');
 const { authenticateMiniappUser, optionalAuthenticate } = require('../middleware/miniapp-auth');
 const router = express.Router();
 
@@ -37,6 +37,39 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
                 });
             }
         });
+
+        // 系统发放：当前会员未使用的发放记录（有效期内）
+        const grantedRows = await MemberCoupon.findAll({
+            where: { memberId: member.id, usedAt: null },
+            include: [{ model: Coupon, as: 'coupon', required: true }],
+            order: [['createdAt', 'DESC']]
+        });
+        const grantedCoupons = grantedRows
+            .filter(mc => mc.coupon && mc.coupon.status === 'active' && new Date(mc.coupon.validFrom) <= now && new Date(mc.coupon.validTo) >= now)
+            .map(mc => {
+                const coupon = mc.coupon;
+                const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
+                return {
+                    id: coupon.id,
+                    name: coupon.name,
+                    code: coupon.code,
+                    type: coupon.type,
+                    discountType: coupon.discountType,
+                    value: parseFloat(coupon.value),
+                    discountValue: parseFloat(coupon.discountValue),
+                    minAmount: coupon.minAmount ? parseFloat(coupon.minAmount) : null,
+                    minOrderAmount: minOrder,
+                    maxDiscount: coupon.maxDiscount ? parseFloat(coupon.maxDiscount) : null,
+                    maxDiscountAmount: coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null,
+                    validFrom: coupon.validFrom,
+                    validTo: coupon.validTo,
+                    description: coupon.description,
+                    status: 'available',
+                    isUsed: false,
+                    isExpired: false,
+                    isAvailable: true
+                };
+            });
 
         // 展示「用户领取」与「自动发放」的优惠券（自动发放的券直接出现在我的优惠券，无需领取）
         const where = {
@@ -92,25 +125,27 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
             };
         });
 
-        // 根据状态过滤
-        let filteredCoupons = coupons;
+        // 合并系统发放券（在前）与池子券，再按状态过滤
+        const merged = [...grantedCoupons, ...coupons];
+        let filteredCoupons = merged;
         if (status === 'available') {
-            filteredCoupons = coupons.filter(c => c.status === 'available');
+            filteredCoupons = merged.filter(c => c.status === 'available');
         } else if (status === 'used') {
-            filteredCoupons = coupons.filter(c => c.status === 'used');
+            filteredCoupons = merged.filter(c => c.status === 'used');
         } else if (status === 'expired') {
-            filteredCoupons = coupons.filter(c => c.status === 'expired');
+            filteredCoupons = merged.filter(c => c.status === 'expired');
         }
+        const totalCount = grantedCoupons.length + count;
 
         res.json({
             code: 0,
             message: '获取成功',
             data: {
                 coupons: filteredCoupons,
-                total: count,
-                totalPages: Math.ceil(count / limit),
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / limit),
                 currentPage: parseInt(page),
-                hasMore: parseInt(page) < Math.ceil(count / limit)
+                hasMore: parseInt(page) < Math.ceil(totalCount / limit)
             }
         });
     } catch (error) {

@@ -9,30 +9,36 @@ const { splitRegionDetail } = require('../../utils/address.js');
 Page({
   data: {
     items: [],
-    originalAmount: 0,      // 商品原价合计
-    discountAmount: 0,       // 优惠金额
-    totalAmount: 0,          // 实付金额
-    selectedCoupon: null,    // 选中的优惠券
-    availableCoupons: [],    // 可用优惠券列表
-    showCouponPicker: false, // 是否显示优惠券选择器
-    addressList: [],         // 已保存地址
-    selectedAddressId: null, // 选中的地址ID
+    originalAmount: 0,
+    discountAmount: 0,
+    totalAmount: 0,
+    selectedCoupon: null,
+    availableCoupons: [],
+    showCouponPicker: false,
+    addressList: [],
+    selectedAddressId: null,
     receiverName: '',
     receiverPhone: '',
     shippingAddress: '',
-    shippingRegion: '',   // 地图选点时的省市区，用于保存到地址管理
-    shippingDetail: '',  // 地图选点时的详细地址
+    shippingRegion: '',
+    shippingDetail: '',
     remark: '',
     submitting: false,
-    // 佣金和积分相关
-    memberInfo: null,        // 会员信息
-    availableCommission: 0, // 可用佣金
-    availablePoints: 0,      // 可用积分
-    useCommission: 0,        // 使用的佣金
-    usePoints: 0,            // 使用的积分
-    commissionDeduction: 0,  // 佣金抵扣金额
-    pointsDeduction: 0,      // 积分抵扣金额
-    POINTS_TO_MONEY_RATE: 100 // 积分兑换比例（100积分=1元）
+    // 配送方式：delivery-配送上门，pickup-门店自提
+    deliveryType: 'delivery',
+    storeList: [],           // 门店列表（含距离）
+    selectedStore: null,     // 选中的自提门店
+    showStorePicker: false,  // 是否显示门店选择弹窗
+    userLat: null,           // 用户纬度（用于请求带距离的门店列表）
+    userLng: null,
+    memberInfo: null,
+    availableCommission: 0,
+    availablePoints: 0,
+    useCommission: 0,
+    usePoints: 0,
+    commissionDeduction: 0,
+    pointsDeduction: 0,
+    POINTS_TO_MONEY_RATE: 100
   },
 
   onLoad() {
@@ -78,11 +84,137 @@ Page({
     // 加载可用优惠券
     this.loadAvailableCoupons();
 
-    // 加载已保存地址
     this.loadAddresses();
-    
-    // 加载会员信息（佣金和积分）
     this.loadMemberInfo();
+    // 获取定位并加载门店列表（自提时按距离排序）
+    this.getUserLocationAndLoadStores();
+  },
+
+  /** 获取用户定位并加载门店列表 */
+  async getUserLocationAndLoadStores() {
+    try {
+      const loc = await new Promise((resolve, reject) => {
+        wx.getLocation({ type: 'gcj02', success: resolve, fail: reject });
+      });
+      if (loc && loc.latitude != null && loc.longitude != null) {
+        this.setData({ userLat: loc.latitude, userLng: loc.longitude });
+        this.loadStores(loc.latitude, loc.longitude);
+      } else {
+        this.loadStores();
+      }
+    } catch (e) {
+      this.loadStores();
+    }
+  },
+
+  /** 加载门店列表，可选传入 lat/lng 以按距离排序 */
+  async loadStores(lat, lng) {
+    try {
+      const params = {};
+      if (lat != null && lng != null) {
+        params.lat = lat;
+        params.lng = lng;
+      }
+      const res = await request.get(API.STORE.LIST, { data: params }, { needAuth: false, showLoading: false, showError: false });
+      if (res.code === 0 && Array.isArray(res.data)) {
+        this.setData({ storeList: res.data });
+      }
+    } catch (err) {
+      console.warn('[OrderConfirm] loadStores fail', err);
+    }
+  },
+
+  /** 切换配送方式 */
+  onDeliveryTypeChange(e) {
+    const type = e.currentTarget.dataset.type;
+    if (type === this.data.deliveryType) return;
+    this.setData({
+      deliveryType: type,
+      selectedStore: type === 'delivery' ? null : this.data.selectedStore
+    });
+  },
+
+  /** 打开门店选择弹窗 */
+  onShowStorePicker() {
+    const { userLat, userLng } = this.data;
+    if (userLat == null || userLng == null) {
+      this.getUserLocationAndLoadStores();
+    }
+    this.setData({ showStorePicker: true });
+  },
+
+  onHideStorePicker() {
+    this.setData({ showStorePicker: false });
+  },
+
+  /** 选择门店 */
+  onSelectStore(e) {
+    const store = e.currentTarget.dataset.store;
+    if (!store) return;
+    this.setData({
+      selectedStore: store,
+      showStorePicker: false
+    });
+  },
+
+  /** 打开门店地图（小程序内） */
+  onOpenStoreMap(e) {
+    const store = e.currentTarget.dataset.store;
+    if (!store || store.latitude == null || store.longitude == null) {
+      wx.showToast({ title: '该门店暂无坐标', icon: 'none' });
+      return;
+    }
+    wx.openLocation({
+      latitude: parseFloat(store.latitude),
+      longitude: parseFloat(store.longitude),
+      name: store.name || '门店',
+      address: store.address || '',
+      scale: 16
+    });
+  },
+
+  /** 打开外部地图（腾讯/高德/苹果地图） */
+  onOpenExternalMap(e) {
+    const store = e.currentTarget.dataset.store;
+    if (!store || !store.address) {
+      wx.showToast({ title: '暂无地址', icon: 'none' });
+      return;
+    }
+    const name = (store.name || '门店').replace(/"/g, '');
+    const address = (store.address || '').replace(/"/g, '');
+    const lat = store.latitude;
+    const lng = store.longitude;
+    const items = ['复制地址'];
+    if (lat != null && lng != null) {
+      items.push('腾讯地图', '高德地图', '苹果地图');
+    }
+    wx.showActionSheet({
+      itemList: items,
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          wx.setClipboardData({ data: address, success: () => wx.showToast({ title: '已复制', icon: 'success' }) });
+          return;
+        }
+        if (res.tapIndex === 1 && lat != null && lng != null) {
+          wx.setClipboardData({
+            data: `https://apis.map.qq.com/uri/v1/marker?marker=coord:${lat},${lng};title:${encodeURIComponent(name)};addr:${encodeURIComponent(address)}`,
+            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开腾讯地图', icon: 'none' })
+          });
+        }
+        if (res.tapIndex === 2 && lat != null && lng != null) {
+          wx.setClipboardData({
+            data: `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&address=${encodeURIComponent(address)}`,
+            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开高德地图', icon: 'none' })
+          });
+        }
+        if (res.tapIndex === 3 && lat != null && lng != null) {
+          wx.setClipboardData({
+            data: `https://maps.apple.com/?q=${encodeURIComponent(name)}&ll=${lat},${lng}`,
+            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开苹果地图', icon: 'none' })
+          });
+        }
+      }
+    });
   },
   
   /**
@@ -423,38 +555,32 @@ Page({
   async onSubmitOrder() {
     if (this.data.submitting) return;
 
-    const { items, receiverName, receiverPhone, shippingAddress, remark } = this.data;
+    const { items, deliveryType, selectedStore, receiverName, receiverPhone, shippingAddress, remark } = this.data;
+    const isPickup = deliveryType === 'pickup';
 
     if (!items || items.length === 0) {
-      wx.showToast({
-        title: '没有商品可结算',
-        icon: 'none'
-      });
+      wx.showToast({ title: '没有商品可结算', icon: 'none' });
       return;
     }
 
-    if (!receiverName.trim()) {
-      wx.showToast({
-        title: '请填写收货人',
-        icon: 'none'
-      });
-      return;
-    }
-
-    if (!receiverPhone.trim()) {
-      wx.showToast({
-        title: '请填写手机号',
-        icon: 'none'
-      });
-      return;
-    }
-
-    if (!shippingAddress.trim()) {
-      wx.showToast({
-        title: '请填写收货地址',
-        icon: 'none'
-      });
-      return;
+    if (isPickup) {
+      if (!selectedStore || !selectedStore.id) {
+        wx.showToast({ title: '请选择自提门店', icon: 'none' });
+        return;
+      }
+    } else {
+      if (!receiverName.trim()) {
+        wx.showToast({ title: '请填写收货人', icon: 'none' });
+        return;
+      }
+      if (!receiverPhone.trim()) {
+        wx.showToast({ title: '请填写手机号', icon: 'none' });
+        return;
+      }
+      if (!shippingAddress.trim()) {
+        wx.showToast({ title: '请填写收货地址', icon: 'none' });
+        return;
+      }
     }
 
     const payload = {
@@ -463,14 +589,13 @@ Page({
         skuId: item.skuId,
         quantity: item.quantity
       })),
-      receiverName: receiverName.trim(),
-      receiverPhone: receiverPhone.trim(),
-      shippingAddress: shippingAddress.trim(),
+      deliveryType: isPickup ? 'pickup' : 'delivery',
+      storeId: isPickup ? selectedStore.id : null,
+      receiverName: isPickup ? '' : receiverName.trim(),
+      receiverPhone: isPickup ? '' : receiverPhone.trim(),
+      shippingAddress: isPickup ? '' : shippingAddress.trim(),
       remark: remark.trim(),
-      appliedCoupons: this.data.selectedCoupon ? [{
-        id: this.data.selectedCoupon.id,
-        code: this.data.selectedCoupon.code
-      }] : [],
+      appliedCoupons: this.data.selectedCoupon ? [{ id: this.data.selectedCoupon.id, code: this.data.selectedCoupon.code }] : [],
       commissionUsage: this.data.useCommission > 0 ? this.data.useCommission : null,
       pointsUsage: this.data.usePoints > 0 ? this.data.usePoints : null
     };
@@ -514,9 +639,9 @@ Page({
           });
         };
 
-        // 仅当用户未选择已保存地址（手动填写）时，才询问是否保存到地址管理
         const selectedAddressId = this.data.selectedAddressId;
-        if (selectedAddressId) {
+        const isPickupOrder = (order.deliveryType || 'delivery') === 'pickup';
+        if (isPickupOrder || selectedAddressId) {
           setTimeout(goToDetail, 300);
         } else {
           wx.showModal({

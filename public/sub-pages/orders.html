@@ -683,6 +683,7 @@
                 </div>
                 <div>
                     <button class="btn btn-primary" onclick="exportOrders()">导出订单</button>
+                    <button class="btn btn-success" id="batchShipOrdersBtn" onclick="batchShipOrders()">批量发货</button>
                     <button class="btn btn-warning" onclick="triggerImportShipping()">导入发货</button>
                     <button class="btn btn-outline-primary" onclick="downloadShippingTemplate()">下载发货模板</button>
                     <input type="file" id="ordersShippingImportFile" accept=".csv" style="display:none;" />
@@ -1125,6 +1126,52 @@
         </div>
     </div>
     
+    <!-- 批量发货模态框 -->
+    <div class="modal fade" id="batchShipModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量发货</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-2">已选 <strong id="batchShipOrderCount">0</strong> 个「已支付」订单，将使用相同物流信息发货。</p>
+                    <div class="mb-3">
+                        <label for="batchShipCompany" class="form-label">物流公司 <span class="text-danger">*</span></label>
+                        <select class="form-control" id="batchShipCompany">
+                            <option value="">请选择</option>
+                            <option value="顺丰速运">顺丰速运</option>
+                            <option value="圆通速递">圆通速递</option>
+                            <option value="中通快递">中通快递</option>
+                            <option value="申通快递">申通快递</option>
+                            <option value="韵达速递">韵达速递</option>
+                            <option value="京东物流">京东物流</option>
+                            <option value="德邦快递">德邦快递</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchShipTracking" class="form-label">物流单号（可填一个，将用于全部）</label>
+                        <input type="text" class="form-control" id="batchShipTracking" placeholder="选填，若不同请逐单发货">
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchShipMethod" class="form-label">配送方式</label>
+                        <select class="form-control" id="batchShipMethod">
+                            <option value="标准快递">标准快递</option>
+                            <option value="express">express</option>
+                            <option value="次日达">次日达</option>
+                            <option value="当日达">当日达</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="batchShipConfirmBtn">确认批量发货</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 变更订单类型模态框 -->
     <div class="modal fade" id="changeOrderTypeModal" tabindex="-1">
         <div class="modal-dialog">
