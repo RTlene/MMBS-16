@@ -38,12 +38,12 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
             }
         });
 
-        // 仅展示「用户领取」发放模式的优惠券（系统发放、自动发放不在此列表）
+        // 展示「用户领取」与「自动发放」的优惠券（自动发放的券直接出现在我的优惠券，无需领取）
         const where = {
             status: 'active',
             validFrom: { [Op.lte]: now },
             validTo: { [Op.gte]: now },
-            distributionMode: { [Op.in]: ['user_claim', null] }
+            distributionMode: { [Op.in]: ['user_claim', 'auto', null] }
         };
 
         const { count, rows } = await Coupon.findAndCountAll({
