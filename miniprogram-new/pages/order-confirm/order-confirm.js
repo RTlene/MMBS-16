@@ -514,39 +514,44 @@ Page({
           });
         };
 
-        // 询问是否将当前收货地址保存到地址管理
-        wx.showModal({
-          title: '保存地址',
-          content: '是否将当前收货地址保存到地址管理中？',
-          success: (modalRes) => {
-            if (modalRes.confirm) {
-              const region = this.data.shippingRegion || '';
-              const detail = this.data.shippingDetail || this.data.shippingAddress || '';
-              if (!receiverName.trim() || !receiverPhone.trim() || !detail.trim()) {
-                goToDetail();
-                return;
+        // 仅当用户未选择已保存地址（手动填写）时，才询问是否保存到地址管理
+        const selectedAddressId = this.data.selectedAddressId;
+        if (selectedAddressId) {
+          setTimeout(goToDetail, 300);
+        } else {
+          wx.showModal({
+            title: '保存地址',
+            content: '是否将当前收货地址保存到地址管理中？',
+            success: (modalRes) => {
+              if (modalRes.confirm) {
+                const region = this.data.shippingRegion || '';
+                const detail = this.data.shippingDetail || this.data.shippingAddress || '';
+                if (!receiverName.trim() || !receiverPhone.trim() || !detail.trim()) {
+                  goToDetail();
+                  return;
+                }
+                request.post(API.ADDRESS.CREATE, {
+                  name: receiverName.trim(),
+                  phone: receiverPhone.trim(),
+                  region: region,
+                  detail: detail.trim()
+                }, { needAuth: true, showLoading: false, showError: false })
+                  .then((saveRes) => {
+                    if (saveRes.code === 0) {
+                      wx.showToast({ title: '地址已保存', icon: 'success' });
+                    }
+                  })
+                  .catch(() => {})
+                  .finally(() => {
+                    setTimeout(goToDetail, 800);
+                  });
+              } else {
+                setTimeout(goToDetail, 500);
               }
-              request.post(API.ADDRESS.CREATE, {
-                name: receiverName.trim(),
-                phone: receiverPhone.trim(),
-                region: region,
-                detail: detail.trim()
-              }, { needAuth: true, showLoading: false, showError: false })
-                .then((saveRes) => {
-                  if (saveRes.code === 0) {
-                    wx.showToast({ title: '地址已保存', icon: 'success' });
-                  }
-                })
-                .catch(() => {})
-                .finally(() => {
-                  setTimeout(goToDetail, 800);
-                });
-            } else {
-              setTimeout(goToDetail, 500);
-            }
-          },
-          fail: () => setTimeout(goToDetail, 500)
-        });
+            },
+            fail: () => setTimeout(goToDetail, 500)
+          });
+        }
       } else {
         throw new Error(result.message || '下单失败');
       }

@@ -1,53 +1,63 @@
 <!--pages/order-confirm/order-confirm.wxml-->
 <view class="order-confirm-page">
   <!-- 收货信息 -->
-  <view class="address-card">
-    <view class="field choose-address" bindtap="onChooseSavedAddress">
-      <text class="choose-text">{{selectedAddressId ? '更换已保存地址' : '选择已保存地址'}}</text>
-      <text class="choose-arrow">></text>
+  <view class="section-block address-block">
+    <view class="block-title">
+      <text class="block-title-icon">📍</text>
+      <text class="block-title-text">收货信息</text>
     </view>
-    <view class="field">
-      <text class="field-label">收货人</text>
-      <input 
-        class="field-input"
-        placeholder="请输入收货人姓名"
-        value="{{receiverName}}"
-        data-field="receiverName"
-        bindinput="onInputChange"
-      />
-    </view>
-    <view class="field">
-      <text class="field-label">手机号</text>
-      <input 
-        class="field-input"
-        placeholder="请输入联系电话"
-        value="{{receiverPhone}}"
-        data-field="receiverPhone"
-        bindinput="onInputChange"
-        type="number"
-        maxlength="11"
-      />
-    </view>
-    <view class="field multi-line">
-      <text class="field-label">收货地址</text>
-      <textarea
-        class="field-textarea"
-        placeholder="请输入详细收货地址"
-        value="{{shippingAddress}}"
-        data-field="shippingAddress"
-        bindinput="onInputChange"
-        auto-height
-      />
-    </view>
-    <view class="field map-choose-row">
-      <text class="field-label">地图选址</text>
-      <button class="map-btn" size="mini" type="primary" bindtap="onChooseLocation">选择地点</button>
+    <view class="address-card">
+      <view class="field choose-address" bindtap="onChooseSavedAddress">
+        <text class="choose-text">{{selectedAddressId ? '更换已保存地址' : '选择已保存地址'}}</text>
+        <text class="choose-arrow">›</text>
+      </view>
+      <view class="field">
+        <text class="field-label">收货人</text>
+        <input 
+          class="field-input"
+          placeholder="请输入收货人姓名"
+          value="{{receiverName}}"
+          data-field="receiverName"
+          bindinput="onInputChange"
+        />
+      </view>
+      <view class="field">
+        <text class="field-label">手机号</text>
+        <input 
+          class="field-input"
+          placeholder="请输入联系电话"
+          value="{{receiverPhone}}"
+          data-field="receiverPhone"
+          bindinput="onInputChange"
+          type="number"
+          maxlength="11"
+        />
+      </view>
+      <view class="field multi-line">
+        <text class="field-label">收货地址</text>
+        <textarea
+          class="field-textarea"
+          placeholder="请输入详细收货地址"
+          value="{{shippingAddress}}"
+          data-field="shippingAddress"
+          bindinput="onInputChange"
+          auto-height
+        />
+      </view>
+      <view class="field map-choose-row">
+        <text class="field-label">地图选址</text>
+        <button class="map-btn" size="mini" bindtap="onChooseLocation">选点</button>
+      </view>
     </view>
   </view>
 
   <!-- 商品列表 -->
-  <view class="items-section">
-    <view class="section-title">商品信息</view>
+  <view class="section-block items-section">
+    <view class="block-title">
+      <text class="block-title-icon">🛒</text>
+      <text class="block-title-text">商品信息</text>
+    </view>
+    <view class="items-card">
     <view 
       class="item-card"
       wx:for="{{items}}"
@@ -63,10 +73,16 @@
         </view>
       </view>
     </view>
+    </view>
   </view>
 
   <!-- 价格明细 -->
-  <view class="summary-section">
+  <view class="section-block summary-section">
+    <view class="block-title">
+      <text class="block-title-icon">💰</text>
+      <text class="block-title-text">订单明细</text>
+    </view>
+    <view class="summary-card">
     <view class="summary-row">
       <text class="summary-label">商品合计</text>
       <text class="summary-value">¥{{originalAmount}}</text>
@@ -163,13 +179,17 @@
       </view>
     </view>
     
-    <textarea
-      class="remark-input"
-      placeholder="给商家留言（选填）"
-      value="{{remark}}"
-      data-field="remark"
-      bindinput="onInputChange"
-    />
+    <view class="remark-row">
+      <text class="remark-label">订单备注</text>
+      <textarea
+        class="remark-input"
+        placeholder="选填，如配送时间、口味等"
+        value="{{remark}}"
+        data-field="remark"
+        bindinput="onInputChange"
+      />
+    </view>
+    </view>
   </view>
 
   <!-- 优惠券选择弹窗 -->

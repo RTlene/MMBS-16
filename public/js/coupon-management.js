@@ -126,7 +126,18 @@ window.CouponManagement = {
             var tr = document.createElement('tr');
             var typeText = { discount: '折扣券', cash: '代金券', gift: '礼品券' }[c.type] || c.type;
             var modeText = distributionModeText[c.distributionMode] || distributionModeText.user_claim;
-            var discountText = c.discountType === 'percentage' ? (c.discountValue + '%') : ('¥' + (parseFloat(c.discountValue) || 0));
+            // 面值/折扣：代金券显示面值(value)，折扣券显示折扣(discountValue)，与下单抵扣逻辑一致
+            var discountText = '';
+            if (c.type === 'cash') {
+                discountText = '¥' + (parseFloat(c.value) != null && !isNaN(parseFloat(c.value)) ? parseFloat(c.value) : (parseFloat(c.discountValue) || 0));
+            } else if (c.discountType === 'percentage') {
+                var v = parseFloat(c.discountValue);
+                var zhe = v;
+                if (v > 10) zhe = v / 10; else if (v > 0 && v < 1) zhe = v * 10;
+                discountText = zhe + '折';
+            } else {
+                discountText = '¥' + (parseFloat(c.discountValue) != null && !isNaN(parseFloat(c.discountValue)) ? parseFloat(c.discountValue) : 0);
+            }
             var minText = c.minOrderAmount != null && c.minOrderAmount > 0 ? '满¥' + c.minOrderAmount : '-';
             var useText = (c.totalCount || 0) + ' / ' + (c.usedCount || 0);
             var validText = self.formatDate(c.validFrom) + ' ~ ' + self.formatDate(c.validTo);

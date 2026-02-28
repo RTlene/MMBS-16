@@ -171,15 +171,26 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 获取优惠券显示值
+  // 获取优惠券显示值（面值/折扣）
   getCouponValue(coupon) {
     if (coupon.discountType === 'percentage') {
-      return `${coupon.discountValue}折`;
-    } else if (coupon.discountType === 'fixed') {
-      return `¥${this.formatAmount(coupon.discountValue)}`;
-    } else {
-      return `¥${this.formatAmount(coupon.value)}`;
+      const v = Number(coupon.discountValue);
+      let zhe = v;
+      if (v > 10) zhe = v / 10;
+      else if (v > 0 && v < 1) zhe = v * 10;
+      return `${zhe}折`;
     }
+    if (coupon.discountType === 'fixed') {
+      return `¥${this.formatAmount(coupon.discountValue != null ? coupon.discountValue : coupon.value)}`;
+    }
+    return `¥${this.formatAmount(coupon.value != null ? coupon.value : coupon.discountValue)}`;
+  },
+
+  // 使用门槛文案（统一显示，避免不显示或不全）
+  getCouponThreshold(coupon) {
+    const min = coupon.minOrderAmount != null ? Number(coupon.minOrderAmount) : (coupon.minAmount != null ? Number(coupon.minAmount) : null);
+    if (min != null && min > 0) return `满${this.formatAmount(min)}可用`;
+    return '无门槛';
   }
 });
 
