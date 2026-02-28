@@ -258,12 +258,12 @@
         >
           <view class="coupon-info">
             <text class="coupon-name">{{item.name}}</text>
-            <text class="coupon-desc">{{item.description || '无门槛'}}</text>
+            <text class="coupon-desc">使用门槛：{{item.thresholdText || item.description || '无门槛'}}</text>
+            <text class="coupon-time" wx:if="{{item.validRange}}">有效期：{{item.validRange}}</text>
           </view>
           <view class="coupon-action">
-            <text class="coupon-discount-value">
-              {{item.discountType === 'fixed' ? '¥' : ''}}{{item.discountValue}}{{item.discountType === 'percent' ? '折' : ''}}
-            </text>
+            <text class="coupon-discount-value">{{item.displayValue}}</text>
+            <text class="coupon-tap-hint" wx:if="{{selectedCoupon && selectedCoupon.id === item.id}}">点击取消</text>
           </view>
         </view>
         <view class="no-coupon" wx:if="{{availableCoupons.length === 0}}">

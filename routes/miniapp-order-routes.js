@@ -251,7 +251,7 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
              commissionDeduction > 0 ? 'commission' : 'points') : 
             paymentMethod;
 
-        const order = await Order.create({
+        const orderPayload = {
             orderNo,
             memberId: member.id,
             productId: primaryItem.productId,
@@ -264,12 +264,26 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             shippingAddress: isPickup ? null : shippingAddress,
             receiverName: isPickup ? null : receiverName,
             receiverPhone: isPickup ? null : receiverPhone,
-            deliveryType: isPickup ? 'pickup' : 'delivery',
-            storeId: isPickup ? parseInt(storeId, 10) : null,
             remark,
             isTest: false,
             createdBy: member.id
-        });
+        };
+        // 若数据库尚未执行 deliveryType/storeId 迁移，则不带这两字段插入
+        let order;
+        try {
+            order = await Order.create({
+                ...orderPayload,
+                deliveryType: isPickup ? 'pickup' : 'delivery',
+                storeId: isPickup ? parseInt(storeId, 10) : null
+            });
+        } catch (createErr) {
+            const isStoreIdError = createErr.name === 'SequelizeDatabaseError' && createErr.original && (String(createErr.original.message || '').includes('storeId') || String(createErr.original.message || '').includes('deliveryType'));
+            if (isStoreIdError) {
+                order = await Order.create(orderPayload);
+            } else {
+                throw createErr;
+            }
+        }
 
         // 如果使用了佣金或积分，扣除相应的余额
         if (commissionDeduction > 0 || pointsDeduction > 0) {

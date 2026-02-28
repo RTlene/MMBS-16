@@ -80,7 +80,12 @@ Page({
       const res = await request.get(API.COUPON.MY_LIST, params, { needAuth: true });
 
       if (res.code === 0) {
-        const newCoupons = res.data.coupons || [];
+        const newCoupons = (res.data.coupons || []).map(item => ({
+          ...item,
+          displayValue: this.getCouponValue(item),
+          thresholdText: this.getCouponThreshold(item),
+          validRange: (this.formatTime(item.validFrom) && this.formatTime(item.validTo)) ? (this.formatTime(item.validFrom) + ' 至 ' + this.formatTime(item.validTo)) : (this.formatTime(item.validFrom) || this.formatTime(item.validTo) || '')
+        }));
         const coupons = refresh ? newCoupons : [...this.data.coupons, ...newCoupons];
 
         this.setData({
@@ -173,17 +178,21 @@ Page({
 
   // 获取优惠券显示值（面值/折扣）
   getCouponValue(coupon) {
-    if (coupon.discountType === 'percentage') {
-      const v = Number(coupon.discountValue);
+    if (!coupon) return '';
+    const type = coupon.discountType || 'fixed';
+    if (type === 'percentage' || type === 'percent') {
+      const v = Number(coupon.discountValue != null ? coupon.discountValue : coupon.value);
       let zhe = v;
       if (v > 10) zhe = v / 10;
       else if (v > 0 && v < 1) zhe = v * 10;
-      return `${zhe}折`;
+      return `${Number.isFinite(zhe) ? zhe : 0}折`;
     }
-    if (coupon.discountType === 'fixed') {
-      return `¥${this.formatAmount(coupon.discountValue != null ? coupon.discountValue : coupon.value)}`;
+    if (type === 'fixed') {
+      const val = coupon.discountValue != null ? coupon.discountValue : coupon.value;
+      return `¥${this.formatAmount(val != null ? val : 0)}`;
     }
-    return `¥${this.formatAmount(coupon.value != null ? coupon.value : coupon.discountValue)}`;
+    const val = coupon.value != null ? coupon.value : coupon.discountValue;
+    return `¥${this.formatAmount(val != null ? val : 0)}`;
   },
 
   // 使用门槛文案（统一显示，避免不显示或不全）

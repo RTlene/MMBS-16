@@ -382,14 +382,21 @@ Page({
   onSelectCoupon(e) {
     const { coupon } = e.currentTarget.dataset;
     if (!coupon) return;
+    // 再次点击已选中的优惠券则取消选择
+    if (this.data.selectedCoupon && this.data.selectedCoupon.id === coupon.id) {
+      this.onRemoveCoupon();
+      return;
+    }
     
-    // 计算优惠金额
+    // 计算优惠金额（discountType: fixed-固定金额, percentage/percent-折扣）
     let discountAmount = 0;
     if (coupon.discountType === 'fixed') {
-      discountAmount = parseFloat(coupon.discountValue || 0);
-    } else if (coupon.discountType === 'percent') {
-      discountAmount = this.data.originalAmount * (parseFloat(coupon.discountValue || 0) / 100);
-      if (coupon.maxDiscountAmount) {
+      discountAmount = parseFloat(coupon.discountValue != null ? coupon.discountValue : coupon.value || 0);
+    } else if (coupon.discountType === 'percent' || coupon.discountType === 'percentage') {
+      const rate = parseFloat(coupon.discountValue != null ? coupon.discountValue : 0);
+      const pct = rate > 0 && rate <= 1 ? rate * 100 : rate; // 支持 0.9 或 90
+      discountAmount = this.data.originalAmount * (pct / 100);
+      if (coupon.maxDiscountAmount != null) {
         discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
       }
     }
@@ -509,6 +516,37 @@ Page({
     this.calculateFinalAmount();
   },
 
+  _formatCouponDisplayValue(c) {
+    if (!c) return '';
+    const type = c.discountType || 'fixed';
+    const v = c.discountValue != null ? Number(c.discountValue) : Number(c.value);
+    if (type === 'percentage' || type === 'percent') {
+      const zhe = v > 10 ? v / 10 : (v > 0 && v < 1 ? v * 10 : v);
+      return (Number.isFinite(zhe) ? zhe : 0) + '折';
+    }
+    return '¥' + (Number.isFinite(v) ? v.toFixed(2) : '0.00');
+  },
+  _formatCouponThreshold(c) {
+    const min = c.minOrderAmount != null ? Number(c.minOrderAmount) : (c.minAmount != null ? Number(c.minAmount) : null);
+    if (min != null && min > 0) return '满' + min.toFixed(2) + '可用';
+    return '无门槛';
+  },
+  _formatCouponValidRange(c) {
+    const fmt = (d) => {
+      if (!d) return '';
+      const t = new Date(d);
+      if (isNaN(t.getTime())) return String(d);
+      const y = t.getFullYear();
+      const m = String(t.getMonth() + 1).padStart(2, '0');
+      const day = String(t.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    };
+    const from = fmt(c.validFrom);
+    const to = fmt(c.validTo);
+    if (from && to) return from + ' 至 ' + to;
+    return from || to || '';
+  },
+
   /**
    * 加载可用优惠券
    */
@@ -536,8 +574,14 @@ Page({
       });
       
       if (result.code === 0 && result.data) {
+        const list = (result.data.coupons || []).map(c => ({
+          ...c,
+          displayValue: this._formatCouponDisplayValue(c),
+          thresholdText: this._formatCouponThreshold(c),
+          validRange: this._formatCouponValidRange(c)
+        }));
         this.setData({
-          availableCoupons: result.data.coupons || []
+          availableCoupons: list
         });
       }
     } catch (error) {

@@ -22,21 +22,19 @@
       bindtap="onSelectCoupon"
     >
       <view class="coupon-left">
-        <view class="coupon-value">{{getCouponValue(item)}}</view>
-        <view class="coupon-type">{{getCouponThreshold(item)}}</view>
+        <view class="coupon-value">{{item.displayValue}}</view>
+        <view class="coupon-type">{{item.thresholdText}}</view>
       </view>
       <view class="coupon-right">
         <view class="coupon-name">{{item.name}}</view>
         <view class="coupon-condition">
           <text class="condition-label">使用门槛：</text>
-          <text class="condition-value">{{getCouponThreshold(item)}}</text>
+          <text class="condition-value">{{item.thresholdText}}</text>
         </view>
         <view class="coupon-desc" wx:if="{{item.description}}">
           {{item.description}}
         </view>
-        <view class="coupon-time">
-          {{formatTime(item.validFrom)}} 至 {{formatTime(item.validTo)}}
-        </view>
+        <view class="coupon-time" wx:if="{{item.validRange}}">{{item.validRange}}</view>
         <view class="coupon-status">
           <text wx:if="{{item.status === 'available'}}" class="status-text available">可使用</text>
           <text wx:elif="{{item.status === 'used'}}" class="status-text used">已使用</text>

@@ -840,7 +840,10 @@ class PromotionService {
      * 验证并获取优惠券
      */
     static async validateAndGetCoupons(couponIds, memberId, productId, skuId, quantity) {
-        const ids = Array.isArray(couponIds) ? couponIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
+        // 支持传入 [id1, id2] 或 [{ id, code }, ...]（小程序提交订单格式）
+        const ids = Array.isArray(couponIds)
+            ? couponIds.map((c) => (c != null && typeof c === 'object' && 'id' in c) ? Number(c.id) : Number(c)).filter((id) => Number.isFinite(id) && id > 0)
+            : [];
         if (ids.length === 0) return [];
         const coupons = await Coupon.findAll({
             where: {

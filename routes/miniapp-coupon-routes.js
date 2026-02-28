@@ -49,18 +49,20 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
             .map(mc => {
                 const coupon = mc.coupon;
                 const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
+                const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
+                const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
                 return {
                     id: coupon.id,
                     name: coupon.name,
                     code: coupon.code,
                     type: coupon.type,
-                    discountType: coupon.discountType,
-                    value: parseFloat(coupon.value),
-                    discountValue: parseFloat(coupon.discountValue),
-                    minAmount: coupon.minAmount ? parseFloat(coupon.minAmount) : null,
+                    discountType: coupon.discountType || 'fixed',
+                    value: Number.isFinite(value) ? value : 0,
+                    discountValue: Number.isFinite(discountValue) ? discountValue : 0,
+                    minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
                     minOrderAmount: minOrder,
-                    maxDiscount: coupon.maxDiscount ? parseFloat(coupon.maxDiscount) : null,
-                    maxDiscountAmount: coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null,
+                    maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
+                    maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
                     validFrom: coupon.validFrom,
                     validTo: coupon.validTo,
                     description: coupon.description,
@@ -103,27 +105,29 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
             }
 
             const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
-            return {
-                id: coupon.id,
-                name: coupon.name,
-                code: coupon.code,
-                type: coupon.type,
-                discountType: coupon.discountType,
-                value: parseFloat(coupon.value),
-                discountValue: parseFloat(coupon.discountValue),
-                minAmount: coupon.minAmount ? parseFloat(coupon.minAmount) : null,
-                minOrderAmount: minOrder,
-                maxDiscount: coupon.maxDiscount ? parseFloat(coupon.maxDiscount) : null,
-                maxDiscountAmount: coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null,
-                validFrom: coupon.validFrom,
-                validTo: coupon.validTo,
-                description: coupon.description,
-                status: couponStatus,
-                isUsed,
-                isExpired,
-                isAvailable
-            };
-        });
+                const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
+                const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
+                return {
+                    id: coupon.id,
+                    name: coupon.name,
+                    code: coupon.code,
+                    type: coupon.type,
+                    discountType: coupon.discountType || 'fixed',
+                    value: Number.isFinite(value) ? value : 0,
+                    discountValue: Number.isFinite(discountValue) ? discountValue : 0,
+                    minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
+                    minOrderAmount: minOrder,
+                    maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
+                    maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
+                    validFrom: coupon.validFrom,
+                    validTo: coupon.validTo,
+                    description: coupon.description,
+                    status: couponStatus,
+                    isUsed,
+                    isExpired,
+                    isAvailable
+                };
+            });
 
         // 合并系统发放券（在前）与池子券，再按状态过滤
         const merged = [...grantedCoupons, ...coupons];
@@ -245,22 +249,27 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
                 }
                 return true;
             })
-            .map(coupon => ({
-                id: coupon.id,
-                name: coupon.name,
-                code: coupon.code,
-                type: coupon.type,
-                discountType: coupon.discountType,
-                value: parseFloat(coupon.value),
-                discountValue: parseFloat(coupon.discountValue),
-                minAmount: coupon.minAmount ? parseFloat(coupon.minAmount) : null,
-                minOrderAmount: coupon.minOrderAmount ? parseFloat(coupon.minOrderAmount) : null,
-                maxDiscount: coupon.maxDiscount ? parseFloat(coupon.maxDiscount) : null,
-                maxDiscountAmount: coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null,
-                validFrom: coupon.validFrom,
-                validTo: coupon.validTo,
-                description: coupon.description
-            }));
+            .map(coupon => {
+                const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
+                const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
+                const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
+                return {
+                    id: coupon.id,
+                    name: coupon.name,
+                    code: coupon.code,
+                    type: coupon.type,
+                    discountType: coupon.discountType || 'fixed',
+                    value: Number.isFinite(value) ? value : 0,
+                    discountValue: Number.isFinite(discountValue) ? discountValue : 0,
+                    minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
+                    minOrderAmount: minOrder,
+                    maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
+                    maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
+                    validFrom: coupon.validFrom,
+                    validTo: coupon.validTo,
+                    description: coupon.description
+                };
+            });
 
         res.json({
             code: 0,

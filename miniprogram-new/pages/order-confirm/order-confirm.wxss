@@ -484,6 +484,19 @@
   background-clip: text;
 }
 
+.coupon-time {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 6rpx;
+}
+
+.coupon-tap-hint {
+  display: block;
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 4rpx;
+}
+
 .no-coupon {
   text-align: center;
   padding: 80rpx 0;
