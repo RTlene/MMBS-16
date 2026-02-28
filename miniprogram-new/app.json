@@ -42,23 +42,33 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "首页"
+        "text": "首页",
+        "iconPath": "images/icons/home-outline.png",
+        "selectedIconPath": "images/icons/home.png"
       },
       {
         "pagePath": "pages/articles/articles",
-        "text": "资讯"
+        "text": "资讯",
+        "iconPath": "images/icons/article-outline.png",
+        "selectedIconPath": "images/icons/article.png"
       },
       {
         "pagePath": "pages/category/category",
-        "text": "分类"
+        "text": "分类",
+        "iconPath": "images/icons/category-outline.png",
+        "selectedIconPath": "images/icons/category.png"
       },
       {
         "pagePath": "pages/cart/cart",
-        "text": "购物车"
+        "text": "购物车",
+        "iconPath": "images/icons/cart-outline.png",
+        "selectedIconPath": "images/icons/cart.png"
       },
       {
         "pagePath": "pages/profile/profile",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "images/icons/me-outline.png",
+        "selectedIconPath": "images/icons/me.png"
       }
     ]
   },

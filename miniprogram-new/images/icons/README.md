@@ -1,11 +1,25 @@
-# 个人中心图标说明（扁平单色）
+# 小程序图标说明
 
-当前页面使用**单色文字**作为占位图标，风格统一、无多余色彩。  
-若需使用**矢量/位图图标**，推荐以下免费可商用资源，下载后可按下表替换。
+本目录已放入 **icon-实心 / icon-线条** 导出的 SVG 图标，用于「我的」、购物车、首页等页面。
+
+## 当前已用图标（路径 `/images/icons/xxx.svg`）
+
+| 文件 | 用途 |
+|------|------|
+| wallet.svg | 我的订单-待付款、我的优惠券菜单 |
+| order.svg | 我的订单-待发货/待收货、收货地址菜单 |
+| star.svg | 我的订单-已完成、首页热门商品标题 |
+| me.svg | 我的团队菜单 |
+| phone.svg | 联系客服菜单 |
+| article.svg | 关于我们菜单、首页资讯标题 |
+| cart.svg | 购物车空状态大图 |
+| cart-del.svg | 购物车项删除按钮 |
+
+未用到的备用：home.svg, setting.svg, pay.svg, cart-add.svg, home-outline.svg, cart-outline.svg（可后续用于 tabBar 或其它入口）。
 
 ---
 
-## 推荐图标库（可下载 SVG/PNG）
+## 推荐图标库（可下载更多 SVG/PNG）
 
 ### 1. IconPark（字节跳动开源，推荐）
 

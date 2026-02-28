@@ -149,6 +149,17 @@
   opacity: 0.25;
   color: #94A3B8;
 }
+.empty-icon-img {
+  width: 160rpx;
+  height: 160rpx;
+  margin-bottom: 32rpx;
+  opacity: 0.5;
+}
+.delete-icon-img {
+  width: 40rpx;
+  height: 40rpx;
+  opacity: 0.7;
+}
 
 .empty-text {
   font-size: 28rpx;

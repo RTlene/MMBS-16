@@ -70,7 +70,7 @@
   <view class="product-section" wx:if="{{hotProducts.length > 0}}">
     <view class="section-header">
       <view class="section-title">
-        <text class="title-icon">🔥</text>
+        <image class="title-icon-img" src="/images/icons/star.svg" mode="aspectFit" />
         <text class="title-text">热门商品</text>
       </view>
       <view class="section-more" bindtap="onMoreHotTap">
@@ -103,7 +103,7 @@
   <view class="article-section" wx:if="{{homeArticles.length > 0}}">
     <view class="section-header">
       <view class="section-title">
-        <text class="title-icon">📰</text>
+        <image class="title-icon-img" src="/images/icons/article.svg" mode="aspectFit" />
         <text class="title-text">资讯</text>
       </view>
       <view class="section-more" bindtap="onMoreArticlesTap">

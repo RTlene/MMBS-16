@@ -70,22 +70,22 @@
     </view>
     <view class="order-stats">
       <view class="order-stat-item" bindtap="goToOrders" data-status="pending">
-        <text class="stat-icon icon-text">付</text>
+        <image class="stat-icon stat-icon-img" src="/images/icons/wallet.svg" mode="aspectFit" />
         <text class="stat-label">待付款</text>
         <view class="stat-badge" wx:if="{{orderStats.pending > 0}}">{{orderStats.pending}}</view>
       </view>
       <view class="order-stat-item" bindtap="goToOrders" data-status="paid">
-        <text class="stat-icon icon-text">发</text>
+        <image class="stat-icon stat-icon-img" src="/images/icons/order.svg" mode="aspectFit" />
         <text class="stat-label">待发货</text>
         <view class="stat-badge" wx:if="{{orderStats.paid > 0}}">{{orderStats.paid}}</view>
       </view>
       <view class="order-stat-item" bindtap="goToOrders" data-status="shipped">
-        <text class="stat-icon icon-text">收</text>
+        <image class="stat-icon stat-icon-img" src="/images/icons/order.svg" mode="aspectFit" />
         <text class="stat-label">待收货</text>
         <view class="stat-badge" wx:if="{{orderStats.shipped > 0}}">{{orderStats.shipped}}</view>
       </view>
       <view class="order-stat-item" bindtap="goToOrders" data-status="completed">
-        <text class="stat-icon icon-text">完</text>
+        <image class="stat-icon stat-icon-img" src="/images/icons/star.svg" mode="aspectFit" />
         <text class="stat-label">已完成</text>
       </view>
     </view>
@@ -94,32 +94,32 @@
   <!-- 功能菜单 -->
   <view class="menu-section">
     <view class="menu-item" bindtap="goToAddress">
-      <text class="menu-icon icon-text">址</text>
+      <image class="menu-icon menu-icon-img" src="/images/icons/order.svg" mode="aspectFit" />
       <text class="menu-label">收货地址</text>
       <text class="menu-arrow">›</text>
     </view>
     <view class="menu-item" bindtap="goToTeam">
-      <text class="menu-icon icon-text">队</text>
+      <image class="menu-icon menu-icon-img" src="/images/icons/me.svg" mode="aspectFit" />
       <text class="menu-label">我的团队</text>
       <text class="menu-arrow">›</text>
     </view>
     <view class="menu-item" bindtap="goToCoupons">
-      <text class="menu-icon icon-text">券</text>
+      <image class="menu-icon menu-icon-img" src="/images/icons/wallet.svg" mode="aspectFit" />
       <text class="menu-label">我的优惠券</text>
       <text class="menu-arrow">›</text>
     </view>
     <view class="menu-item" bindtap="goToVerification">
-      <text class="menu-icon icon-text">码</text>
+      <image class="menu-icon menu-icon-img" src="/images/icons/qrcode.svg" mode="aspectFit" />
       <text class="menu-label">我的核销码</text>
       <text class="menu-arrow">›</text>
     </view>
     <view class="menu-item" bindtap="onContact">
-      <text class="menu-icon icon-text">服</text>
+      <image class="menu-icon menu-icon-img" src="/images/icons/phone.svg" mode="aspectFit" />
       <text class="menu-label">联系客服</text>
       <text class="menu-arrow">›</text>
     </view>
     <view class="menu-item" bindtap="goToAbout">
-      <text class="menu-icon icon-text">关</text>
+      <image class="menu-icon menu-icon-img" src="/images/icons/article.svg" mode="aspectFit" />
       <text class="menu-label">关于我们</text>
       <text class="menu-arrow">›</text>
     </view>

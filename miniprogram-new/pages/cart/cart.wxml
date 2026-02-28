@@ -43,14 +43,14 @@
 
       <!-- 删除按钮 -->
       <view class="item-delete" bindtap="onDeleteItem" data-index="{{index}}">
-        <text class="delete-icon">🗑️</text>
+        <image class="delete-icon-img" src="/images/icons/cart-del.svg" mode="aspectFit" />
       </view>
     </view>
   </scroll-view>
 
   <!-- 空购物车 -->
   <view class="empty-cart" wx:else>
-    <text class="empty-icon">🛒</text>
+    <image class="empty-icon-img" src="/images/icons/cart.svg" mode="aspectFit" />
     <text class="empty-text">购物车是空的</text>
     <navigator url="/pages/index/index" open-type="switchTab">
       <button class="go-shopping-btn">去逛逛</button>

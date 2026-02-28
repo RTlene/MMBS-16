@@ -216,6 +216,11 @@
   font-size: 40rpx;
   opacity: 0.9;
 }
+.stat-icon-img {
+  width: 44rpx;
+  height: 44rpx;
+  display: block;
+}
 
 /* 单色文字图标（扁平、无多余色彩） */
 .stat-icon.icon-text,
@@ -278,6 +283,12 @@
   border-bottom: none;
 }
 
+.menu-icon-img {
+  width: 40rpx;
+  height: 40rpx;
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
 .menu-icon {
   font-size: 36rpx;
   margin-right: 24rpx;

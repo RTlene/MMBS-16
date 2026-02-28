@@ -287,6 +287,12 @@
   color: #D4A017;
 }
 
+.title-icon-img {
+  width: 36rpx;
+  height: 36rpx;
+  margin-right: 10rpx;
+}
+
 .title-text {
   font-size: 30rpx;
   font-weight: 600;
