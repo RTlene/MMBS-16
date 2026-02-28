@@ -34,7 +34,8 @@
       <view class="price-section">
         <view class="current-price">
           <text class="price-symbol">¥</text>
-          <text class="price-value">{{finalPrice}}</text>
+          <text class="price-value" wx:if="{{priceMin !== priceMax}}">{{priceMin}} - {{priceMax}}</text>
+          <text class="price-value" wx:else>{{finalPrice}}</text>
         </view>
         <view class="original-price" wx:if="{{productBasic.originalPrice > finalPrice}}">
           ¥{{productBasic.originalPrice}}

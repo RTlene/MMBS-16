@@ -98,12 +98,19 @@ Page({
       const products = (result.data && result.data.products) ? result.data.products : [];
       const hasMore = result.data ? (result.data.hasMore !== false && products.length >= this.data.limit) : false;
 
-      const processed = products.map(item => ({
-        ...item,
-        coverImage: item.images && item.images.length > 0 ? buildOptimizedImageUrl(item.images[0], { type: 'list' }) : '',
-        priceText: formatMoney(item.price),
-        salesText: formatBigNumber(item.sales || 0)
-      }));
+      const processed = products.map(item => {
+        const min = item.priceMin != null ? item.priceMin : item.price;
+        const max = item.priceMax != null ? item.priceMax : item.price;
+        const priceText = (min != null && max != null && min !== max)
+          ? `¥${formatMoney(min)} - ${formatMoney(max)}`
+          : `¥${formatMoney(item.price)}`;
+        return {
+          ...item,
+          coverImage: item.images && item.images.length > 0 ? buildOptimizedImageUrl(item.images[0], { type: 'list' }) : '',
+          priceText,
+          salesText: formatBigNumber(item.sales || 0)
+        };
+      });
 
       this.setData({
         results: loadMore ? [...this.data.results, ...processed] : processed,

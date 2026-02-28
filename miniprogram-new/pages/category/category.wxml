@@ -24,7 +24,8 @@
         <image class="product-image" src="{{item.images && item.images.length > 0 ? item.images[0] : ''}}" mode="aspectFill" />
         <view class="product-info">
           <text class="product-name">{{item.name}}</text>
-          <view class="product-price">¥{{item.price}}</view>
+          <view class="product-price" wx:if="{{item.priceMin != null && item.priceMax != null && item.priceMin !== item.priceMax}}">¥{{item.priceMin}} - ¥{{item.priceMax}}</view>
+          <view class="product-price" wx:else>¥{{item.price}}</view>
         </view>
       </view>
     </view>

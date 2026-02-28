@@ -96,10 +96,11 @@ router.get('/products', async (req, res) => {
 
         // 处理商品数据，适配小程序展示
         const products = rows.map(product => {
-            // 从SKU中获取最低价格和库存
+            // 从SKU中获取价格区间和库存
             const activeSkus = (product.skus || []).filter(sku => sku && sku.status === 'active');
-            const primarySku = getSkuWithMostStock(activeSkus);
-            const displayPrice = primarySku ? parseFloat(primarySku.price) || 0 : 0;
+            const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
+            const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
+            const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
             const totalStock = activeSkus.reduce((sum, sku) => sum + (parseInt(sku.stock) || 0), 0);
             
             // 如果商品有图片，确保是数组格式
@@ -120,7 +121,9 @@ router.get('/products', async (req, res) => {
                 name: product.name,
                 description: product.description,
                 images: productImages,
-                price: displayPrice, // 使用库存最多的SKU价格
+                price: priceMin, // 兼容：单价格时用最低价
+                priceMin,
+                priceMax,
                 originalPrice: null, // Product模型没有originalPrice字段
                 brand: product.brand,
                 category: product.category ? {
@@ -207,15 +210,20 @@ router.get('/products/recommended', async (req, res) => {
             order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']]
         });
 
-        // 处理推荐商品数据
+        // 处理推荐商品数据（含价格区间）
         const recommendedProducts = products.map(product => {
             const activeSkus = (product.skus || []).filter(sku => sku && sku.status === 'active');
+            const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
+            const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
+            const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
             const primarySku = getSkuWithMostStock(activeSkus);
             return {
                 id: product.id,
                 name: product.name,
                 images: product.images || [],
-                price: primarySku ? parseFloat(primarySku.price) || 0 : 0,
+                price: priceMin,
+                priceMin,
+                priceMax,
                 originalPrice: product.originalPrice,
                 category: product.category ? {
                     id: product.category.id,
@@ -330,16 +338,21 @@ router.get('/products/search', async (req, res) => {
             distinct: true
         });
 
-        // 处理搜索结果
+        // 处理搜索结果（含价格区间）
         const searchResults = rows.map(product => {
             const activeSkus = (product.skus || []).filter(sku => sku && sku.status === 'active');
+            const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
+            const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
+            const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
             const primarySku = getSkuWithMostStock(activeSkus);
             return {
                 id: product.id,
                 name: product.name,
                 description: product.description,
                 images: product.images || [],
-                price: primarySku ? parseFloat(primarySku.price) || 0 : 0,
+                price: priceMin,
+                priceMin,
+                priceMax,
                 originalPrice: product.originalPrice,
                 brand: product.brand,
                 category: product.category ? {

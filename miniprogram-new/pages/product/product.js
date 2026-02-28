@@ -84,7 +84,9 @@ Page({
     // 运营工具相关
     promotions: [],         // 适用的促销活动
     coupons: [],            // 可用优惠券
-    finalPrice: 0,          // 最终价格
+    finalPrice: 0,          // 最终价格（选中规格/会员价）
+    priceMin: 0,            // 多规格时最低价，用于区间展示
+    priceMax: 0,            // 多规格时最高价
     discountInfo: null,     // 优惠信息
     
     loading: false
@@ -257,6 +259,18 @@ Page({
       // 确保获取商品类型（优先从product对象获取，其次从detail根对象）
       const productType = product.productType || detail.productType || 'physical';
       
+      // 价格区间：多规格时用于统一展示「¥min - ¥max」
+      const basePrice = Number(product.price) || 0;
+      let priceMin = basePrice;
+      let priceMax = basePrice;
+      if (skuList.length > 0) {
+        const prices = skuList.map(s => Number(s.price) || 0).filter(p => !isNaN(p));
+        if (prices.length > 0) {
+          priceMin = Math.min(...prices);
+          priceMax = Math.max(...prices);
+        }
+      }
+      
       console.log('[Product] 商品类型:', {
         productId: product.id,
         productType: productType,
@@ -284,7 +298,9 @@ Page({
         selectedSku: skuList.length > 0 ? skuList[0] : null,
         promotions,
         coupons,
-        finalPrice: detail.finalPrice || pricing.finalPrice || (skuList.length > 0 ? skuList[0].price : (Number(product.price) || 0)),
+        finalPrice: detail.finalPrice || pricing.finalPrice || (skuList.length > 0 ? skuList[0].price : basePrice),
+        priceMin,
+        priceMax,
         discountInfo: detail.discountInfo || discountFromPricing || null
       });
       
@@ -420,8 +436,7 @@ Page({
       this.setData({
         detailImages: mergedDetailImages
       });
-      if (updateData.carouselItems) this.resolveVideoSignedUrls();
-      
+
       if (detailImages.length > 0) {
         console.log('[Product] ✅ 详情图已更新到页面，数量:', detailImages.length);
       } else {
@@ -645,12 +660,13 @@ Page({
     
     if (!sku) return;
     
+    const skuPrice = Number(sku.price) || 0;
     this.setData({ 
       selectedSku: sku,
-      quantity: 1  // 切换SKU时重置数量
+      quantity: 1,  // 切换SKU时重置数量
+      finalPrice: skuPrice  // 弹窗内价格立即更新，后续 calculatePrice 会按会员价等覆盖
     });
     
-    // 重新计算价格
     this.calculatePrice();
   },
 

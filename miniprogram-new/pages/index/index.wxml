@@ -89,7 +89,8 @@
           <view class="product-bottom">
             <view class="product-price">
               <text class="price-symbol">¥</text>
-              <text class="price-value">{{item.price}}</text>
+              <text class="price-value" wx:if="{{item.priceMin != null && item.priceMax != null && item.priceMin !== item.priceMax}}">{{item.priceMin}} - {{item.priceMax}}</text>
+              <text class="price-value" wx:else>{{item.price}}</text>
             </view>
             <text class="product-sales">已售{{item.sales || 0}}</text>
           </view>
@@ -147,7 +148,8 @@
           <view class="product-bottom">
             <view class="product-price">
               <text class="price-symbol">¥</text>
-              <text class="price-value">{{item.price}}</text>
+              <text class="price-value" wx:if="{{item.priceMin != null && item.priceMax != null && item.priceMin !== item.priceMax}}">{{item.priceMin}} - {{item.priceMax}}</text>
+              <text class="price-value" wx:else>{{item.price}}</text>
             </view>
             <text class="product-sales">已售{{item.sales || 0}}</text>
           </view>
