@@ -264,7 +264,11 @@
           </view>
           <view class="coupon-action">
             <text class="coupon-discount-value">{{item.displayValue}}</text>
-            <text class="coupon-tap-hint" wx:if="{{selectedCoupon && (selectedCoupon.id === item.id || selectedCoupon.id == item.id)}}">点击取消</text>
+            <button 
+              wx:if="{{selectedCoupon && (selectedCoupon.id === item.id || selectedCoupon.id == item.id)}}"
+              class="coupon-cancel-btn"
+              catchtap="onRemoveCoupon"
+            >取消使用</button>
           </view>
         </view>
         <view class="no-coupon" wx:if="{{availableCoupons.length === 0}}">

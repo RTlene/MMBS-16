@@ -397,14 +397,19 @@ Page({
     }
     if (!coupon || !coupon.id) return;
     
-    // 计算优惠金额（discountType: fixed-固定金额, percentage/percent-折扣）
+    // 计算优惠金额：固定金额=面值抵扣，折扣券= 折数表示“实付比例”（9折=付90% 即抵10%）
     let discountAmount = 0;
     if (coupon.discountType === 'fixed') {
-      discountAmount = parseFloat(coupon.discountValue != null ? coupon.discountValue : coupon.value || 0);
+      // 代金券/满减：抵扣 = 面值 value 或 discountValue
+      discountAmount = parseFloat(coupon.value != null ? coupon.value : (coupon.discountValue != null ? coupon.discountValue : 0));
     } else if (coupon.discountType === 'percent' || coupon.discountType === 'percentage') {
-      const rate = parseFloat(coupon.discountValue != null ? coupon.discountValue : 0);
-      const pct = rate > 0 && rate <= 1 ? rate * 100 : rate; // 支持 0.9 或 90
-      discountAmount = this.data.originalAmount * (pct / 100);
+      const v = parseFloat(coupon.discountValue != null ? coupon.discountValue : coupon.value || 0);
+      // v 可能为：0.9(实付比例)、9(折数)、90(折数*10)，统一得到实付比例 payRatio
+      let payRatio = 1;
+      if (v > 0 && v <= 1) payRatio = v;
+      else if (v > 1 && v <= 10) payRatio = v / 10;
+      else if (v > 10) payRatio = v / 100;
+      discountAmount = this.data.originalAmount * (1 - Math.min(1, payRatio));
       if (coupon.maxDiscountAmount != null) {
         discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
       }
@@ -583,7 +588,6 @@ Page({
         showLoading: false,
         showError: false
       });
-      
       if (result.code === 0 && result.data) {
         const list = (result.data.coupons || []).map(c => ({
           ...c,
