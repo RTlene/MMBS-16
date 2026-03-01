@@ -4,7 +4,7 @@ const { Coupon, Order, OrderItem, MemberCoupon, Member, sequelize } = require('.
 const { authenticateMiniappUser, optionalAuthenticate } = require('../middleware/miniapp-auth');
 const router = express.Router();
 
-/** 检查会员是否满足自动发放条件 autoGrantRules。member 为完整会员对象，stats 为 { orderCount, totalSpent } */
+/** 检查会员是否满足自动发放条件 autoGrantRules。member 为完整会员对象，stats 为 { orderCount, totalSpent }。无条件（null/空数组/非数组）视为满足。 */
 function memberSatisfiesAutoGrantRules(member, stats, autoGrantRules) {
     if (!autoGrantRules || !Array.isArray(autoGrantRules) || autoGrantRules.length === 0) return true;
     for (const rule of autoGrantRules) {
@@ -153,10 +153,10 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
                 if (!coupon || coupon.status !== 'active') return false;
                 if (new Date(coupon.validFrom) > now || new Date(coupon.validTo) < now) return false;
                 if (coupon.minOrderAmount != null && safeSubtotal < parseFloat(coupon.minOrderAmount)) return false;
-                if (productId && coupon.productIds && Array.isArray(coupon.productIds)) {
+                if (productId && coupon.productIds && Array.isArray(coupon.productIds) && coupon.productIds.length > 0) {
                     if (!coupon.productIds.includes(parseInt(productId))) return false;
                 }
-                if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds)) {
+                if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds) && coupon.skuIds.length > 0) {
                     if (!coupon.skuIds.includes(parseInt(skuId))) return false;
                 }
                 return true;
@@ -181,10 +181,10 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
         for (const coupon of poolCoupons) {
             if (seenIds.has(coupon.id)) continue;
             if (coupon.minOrderAmount != null && safeSubtotal < parseFloat(coupon.minOrderAmount)) continue;
-            if (productId && coupon.productIds && Array.isArray(coupon.productIds)) {
+            if (productId && coupon.productIds && Array.isArray(coupon.productIds) && coupon.productIds.length > 0) {
                 if (!coupon.productIds.includes(parseInt(productId))) continue;
             }
-            if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds)) {
+            if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds) && coupon.skuIds.length > 0) {
                 if (!coupon.skuIds.includes(parseInt(skuId))) continue;
             }
             const totalClaimed = await MemberCoupon.count({ where: { couponId: coupon.id } });
@@ -223,16 +223,16 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
             if (seenIds.has(coupon.id)) continue;
             if (!memberSatisfiesAutoGrantRules(memberFull || member, stats, coupon.autoGrantRules)) continue;
             if (coupon.minOrderAmount != null && safeSubtotal < parseFloat(coupon.minOrderAmount)) continue;
-            if (productId && coupon.productIds && Array.isArray(coupon.productIds)) {
+            if (productId && coupon.productIds && Array.isArray(coupon.productIds) && coupon.productIds.length > 0) {
                 if (!coupon.productIds.includes(parseInt(productId))) continue;
             }
-            if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds)) {
+            if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds) && coupon.skuIds.length > 0) {
                 if (!coupon.skuIds.includes(parseInt(skuId))) continue;
             }
             const userUseLimit = coupon.userClaimLimit != null ? parseInt(coupon.userClaimLimit, 10) : (coupon.memberUsageLimit != null ? parseInt(coupon.memberUsageLimit, 10) : null);
-            if (Number.isFinite(userUseLimit) && userUseLimit >= 0) {
+            if (Number.isFinite(userUseLimit) && userUseLimit > 0) {
                 const memberOrderItems = await OrderItem.findAll({
-                    include: [{ model: Order, as: 'order', where: { memberId: member.id, status: { [Op.notIn]: ['cancelled', 'pending'] } }, attributes: [] }],
+                    include: [{ model: Order, as: 'order', required: true, where: { memberId: member.id, status: { [Op.notIn]: ['cancelled', 'pending'] } }, attributes: [] }],
                     attributes: ['appliedCoupons'],
                     raw: true
                 });
