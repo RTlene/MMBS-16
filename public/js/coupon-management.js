@@ -39,6 +39,125 @@ window.CouponManagement = {
         if (modeEl) modeEl.addEventListener('change', function () {
             self.toggleAutoGrantRules();
         });
+        var addRuleBtn = document.getElementById('addAutoGrantRuleBtn');
+        if (addRuleBtn) addRuleBtn.addEventListener('click', function () { self.addAutoGrantRuleRow(); });
+        var rulesList = document.getElementById('autoGrantRulesList');
+        if (rulesList) {
+            rulesList.addEventListener('change', function (e) {
+                if (e.target && e.target.classList.contains('auto-grant-type')) {
+                    self.renderAutoGrantValueInput(e.target.closest('.auto-grant-rule-row'));
+                }
+            });
+            rulesList.addEventListener('click', function (e) {
+                if (e.target && e.target.classList.contains('btn-remove-rule')) {
+                    var row = e.target.closest('.auto-grant-rule-row');
+                    if (row) row.remove();
+                }
+            });
+        }
+    },
+    _memberLevelsCache: null,
+    loadMemberLevelsForCoupon: function (cb) {
+        var self = this;
+        if (self._memberLevelsCache) {
+            if (cb) cb(self._memberLevelsCache);
+            return;
+        }
+        fetch('/api/member-levels?limit=100', { headers: { 'Authorization': 'Bearer ' + this.getToken() } })
+            .then(function (res) { return res.json(); })
+            .then(function (result) {
+                var list = (result.code === 0 && result.data && result.data.levels) ? result.data.levels : [];
+                self._memberLevelsCache = list;
+                if (cb) cb(list);
+            })
+            .catch(function () { if (cb) cb([]); });
+    },
+    addAutoGrantRuleRow: function (rule) {
+        var self = this;
+        var listEl = document.getElementById('autoGrantRulesList');
+        if (!listEl) return;
+        var type = (rule && rule.type) ? rule.type : 'member_level';
+        var row = document.createElement('div');
+        row.className = 'auto-grant-rule-row';
+        row.setAttribute('data-type', type);
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;';
+        var typeSelect = document.createElement('select');
+        typeSelect.className = 'form-input auto-grant-type';
+        typeSelect.style.width = '160px';
+        typeSelect.innerHTML = '<option value="member_level"' + (type === 'member_level' ? ' selected' : '') + '>会员等级等于</option>' +
+            '<option value="min_order_count"' + (type === 'min_order_count' ? ' selected' : '') + '>最少订单数 ≥</option>' +
+            '<option value="min_total_spent"' + (type === 'min_total_spent' ? ' selected' : '') + '>累计消费金额 ≥</option>' +
+            '<option value="new_member_only"' + (type === 'new_member_only' ? ' selected' : '') + '>仅新会员(注册天数内)</option>';
+        row.appendChild(typeSelect);
+        var valueWrap = document.createElement('span');
+        valueWrap.className = 'auto-grant-value-wrap';
+        valueWrap.style.flex = '1';
+        row.appendChild(valueWrap);
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'btn btn-danger btn-remove-rule';
+        delBtn.style.padding = '6px 12px';
+        delBtn.textContent = '删除';
+        row.appendChild(delBtn);
+        listEl.appendChild(row);
+        self.renderAutoGrantValueInput(row, rule);
+    },
+    renderAutoGrantValueInput: function (rowEl, rule) {
+        if (!rowEl) return;
+        var type = rowEl.querySelector('.auto-grant-type').value;
+        rowEl.setAttribute('data-type', type);
+        var wrap = rowEl.querySelector('.auto-grant-value-wrap');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        var self = this;
+        if (type === 'member_level') {
+            var sel = document.createElement('select');
+            sel.className = 'form-input auto-grant-value';
+            sel.style.width = '180px';
+            sel.innerHTML = '<option value="">请选择等级</option>';
+            wrap.appendChild(sel);
+            this.loadMemberLevelsForCoupon(function (levels) {
+                levels.forEach(function (l) {
+                    var opt = document.createElement('option');
+                    opt.value = l.id;
+                    opt.textContent = (l.name || '等级' + l.id);
+                    if (rule && rule.memberLevelId != null && parseInt(rule.memberLevelId, 10) === l.id) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            });
+        } else {
+            var num = document.createElement('input');
+            num.type = 'number';
+            num.className = 'form-input auto-grant-value';
+            num.min = '0';
+            num.style.width = '120px';
+            if (type === 'min_order_count') num.placeholder = '笔';
+            else if (type === 'min_total_spent') num.placeholder = '元';
+            else if (type === 'new_member_only') num.placeholder = '如 30 天';
+            if (rule && rule.value != null) num.value = rule.value;
+            wrap.appendChild(num);
+        }
+    },
+    getAutoGrantRulesFromForm: function () {
+        var rows = document.querySelectorAll('#autoGrantRulesList .auto-grant-rule-row');
+        var list = [];
+        rows.forEach(function (row) {
+            var type = row.querySelector('.auto-grant-type') && row.querySelector('.auto-grant-type').value;
+            if (!type) return;
+            var valueEl = row.querySelector('.auto-grant-value');
+            if (!valueEl) return;
+            if (type === 'member_level') {
+                var id = valueEl.value ? parseInt(valueEl.value, 10) : null;
+                if (id) list.push({ type: 'member_level', memberLevelId: id });
+            } else {
+                var val = valueEl.value.trim();
+                if (val === '') return;
+                var n = type === 'min_total_spent' ? parseFloat(val) : parseInt(val, 10);
+                if (!Number.isFinite(n) || n < 0) return;
+                list.push({ type: type, value: n });
+            }
+        });
+        return list;
     },
     toggleAutoGrantRules: function () {
         var mode = document.getElementById('couponDistributionMode') && document.getElementById('couponDistributionMode').value;
@@ -240,8 +359,8 @@ window.CouponManagement = {
         if (modeEl) modeEl.value = 'user_claim';
         this.toggleGiftConfig();
         this.toggleAutoGrantRules();
-        var autoRulesEl = document.getElementById('couponAutoGrantRules');
-        if (autoRulesEl) autoRulesEl.value = '';
+        var listEl = document.getElementById('autoGrantRulesList');
+        if (listEl) listEl.innerHTML = '';
         document.getElementById('couponModal').classList.add('show');
     },
     editCoupon: function (id) {
@@ -263,8 +382,15 @@ window.CouponManagement = {
         var modeEl = document.getElementById('couponDistributionMode');
         if (modeEl) modeEl.value = (c.distributionMode === 'auto' || c.distributionMode === 'system') ? c.distributionMode : 'user_claim';
         this.toggleAutoGrantRules();
-        var autoRulesEl = document.getElementById('couponAutoGrantRules');
-        if (autoRulesEl) autoRulesEl.value = c.autoGrantRules && Array.isArray(c.autoGrantRules) ? JSON.stringify(c.autoGrantRules, null, 2) : (c.autoGrantRules ? JSON.stringify(c.autoGrantRules, null, 2) : '');
+        var listEl = document.getElementById('autoGrantRulesList');
+        if (listEl) {
+            listEl.innerHTML = '';
+            var rules = c.autoGrantRules && Array.isArray(c.autoGrantRules) ? c.autoGrantRules : [];
+            var self = this;
+            rules.forEach(function (r) {
+                self.addAutoGrantRuleRow(r);
+            });
+        }
         document.getElementById('couponValidFrom').value = this.formatDateTimeLocal(c.validFrom);
         document.getElementById('couponValidTo').value = this.formatDateTimeLocal(c.validTo);
         document.getElementById('couponStatus').value = c.status || 'active';
@@ -330,15 +456,9 @@ window.CouponManagement = {
         var distributionModeEl = document.getElementById('couponDistributionMode');
         var distributionMode = (distributionModeEl && distributionModeEl.value) ? distributionModeEl.value : 'user_claim';
         var autoGrantRules = null;
-        var autoRulesEl = document.getElementById('couponAutoGrantRules');
-        if (distributionMode === 'auto' && autoRulesEl && autoRulesEl.value.trim()) {
-            try {
-                autoGrantRules = JSON.parse(autoRulesEl.value.trim());
-                if (!Array.isArray(autoGrantRules)) autoGrantRules = [autoGrantRules];
-            } catch (e) {
-                alert('自动发放条件 JSON 格式错误');
-                return;
-            }
+        if (distributionMode === 'auto') {
+            autoGrantRules = this.getAutoGrantRulesFromForm();
+            if (autoGrantRules.length === 0) autoGrantRules = null;
         }
         var body = {
             name: name,
