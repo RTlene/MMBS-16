@@ -245,6 +245,8 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
         }
 
         const availableCoupons = [...fromHeld, ...fromPool, ...fromAuto];
+        console.log('[Coupons/available] memberId=%s subtotal=%s productId=%s -> held=%s pool=%s auto=%s total=%s',
+            member.id, safeSubtotal, productId || '', fromHeld.length, fromPool.length, fromAuto.length, availableCoupons.length);
 
         res.json({
             code: 0,

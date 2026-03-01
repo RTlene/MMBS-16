@@ -81,8 +81,8 @@ Page({
       shippingAddress: ''
     });
     
-    // 加载可用优惠券
-    this.loadAvailableCoupons();
+    // 加载可用优惠券（传入当前 items/originalAmount，避免 setData 未完成时读到空数据）
+    this.loadAvailableCoupons(items, originalAmount);
 
     this.loadAddresses();
     this.loadMemberInfo();
@@ -570,14 +570,14 @@ Page({
   },
 
   /**
-   * 加载可用优惠券
+   * 加载可用优惠券（可选传入 items、originalAmount，避免 setData 未完成时读到空数据）
    */
-  async loadAvailableCoupons() {
+  async loadAvailableCoupons(itemsArg, originalAmountArg) {
     try {
-      const { items, originalAmount } = this.data;
-      if (!items || items.length === 0) return;
+      const items = itemsArg != null ? itemsArg : (this.data.items || []);
+      const originalAmount = originalAmountArg != null ? originalAmountArg : (this.data.originalAmount || 0);
+      if (!items.length) return;
 
-      // 计算商品ID和总金额
       const productIds = items.map(item => item.productId).filter(Boolean);
       const subtotal = originalAmount;
 
