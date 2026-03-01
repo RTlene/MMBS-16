@@ -208,13 +208,7 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
             ]
         };
 
-        // 如果指定了商品，筛选适用商品
-        if (productId) {
-            where[Op.or] = [
-                { productIds: null },
-                { productIds: { [Op.contains]: [parseInt(productId)] } }
-            ];
-        }
+        // 不在此处用 productIds 条件：MySQL 不支持 JSON @> 语法，适用商品在下方 .filter() 中过滤
 
         const coupons = await Coupon.findAll({
             where,

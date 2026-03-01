@@ -740,25 +740,28 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
         const { id } = req.params;
         const member = req.member;
 
+        const orderIncludes = [
+            { 
+                model: Product, 
+                as: 'product', 
+                attributes: ['id', 'name', 'description', 'images', 'detailImages', 'brand']
+            },
+            {
+                model: OrderItem,
+                as: 'items'
+            },
+            {
+                model: OrderOperationLog,
+                as: 'operationLogs',
+                order: [['createdAt', 'DESC']],
+                limit: 10
+            }
+        ];
+        if (Order.rawAttributes.storeId) {
+            orderIncludes.push({ model: Store, as: 'store', required: false, attributes: ['id', 'name', 'address', 'region', 'latitude', 'longitude', 'phone', 'businessHours'] });
+        }
         const order = await Order.findByPk(id, {
-            include: [
-                { 
-                    model: Product, 
-                    as: 'product', 
-                    attributes: ['id', 'name', 'description', 'images', 'detailImages', 'brand']
-                },
-                {
-                    model: OrderItem,
-                    as: 'items'
-                },
-                {
-                    model: OrderOperationLog,
-                    as: 'operationLogs',
-                    order: [['createdAt', 'DESC']],
-                    limit: 10
-                },
-                { model: Store, as: 'store', required: false, attributes: ['id', 'name', 'address', 'region', 'latitude', 'longitude', 'phone', 'businessHours'] }
-            ]
+            include: orderIncludes
         });
 
         if (!order) {
