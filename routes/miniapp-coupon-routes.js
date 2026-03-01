@@ -110,11 +110,12 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
 
 // 获取可用优惠券（用于下单时选择）：已领取未使用的 MemberCoupon + 可领取池中符合条件且未领完的 user_claim 券
 router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
+    const { productId, skuId, subtotal } = req.query;
+    const member = req.member;
+    console.log('[Coupons/available] 请求 memberId=%s subtotal=%s productId=%s skuId=%s', member && member.id, subtotal, productId || '-', skuId || '-');
     try {
-        const { productId, skuId, subtotal } = req.query;
         const subtotalNum = (subtotal != null && subtotal !== '') ? parseFloat(subtotal) : 0;
         const safeSubtotal = Number.isFinite(subtotalNum) ? subtotalNum : 0;
-        const member = req.member;
         const now = new Date();
 
         const toCouponItem = (coupon) => {

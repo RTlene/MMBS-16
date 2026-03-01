@@ -315,13 +315,11 @@ Page({
   },
 
   /**
-   * 显示优惠券选择器
+   * 显示优惠券选择器（本页弹窗，并刷新可用优惠券列表）
    */
   onShowCouponPicker() {
-    // 跳转到优惠券列表页
-    wx.navigateTo({
-      url: '/pages/coupon/coupon?from=order'
-    });
+    this.setData({ showCouponPicker: true });
+    this.loadAvailableCoupons();
   },
 
   /**
