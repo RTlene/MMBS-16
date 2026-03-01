@@ -272,7 +272,7 @@ window.CouponManagement = {
                 discountText = '¥' + (parseFloat(c.discountValue) != null && !isNaN(parseFloat(c.discountValue)) ? parseFloat(c.discountValue) : 0);
             }
             var minText = c.minOrderAmount != null && c.minOrderAmount > 0 ? '满¥' + c.minOrderAmount : '-';
-            var useText = (c.totalCount || 0) + ' / ' + (c.usedCount || 0);
+            var useText = (c.distributionMode === 'auto') ? ('不限 / ' + (c.usedCount || 0)) : ((c.totalCount || 0) + ' / ' + (c.usedCount || 0));
             var userClaimText = c.userClaimLimit != null && c.userClaimLimit > 0 ? c.userClaimLimit + '张' : '不限';
             var validText = self.formatDate(c.validFrom) + ' ~ ' + self.formatDate(c.validTo);
             var statusClass = 'status-' + (c.status || 'inactive');
@@ -428,9 +428,12 @@ window.CouponManagement = {
         var status = document.getElementById('couponStatus').value;
         var description = document.getElementById('couponDescription').value.trim();
 
+        var distributionModeEl = document.getElementById('couponDistributionMode');
+        var distributionMode = (distributionModeEl && distributionModeEl.value) ? distributionModeEl.value : 'user_claim';
         if (!name || !code) { alert('请填写名称和兑换码'); return; }
         if (isNaN(discountValue) || discountValue < 0) { alert('请填写有效的折扣值'); return; }
-        if (totalCount < 1) { alert('发放总数至少为 1'); return; }
+        // 自动发放模式发放总数无上限，可为 0；其他模式至少为 1
+        if (distributionMode !== 'auto' && totalCount < 1) { alert('发放总数至少为 1'); return; }
         if (!validFrom || !validTo) { alert('请选择有效期'); return; }
         if (new Date(validFrom) >= new Date(validTo)) { alert('结束时间必须晚于开始时间'); return; }
 
@@ -453,8 +456,6 @@ window.CouponManagement = {
             fullGiftRules = [{ conditionType: 'amount', minAmount: giftMinAmount || 0, giftProductId: giftProductId, giftQuantity: giftQuantity }];
         }
 
-        var distributionModeEl = document.getElementById('couponDistributionMode');
-        var distributionMode = (distributionModeEl && distributionModeEl.value) ? distributionModeEl.value : 'user_claim';
         var autoGrantRules = null;
         if (distributionMode === 'auto') {
             autoGrantRules = this.getAutoGrantRulesFromForm();
