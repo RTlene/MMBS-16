@@ -112,7 +112,7 @@ Page({
         params.status = currentStatus;
       }
 
-      const res = await request.get(API.COMMISSION.LIST, { data: params });
+      const res = await request.get(API.COMMISSION.LIST, params);
 
       if (res.code === 0) {
         const newRecords = res.data.records || [];

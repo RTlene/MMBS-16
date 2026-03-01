@@ -115,7 +115,7 @@ Page({
         params.lat = lat;
         params.lng = lng;
       }
-      const res = await request.get(API.STORE.LIST, { data: params }, { needAuth: false, showLoading: false, showError: false });
+      const res = await request.get(API.STORE.LIST, params, { needAuth: false, showLoading: false, showError: false });
       if (res.code === 0 && Array.isArray(res.data)) {
         this.setData({ storeList: res.data });
       }
@@ -382,9 +382,10 @@ Page({
   onSelectCoupon(e) {
     const { coupon, id: tapId } = e.currentTarget.dataset;
     const selected = this.data.selectedCoupon;
-    // 再次点击已选中的优惠券则取消选择（兼容 id 为数字或字符串）
-    const isSame = selected && (selected.id === (coupon && coupon.id) || selected.id == tapId || (tapId != null && selected.id == tapId));
-    if (isSame) {
+    // 再次点击已选中的优惠券则取消选择（用 data-id 比较最可靠，兼容数字/字符串）
+    const selectedId = selected ? String(selected.id) : '';
+    const tappedId = tapId != null ? String(tapId) : (coupon && coupon.id != null ? String(coupon.id) : '');
+    if (selectedId && tappedId && selectedId === tappedId) {
       this.setData({
         selectedCoupon: null,
         discountAmount: 0,
@@ -394,7 +395,7 @@ Page({
       this.calculateFinalAmount();
       return;
     }
-    if (!coupon) return;
+    if (!coupon || !coupon.id) return;
     
     // 计算优惠金额（discountType: fixed-固定金额, percentage/percent-折扣）
     let discountAmount = 0;
@@ -577,7 +578,7 @@ Page({
         params.productId = productIds[0]; // 取第一个商品ID
       }
 
-      const result = await request.get(API.COUPON.AVAILABLE, { data: params }, {
+      const result = await request.get(API.COUPON.AVAILABLE, params, {
         needAuth: true,
         showLoading: false,
         showError: false

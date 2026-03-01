@@ -165,7 +165,9 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
 // 获取可用优惠券（用于下单时选择）
 router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
     try {
-        const { productId, skuId, subtotal = 0 } = req.query;
+        const { productId, skuId, subtotal } = req.query;
+        const subtotalNum = (subtotal != null && subtotal !== '') ? parseFloat(subtotal) : 0;
+        const safeSubtotal = Number.isFinite(subtotalNum) ? subtotalNum : 0;
         const member = req.member;
         const now = new Date();
 
@@ -201,7 +203,7 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
             validFrom: { [Op.lte]: now },
             validTo: { [Op.gte]: now },
             [Op.or]: [
-                { minOrderAmount: { [Op.lte]: parseFloat(subtotal) } },
+                { minOrderAmount: { [Op.lte]: safeSubtotal } },
                 { minOrderAmount: null }
             ]
         };
@@ -232,7 +234,7 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
                     return false;
                 }
                 // 检查最低订单金额
-                if (coupon.minOrderAmount && parseFloat(subtotal) < parseFloat(coupon.minOrderAmount)) {
+                if (coupon.minOrderAmount && safeSubtotal < parseFloat(coupon.minOrderAmount)) {
                     return false;
                 }
                 // 检查适用商品
