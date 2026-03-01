@@ -27,7 +27,7 @@ function memberSatisfiesAutoGrantRules(member, stats, autoGrantRules) {
     return true;
 }
 
-// 获取我的优惠券列表（仅来自 MemberCoupon：系统发放 + 用户领取的记录）
+// 获取我的优惠券列表：MemberCoupon（系统发放+用户领取）+ 满足条件的自动发放券（无 MemberCoupon 记录也展示）
 router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
     try {
         const { status = 'all', page = 1, limit = 20 } = req.query;
@@ -80,6 +80,71 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
         };
 
         let list = allRows.map(toItem).filter(Boolean);
+        const seenIds = new Set(list.map(c => c.id));
+
+        // 合并满足条件的自动发放券（无领取记录也展示在「我的」中，与下单可用逻辑一致）
+        const memberFull = await Member.findByPk(member.id, { attributes: ['id', 'memberLevelId', 'createdAt'] });
+        const orderStats = await Order.findAll({
+            where: { memberId: member.id, status: { [Op.notIn]: ['cancelled', 'pending'] } },
+            attributes: [[sequelize.fn('COUNT', sequelize.col('id')), 'orderCount'], [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('totalAmount')), 0), 'totalSpent']],
+            raw: true
+        });
+        const stats = orderStats && orderStats[0] ? { orderCount: parseInt(orderStats[0].orderCount, 10) || 0, totalSpent: parseFloat(orderStats[0].totalSpent) || 0 } : { orderCount: 0, totalSpent: 0 };
+        const autoCoupons = await Coupon.findAll({
+            where: {
+                status: 'active',
+                distributionMode: 'auto',
+                validFrom: { [Op.lte]: now },
+                validTo: { [Op.gte]: now }
+            },
+            order: [['discountValue', 'DESC']],
+            limit: 50
+        });
+        const memberOrderItems = await OrderItem.findAll({
+            include: [{ model: Order, as: 'order', required: true, where: { memberId: member.id, status: { [Op.notIn]: ['cancelled', 'pending'] } }, attributes: [] }],
+            attributes: ['appliedCoupons'],
+            raw: true
+        });
+        for (const coupon of autoCoupons) {
+            if (seenIds.has(coupon.id)) continue;
+            if (!memberSatisfiesAutoGrantRules(memberFull || member, stats, coupon.autoGrantRules)) continue;
+            const userUseLimit = coupon.userClaimLimit != null ? parseInt(coupon.userClaimLimit, 10) : (coupon.memberUsageLimit != null ? parseInt(coupon.memberUsageLimit, 10) : null);
+            const usedCount = memberOrderItems.filter(item =>
+                Array.isArray(item.appliedCoupons) && item.appliedCoupons.some(c => c && c.code === coupon.code)
+            ).length;
+            const isUsed = Number.isFinite(userUseLimit) && userUseLimit > 0 ? usedCount >= userUseLimit : usedCount > 0;
+            const isExpired = new Date(coupon.validTo) < now;
+            const isAvailable = !isUsed && !isExpired;
+            let couponStatus = 'available';
+            if (isUsed) couponStatus = 'used';
+            else if (isExpired) couponStatus = 'expired';
+            else if (!isAvailable) couponStatus = 'unavailable';
+            const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
+            const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
+            const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
+            list.push({
+                id: coupon.id,
+                name: coupon.name,
+                code: coupon.code,
+                type: coupon.type,
+                discountType: coupon.discountType || 'fixed',
+                value: Number.isFinite(value) ? value : 0,
+                discountValue: Number.isFinite(discountValue) ? discountValue : 0,
+                minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
+                minOrderAmount: minOrder,
+                maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
+                maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
+                validFrom: coupon.validFrom,
+                validTo: coupon.validTo,
+                description: coupon.description,
+                status: couponStatus,
+                isUsed,
+                isExpired,
+                isAvailable
+            });
+            seenIds.add(coupon.id);
+        }
+
         if (status === 'available') list = list.filter(c => c.status === 'available');
         else if (status === 'used') list = list.filter(c => c.status === 'used');
         else if (status === 'expired') list = list.filter(c => c.status === 'expired');
