@@ -2074,6 +2074,11 @@ const Coupon = sequelize.define('Coupon', {
         defaultValue: 'user_claim',
         comment: '发放模式：auto-自动，system-系统发放，user_claim-用户领取'
     },
+    autoGrantRules: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: '自动发放条件，仅 distributionMode=auto 时有效。如：[{"type":"member_level","memberLevelId":1},{"type":"min_order_count","value":1},{"type":"min_total_spent","value":100},{"type":"new_member_only","value":true}]。空或 null 表示无限制'
+    },
     description: {
         type: DataTypes.TEXT,
         allowNull: true,

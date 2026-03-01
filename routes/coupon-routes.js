@@ -239,6 +239,7 @@ router.post('/', authenticateToken, async (req, res) => {
             validTo,
             status: body.status || 'active',
             distributionMode,
+            autoGrantRules: body.autoGrantRules !== undefined ? body.autoGrantRules : null,
             description: body.description || null,
             fullReductionRules: body.fullReductionRules || null,
             fullGiftRules: body.fullGiftRules || null,
@@ -297,6 +298,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         if (body.distributionMode !== undefined && ['auto', 'system', 'user_claim'].includes(body.distributionMode)) {
             coupon.distributionMode = body.distributionMode;
         }
+        if (body.autoGrantRules !== undefined) coupon.autoGrantRules = body.autoGrantRules;
         coupon.updatedBy = userId;
 
         await withDbRetry(() => coupon.save());

@@ -35,6 +35,16 @@ window.CouponManagement = {
         if (couponTypeEl) couponTypeEl.addEventListener('change', function () {
             self.toggleGiftConfig();
         });
+        var modeEl = document.getElementById('couponDistributionMode');
+        if (modeEl) modeEl.addEventListener('change', function () {
+            self.toggleAutoGrantRules();
+        });
+    },
+    toggleAutoGrantRules: function () {
+        var mode = document.getElementById('couponDistributionMode') && document.getElementById('couponDistributionMode').value;
+        var section = document.getElementById('autoGrantRulesSection');
+        if (!section) return;
+        section.style.display = mode === 'auto' ? 'block' : 'none';
     },
     toggleGiftConfig: function () {
         var type = document.getElementById('couponType') && document.getElementById('couponType').value;
@@ -229,6 +239,9 @@ window.CouponManagement = {
         var modeEl = document.getElementById('couponDistributionMode');
         if (modeEl) modeEl.value = 'user_claim';
         this.toggleGiftConfig();
+        this.toggleAutoGrantRules();
+        var autoRulesEl = document.getElementById('couponAutoGrantRules');
+        if (autoRulesEl) autoRulesEl.value = '';
         document.getElementById('couponModal').classList.add('show');
     },
     editCoupon: function (id) {
@@ -249,6 +262,9 @@ window.CouponManagement = {
         if (userClaimEl) userClaimEl.value = c.userClaimLimit != null && c.userClaimLimit > 0 ? c.userClaimLimit : '';
         var modeEl = document.getElementById('couponDistributionMode');
         if (modeEl) modeEl.value = (c.distributionMode === 'auto' || c.distributionMode === 'system') ? c.distributionMode : 'user_claim';
+        this.toggleAutoGrantRules();
+        var autoRulesEl = document.getElementById('couponAutoGrantRules');
+        if (autoRulesEl) autoRulesEl.value = c.autoGrantRules && Array.isArray(c.autoGrantRules) ? JSON.stringify(c.autoGrantRules, null, 2) : (c.autoGrantRules ? JSON.stringify(c.autoGrantRules, null, 2) : '');
         document.getElementById('couponValidFrom').value = this.formatDateTimeLocal(c.validFrom);
         document.getElementById('couponValidTo').value = this.formatDateTimeLocal(c.validTo);
         document.getElementById('couponStatus').value = c.status || 'active';
@@ -313,6 +329,17 @@ window.CouponManagement = {
 
         var distributionModeEl = document.getElementById('couponDistributionMode');
         var distributionMode = (distributionModeEl && distributionModeEl.value) ? distributionModeEl.value : 'user_claim';
+        var autoGrantRules = null;
+        var autoRulesEl = document.getElementById('couponAutoGrantRules');
+        if (distributionMode === 'auto' && autoRulesEl && autoRulesEl.value.trim()) {
+            try {
+                autoGrantRules = JSON.parse(autoRulesEl.value.trim());
+                if (!Array.isArray(autoGrantRules)) autoGrantRules = [autoGrantRules];
+            } catch (e) {
+                alert('自动发放条件 JSON 格式错误');
+                return;
+            }
+        }
         var body = {
             name: name,
             code: code,
@@ -330,6 +357,7 @@ window.CouponManagement = {
             description: description || undefined
         };
         if (fullGiftRules) body.fullGiftRules = fullGiftRules;
+        if (autoGrantRules) body.autoGrantRules = autoGrantRules;
 
         var url = '/api/coupons';
         var method = 'POST';

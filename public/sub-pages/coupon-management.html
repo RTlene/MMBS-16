@@ -190,7 +190,12 @@
                             <option value="system">系统发放</option>
                             <option value="auto">自动</option>
                         </select>
-                        <p class="form-hint">用户领取：用户可在优惠券中心主动领取；系统发放：由后台/规则发放给指定用户；自动：按规则自动发放。</p>
+                        <p class="form-hint">用户领取：用户可主动领取，受发放总数与每人限领限制；系统发放：由后台发放给指定用户；自动：满足条件的用户自动可见可用，发放总数无上限，请设置「每用户领取限量」作为每用户可使用次数上限。</p>
+                    </div>
+                    <div class="form-group" id="autoGrantRulesSection" style="display: none;">
+                        <label class="form-label">自动发放条件（JSON）</label>
+                        <textarea class="form-input" id="couponAutoGrantRules" rows="4" placeholder='[{"type":"member_level","memberLevelId":1},{"type":"min_order_count","value":1},{"type":"min_total_spent","value":100},{"type":"new_member_only","value":30}]'></textarea>
+                        <p class="form-hint">仅自动发放时有效。类型：member_level(会员等级)、min_order_count(最少订单数)、min_total_spent(累计消费金额)、new_member_only(仅新会员，value 为天数)。留空或 [] 表示无限制，所有用户可见。</p>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -205,7 +210,7 @@
                     <div class="form-group">
                         <label class="form-label">每用户领取限量</label>
                         <input type="number" class="form-input" id="couponUserClaimLimit" min="0" step="1" placeholder="不填表示不限制">
-                        <p class="form-hint">用户领取模式下，每个用户最多可领取该券的张数；留空表示不限制。</p>
+                        <p class="form-hint">用户领取：每用户最多可领取张数；自动发放：每用户最多可使用次数（建议必填）。留空表示不限制。</p>
                     </div>
                     <!-- 礼品券：赠品配置（仅当券类型为礼品券时显示） -->
                     <div class="form-group" id="giftConfigSection" style="display: none;">
