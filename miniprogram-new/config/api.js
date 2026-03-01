@@ -112,6 +112,7 @@ const API = {
   // 优惠券相关
   COUPON: {
     MY_LIST: '/api/miniapp/coupons/my',         // 我的优惠券
+    CLAIMABLE: '/api/miniapp/coupons/claimable', // 可领取的优惠券
     AVAILABLE: '/api/miniapp/coupons/available', // 可用优惠券
     RECEIVE: '/api/miniapp/coupons/:id/receive', // 领取优惠券
   },

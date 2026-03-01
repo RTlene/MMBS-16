@@ -9,12 +9,14 @@ const auth = require('../../utils/auth.js');
 Page({
   data: {
     coupons: [],
-    currentTab: 'all', // all, available, used, expired
+    claimableCoupons: [], // 可领取列表（currentTab 为 claimable 时使用）
+    currentTab: 'all', // all, available, used, expired, claimable
     page: 1,
     limit: 20,
     hasMore: true,
     loading: false,
     tabs: [
+      { key: 'claimable', label: '可领取' },
       { key: 'all', label: '全部' },
       { key: 'available', label: '可用' },
       { key: 'used', label: '已用' },
@@ -34,6 +36,7 @@ Page({
     this.setData({
       page: 1,
       coupons: [],
+      claimableCoupons: [],
       hasMore: true
     });
     this.loadCoupons(true).then(() => {
@@ -42,6 +45,7 @@ Page({
   },
 
   onReachBottom() {
+    if (this.data.currentTab === 'claimable') return;
     if (this.data.hasMore && !this.data.loading) {
       this.loadCoupons(false);
     }
@@ -54,12 +58,13 @@ Page({
       currentTab: tab,
       page: 1,
       coupons: [],
+      claimableCoupons: [],
       hasMore: true
     });
     this.loadCoupons(true);
   },
 
-  // 加载优惠券列表
+  // 加载优惠券列表（我的）或可领取列表
   async loadCoupons(refresh = false) {
     if (this.data.loading) return;
 
@@ -71,12 +76,32 @@ Page({
       }
 
       const { page, limit, currentTab } = this.data;
+
+      if (currentTab === 'claimable') {
+        const res = await request.get(API.COUPON.CLAIMABLE, {}, { needAuth: true });
+        if (res.code === 0) {
+          const list = (res.data.coupons || []).map(item => ({
+            ...item,
+            displayValue: this.getCouponValue(item),
+            thresholdText: this.getCouponThreshold(item),
+            validRange: (this.formatTime(item.validFrom) && this.formatTime(item.validTo)) ? (this.formatTime(item.validFrom) + ' 至 ' + this.formatTime(item.validTo)) : (this.formatTime(item.validFrom) || this.formatTime(item.validTo) || '')
+          }));
+          this.setData({
+            claimableCoupons: list,
+            loading: false
+          });
+        } else {
+          wx.showToast({ title: res.message || '加载失败', icon: 'none' });
+          this.setData({ loading: false });
+        }
+        return;
+      }
+
       const params = {
         page: refresh ? 1 : page,
         limit,
         status: currentTab
       };
-
       const res = await request.get(API.COUPON.MY_LIST, params, { needAuth: true });
 
       if (res.code === 0) {
@@ -125,10 +150,10 @@ Page({
           title: '领取成功',
           icon: 'success'
         });
-        // 刷新列表
         this.setData({
           page: 1,
           coupons: [],
+          claimableCoupons: [],
           hasMore: true
         });
         this.loadCoupons(true);

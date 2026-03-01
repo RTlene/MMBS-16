@@ -144,6 +144,7 @@ window.CouponManagement = {
             }
             var minText = c.minOrderAmount != null && c.minOrderAmount > 0 ? '满¥' + c.minOrderAmount : '-';
             var useText = (c.totalCount || 0) + ' / ' + (c.usedCount || 0);
+            var userClaimText = c.userClaimLimit != null && c.userClaimLimit > 0 ? c.userClaimLimit + '张' : '不限';
             var validText = self.formatDate(c.validFrom) + ' ~ ' + self.formatDate(c.validTo);
             var statusClass = 'status-' + (c.status || 'inactive');
             var statusText = { active: '启用', inactive: '禁用', expired: '已过期' }[c.status] || c.status;
@@ -157,6 +158,7 @@ window.CouponManagement = {
                 '<td>' + discountText + '</td>' +
                 '<td>' + minText + '</td>' +
                 '<td>' + useText + '</td>' +
+                '<td>' + userClaimText + '</td>' +
                 '<td>' + validText + '</td>' +
                 '<td><span class="' + statusClass + '">' + statusText + '</span></td>' +
                 '<td>' +
@@ -222,6 +224,8 @@ window.CouponManagement = {
         }
         document.getElementById('couponValue').value = '100';
         document.getElementById('couponTotalCount').value = '100';
+        var userClaimEl = document.getElementById('couponUserClaimLimit');
+        if (userClaimEl) userClaimEl.value = '';
         var modeEl = document.getElementById('couponDistributionMode');
         if (modeEl) modeEl.value = 'user_claim';
         this.toggleGiftConfig();
@@ -241,6 +245,8 @@ window.CouponManagement = {
         document.getElementById('couponDiscountValue').value = c.discountValue != null ? c.discountValue : '';
         document.getElementById('couponMinOrderAmount').value = c.minOrderAmount != null && c.minOrderAmount > 0 ? c.minOrderAmount : '';
         document.getElementById('couponTotalCount').value = c.totalCount != null ? c.totalCount : 100;
+        var userClaimEl = document.getElementById('couponUserClaimLimit');
+        if (userClaimEl) userClaimEl.value = c.userClaimLimit != null && c.userClaimLimit > 0 ? c.userClaimLimit : '';
         var modeEl = document.getElementById('couponDistributionMode');
         if (modeEl) modeEl.value = (c.distributionMode === 'auto' || c.distributionMode === 'system') ? c.distributionMode : 'user_claim';
         document.getElementById('couponValidFrom').value = this.formatDateTimeLocal(c.validFrom);
@@ -272,6 +278,9 @@ window.CouponManagement = {
         var minOrderAmountEl = document.getElementById('couponMinOrderAmount');
         var minOrderAmount = minOrderAmountEl.value.trim() ? parseFloat(minOrderAmountEl.value) : null;
         var totalCount = parseInt(document.getElementById('couponTotalCount').value, 10) || 0;
+        var userClaimLimitEl = document.getElementById('couponUserClaimLimit');
+        var userClaimLimit = (userClaimLimitEl && userClaimLimitEl.value.trim() !== '') ? parseInt(userClaimLimitEl.value, 10) : null;
+        if (userClaimLimit !== null && (isNaN(userClaimLimit) || userClaimLimit < 0)) userClaimLimit = null;
         var validFrom = document.getElementById('couponValidFrom').value;
         var validTo = document.getElementById('couponValidTo').value;
         var status = document.getElementById('couponStatus').value;
@@ -313,6 +322,7 @@ window.CouponManagement = {
             discountValue: discountValue,
             minOrderAmount: minOrderAmount,
             totalCount: totalCount,
+            userClaimLimit: userClaimLimit,
             validFrom: validFrom.replace('T', ' ').substring(0, 19),
             validTo: validTo.replace('T', ' ').substring(0, 19),
             status: status,

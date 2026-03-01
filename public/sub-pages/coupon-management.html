@@ -127,6 +127,7 @@
                         <th>面值/折扣</th>
                         <th>门槛</th>
                         <th>发放/已用</th>
+                        <th>每人限领</th>
                         <th>有效期</th>
                         <th>状态</th>
                         <th>操作</th>
@@ -200,6 +201,11 @@
                             <label class="form-label">发放总数 <span style="color:#ff4d4f">*</span></label>
                             <input type="number" class="form-input" id="couponTotalCount" min="1" required value="100">
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">每用户领取限量</label>
+                        <input type="number" class="form-input" id="couponUserClaimLimit" min="0" step="1" placeholder="不填表示不限制">
+                        <p class="form-hint">用户领取模式下，每个用户最多可领取该券的张数；留空表示不限制。</p>
                     </div>
                     <!-- 礼品券：赠品配置（仅当券类型为礼品券时显示） -->
                     <div class="form-group" id="giftConfigSection" style="display: none;">

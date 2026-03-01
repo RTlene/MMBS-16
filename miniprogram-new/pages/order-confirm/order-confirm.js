@@ -330,20 +330,21 @@ Page({
   selectCoupon(coupon) {
     if (!coupon) return;
     
-    // 计算优惠金额
+    // 代金券=面值 value；折扣券=折扣率 discountValue（固定金额用代金券）
     let discountAmount = 0;
     const originalAmount = this.data.originalAmount;
-    
-    if (coupon.discountType === 'fixed') {
-      discountAmount = parseFloat(coupon.discountValue || 0);
-    } else if (coupon.discountType === 'percentage') {
-      discountAmount = originalAmount * (parseFloat(coupon.discountValue || 0) / 100);
-      if (coupon.maxDiscountAmount) {
-        discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
-      }
-      if (coupon.maxDiscount) {
-        discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscount));
-      }
+    const isCashOrFixed = coupon.type === 'cash' || coupon.discountType === 'fixed';
+    if (isCashOrFixed) {
+      discountAmount = parseFloat(coupon.value != null ? coupon.value : (coupon.discountValue != null ? coupon.discountValue : 0));
+    } else if (coupon.type === 'discount' || coupon.discountType === 'percent' || coupon.discountType === 'percentage') {
+      const v = parseFloat(coupon.discountValue != null ? coupon.discountValue : 0);
+      let payRatio = 1;
+      if (v > 0 && v <= 1) payRatio = v;
+      else if (v > 1 && v <= 10) payRatio = v / 10;
+      else if (v > 10) payRatio = v / 100;
+      discountAmount = originalAmount * (1 - Math.min(1, payRatio));
+      if (coupon.maxDiscountAmount != null) discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
+      if (coupon.maxDiscount != null) discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscount));
     }
     
     // 检查最低订单金额
@@ -397,14 +398,15 @@ Page({
     }
     if (!coupon || !coupon.id) return;
     
-    // 计算优惠金额：固定金额=面值抵扣，折扣券= 折数表示“实付比例”（9折=付90% 即抵10%）
+    // 代金券=面值 value；折扣券=折扣率 discountValue（不做固定金额，固定金额用代金券）
     let discountAmount = 0;
-    if (coupon.discountType === 'fixed') {
-      // 代金券/满减：抵扣 = 面值 value 或 discountValue
+    const isCashOrFixed = coupon.type === 'cash' || coupon.discountType === 'fixed';
+    if (isCashOrFixed) {
+      // 代金券：只使用面值 value
       discountAmount = parseFloat(coupon.value != null ? coupon.value : (coupon.discountValue != null ? coupon.discountValue : 0));
-    } else if (coupon.discountType === 'percent' || coupon.discountType === 'percentage') {
-      const v = parseFloat(coupon.discountValue != null ? coupon.discountValue : coupon.value || 0);
-      // v 可能为：0.9(实付比例)、9(折数)、90(折数*10)，统一得到实付比例 payRatio
+    } else if (coupon.type === 'discount' || coupon.discountType === 'percent' || coupon.discountType === 'percentage') {
+      // 折扣券：只使用折扣率 discountValue，不使用面值 value；支持 0.9/9/90 等折数表示
+      const v = parseFloat(coupon.discountValue != null ? coupon.discountValue : 0);
       let payRatio = 1;
       if (v > 0 && v <= 1) payRatio = v;
       else if (v > 1 && v <= 10) payRatio = v / 10;
@@ -532,14 +534,18 @@ Page({
 
   _formatCouponDisplayValue(c) {
     if (!c) return '';
-    const type = (c.discountType || 'fixed').toLowerCase();
-    if (type === 'percentage' || type === 'percent') {
-      const v = c.discountValue != null ? Number(c.discountValue) : Number(c.value);
+    // 代金券：只显示面值 value。折扣券：只显示折扣率 discountValue 转成「x折」
+    const isCashOrFixed = c.type === 'cash' || (c.discountType || '').toLowerCase() === 'fixed';
+    if (isCashOrFixed) {
+      const face = c.value != null ? Number(c.value) : (c.discountValue != null ? Number(c.discountValue) : 0);
+      return '¥' + (Number.isFinite(face) ? face.toFixed(2) : '0.00');
+    }
+    if (c.type === 'discount' || (c.discountType || '').toLowerCase() === 'percentage' || (c.discountType || '').toLowerCase() === 'percent') {
+      const v = c.discountValue != null ? Number(c.discountValue) : 0;
       const zhe = v > 10 ? v / 10 : (v > 0 && v < 1 ? v * 10 : v);
       return (Number.isFinite(zhe) ? zhe : 0) + '折';
     }
-    // 固定金额/代金券：优先显示面值 value，没有再用 discountValue
-    const face = c.value != null ? Number(c.value) : (c.discountValue != null ? Number(c.discountValue) : 0);
+    const face = c.value != null ? Number(c.value) : 0;
     return '¥' + (Number.isFinite(face) ? face.toFixed(2) : '0.00');
   },
   _formatCouponThreshold(c) {

@@ -817,10 +817,14 @@ class PromotionService {
 
         let discountAmount = 0;
 
-        if (discountType === 'percentage') {
+        // 代金券(固定金额)：仅用面值 value。折扣券：仅用折扣率 discountValue，不做固定金额。
+        if (discountType === 'percentage' || promotionOrCoupon.type === 'discount') {
+            // 折扣券：只使用折扣率 discountValue（百分比），不使用面值 value
             discountAmount = amt * (discountValueNum / 100);
-        } else if (discountType === 'fixed') {
-            discountAmount = discountValueNum;
+        } else if (discountType === 'fixed' || promotionOrCoupon.type === 'cash') {
+            // 代金券：只使用面值 value 作为抵扣金额
+            const faceValue = promotionOrCoupon.value != null ? Number(promotionOrCoupon.value) : null;
+            discountAmount = Number.isFinite(faceValue) && faceValue >= 0 ? faceValue : discountValueNum;
         } else if (discountType === 'quantity' && rawDiscountValue && typeof rawDiscountValue === 'object') {
             // 买X送Y或买X减Y
             const v = rawDiscountValue;

@@ -4,152 +4,75 @@ const { Coupon, Order, OrderItem, MemberCoupon, sequelize } = require('../db');
 const { authenticateMiniappUser, optionalAuthenticate } = require('../middleware/miniapp-auth');
 const router = express.Router();
 
-// 获取我的优惠券列表
+// 获取我的优惠券列表（仅来自 MemberCoupon：系统发放 + 用户领取的记录）
 router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
     try {
         const { status = 'all', page = 1, limit = 20 } = req.query;
         const member = req.member;
-        const offset = (page - 1) * limit;
+        const limitNum = Math.min(Math.max(parseInt(limit) || 20, 1), 100);
+        const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
         const now = new Date();
 
-        // 查询会员已使用的优惠券（从订单项中获取）
-        const usedCouponCodes = await OrderItem.findAll({
-            include: [{
-                model: Order,
-                as: 'order',
-                where: {
-                    memberId: member.id,
-                    status: { [Op.notIn]: ['cancelled', 'pending'] }
-                },
-                attributes: []
-            }],
-            attributes: ['appliedCoupons'],
-            raw: true
-        });
-
-        const usedCodes = new Set();
-        usedCouponCodes.forEach(order => {
-            if (order.appliedCoupons && Array.isArray(order.appliedCoupons)) {
-                order.appliedCoupons.forEach(coupon => {
-                    if (coupon.code) {
-                        usedCodes.add(coupon.code);
-                    }
-                });
-            }
-        });
-
-        // 系统发放：当前会员未使用的发放记录（有效期内）
-        const grantedRows = await MemberCoupon.findAll({
-            where: { memberId: member.id, usedAt: null },
+        const allRows = await MemberCoupon.findAll({
+            where: { memberId: member.id },
             include: [{ model: Coupon, as: 'coupon', required: true }],
             order: [['createdAt', 'DESC']]
         });
-        const grantedCoupons = grantedRows
-            .filter(mc => mc.coupon && mc.coupon.status === 'active' && new Date(mc.coupon.validFrom) <= now && new Date(mc.coupon.validTo) >= now)
-            .map(mc => {
-                const coupon = mc.coupon;
-                const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
-                const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
-                const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
-                return {
-                    id: coupon.id,
-                    name: coupon.name,
-                    code: coupon.code,
-                    type: coupon.type,
-                    discountType: coupon.discountType || 'fixed',
-                    value: Number.isFinite(value) ? value : 0,
-                    discountValue: Number.isFinite(discountValue) ? discountValue : 0,
-                    minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
-                    minOrderAmount: minOrder,
-                    maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
-                    maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
-                    validFrom: coupon.validFrom,
-                    validTo: coupon.validTo,
-                    description: coupon.description,
-                    status: 'available',
-                    isUsed: false,
-                    isExpired: false,
-                    isAvailable: true
-                };
-            });
 
-        // 展示「用户领取」与「自动发放」的优惠券（自动发放的券直接出现在我的优惠券，无需领取）
-        const where = {
-            status: 'active',
-            validFrom: { [Op.lte]: now },
-            validTo: { [Op.gte]: now },
-            distributionMode: { [Op.in]: ['user_claim', 'auto', null] }
-        };
-
-        const { count, rows } = await Coupon.findAndCountAll({
-            where,
-            order: [['discountValue', 'DESC']],
-            limit: parseInt(limit),
-            offset: parseInt(offset)
-        });
-
-        // 处理优惠券数据
-        const coupons = rows.map(coupon => {
-            const isUsed = usedCodes.has(coupon.code);
-            const isExpired = new Date(coupon.validTo) < now;
-            const isAvailable = !isUsed && !isExpired && 
-                               (coupon.totalCount - coupon.usedCount) > 0;
-
+        const toItem = (mc) => {
+            const coupon = mc.coupon;
+            if (!coupon) return null;
+            const isUsed = !!mc.usedAt;
+            const isExpired = !isUsed && new Date(coupon.validTo) < now;
+            const isAvailable = !isUsed && !isExpired && coupon.status === 'active' &&
+                new Date(coupon.validFrom) <= now && new Date(coupon.validTo) >= now;
             let couponStatus = 'available';
-            if (isUsed) {
-                couponStatus = 'used';
-            } else if (isExpired) {
-                couponStatus = 'expired';
-            } else if (!isAvailable) {
-                couponStatus = 'unavailable';
-            }
+            if (isUsed) couponStatus = 'used';
+            else if (isExpired) couponStatus = 'expired';
+            else if (!isAvailable) couponStatus = 'unavailable';
 
             const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
-                const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
-                const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
-                return {
-                    id: coupon.id,
-                    name: coupon.name,
-                    code: coupon.code,
-                    type: coupon.type,
-                    discountType: coupon.discountType || 'fixed',
-                    value: Number.isFinite(value) ? value : 0,
-                    discountValue: Number.isFinite(discountValue) ? discountValue : 0,
-                    minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
-                    minOrderAmount: minOrder,
-                    maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
-                    maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
-                    validFrom: coupon.validFrom,
-                    validTo: coupon.validTo,
-                    description: coupon.description,
-                    status: couponStatus,
-                    isUsed,
-                    isExpired,
-                    isAvailable
-                };
-            });
+            const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
+            const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
+            return {
+                id: coupon.id,
+                name: coupon.name,
+                code: coupon.code,
+                type: coupon.type,
+                discountType: coupon.discountType || 'fixed',
+                value: Number.isFinite(value) ? value : 0,
+                discountValue: Number.isFinite(discountValue) ? discountValue : 0,
+                minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
+                minOrderAmount: minOrder,
+                maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
+                maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
+                validFrom: coupon.validFrom,
+                validTo: coupon.validTo,
+                description: coupon.description,
+                status: couponStatus,
+                isUsed,
+                isExpired,
+                isAvailable
+            };
+        };
 
-        // 合并系统发放券（在前）与池子券，再按状态过滤
-        const merged = [...grantedCoupons, ...coupons];
-        let filteredCoupons = merged;
-        if (status === 'available') {
-            filteredCoupons = merged.filter(c => c.status === 'available');
-        } else if (status === 'used') {
-            filteredCoupons = merged.filter(c => c.status === 'used');
-        } else if (status === 'expired') {
-            filteredCoupons = merged.filter(c => c.status === 'expired');
-        }
-        const totalCount = grantedCoupons.length + count;
+        let list = allRows.map(toItem).filter(Boolean);
+        if (status === 'available') list = list.filter(c => c.status === 'available');
+        else if (status === 'used') list = list.filter(c => c.status === 'used');
+        else if (status === 'expired') list = list.filter(c => c.status === 'expired');
+
+        const totalCount = list.length;
+        const coupons = list.slice(offset, offset + limitNum);
 
         res.json({
             code: 0,
             message: '获取成功',
             data: {
-                coupons: filteredCoupons,
+                coupons,
                 total: totalCount,
-                totalPages: Math.ceil(totalCount / limit),
-                currentPage: parseInt(page),
-                hasMore: parseInt(page) < Math.ceil(totalCount / limit)
+                totalPages: Math.ceil(totalCount / limitNum),
+                currentPage: Math.max(parseInt(page) || 1, 1),
+                hasMore: offset + coupons.length < totalCount
             }
         });
     } catch (error) {
@@ -162,7 +85,7 @@ router.get('/coupons/my', authenticateMiniappUser, async (req, res) => {
     }
 });
 
-// 获取可用优惠券（用于下单时选择）
+// 获取可用优惠券（用于下单时选择，仅来自该用户已领取且未使用的 MemberCoupon）
 router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
     try {
         const { productId, skuId, subtotal } = req.query;
@@ -171,81 +94,28 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
         const member = req.member;
         const now = new Date();
 
-        // 查询会员已使用的优惠券（从订单项中获取）
-        const usedCouponCodes = await OrderItem.findAll({
-            include: [{
-                model: Order,
-                as: 'order',
-                where: {
-                    memberId: member.id,
-                    status: { [Op.notIn]: ['cancelled', 'pending'] }
-                },
-                attributes: []
-            }],
-            attributes: ['appliedCoupons'],
-            raw: true
+        const rows = await MemberCoupon.findAll({
+            where: { memberId: member.id, usedAt: null },
+            include: [{ model: Coupon, as: 'coupon', required: true }],
+            order: [[{ model: Coupon, as: 'coupon' }, 'discountValue', 'DESC']]
         });
 
-        const usedCodes = new Set();
-        usedCouponCodes.forEach(item => {
-            if (item.appliedCoupons && Array.isArray(item.appliedCoupons)) {
-                item.appliedCoupons.forEach(coupon => {
-                    if (coupon.code) {
-                        usedCodes.add(coupon.code);
-                    }
-                });
-            }
-        });
-
-        // 查询可用优惠券
-        const where = {
-            status: 'active',
-            validFrom: { [Op.lte]: now },
-            validTo: { [Op.gte]: now },
-            [Op.or]: [
-                { minOrderAmount: { [Op.lte]: safeSubtotal } },
-                { minOrderAmount: null }
-            ]
-        };
-
-        // 不在此处用 productIds 条件：MySQL 不支持 JSON @> 语法，适用商品在下方 .filter() 中过滤
-
-        const coupons = await Coupon.findAll({
-            where,
-            order: [['discountValue', 'DESC']],
-            limit: 50
-        });
-
-        // 处理优惠券数据
-        const availableCoupons = coupons
-            .filter(coupon => {
-                // 检查是否已使用
-                if (usedCodes.has(coupon.code)) {
-                    return false;
-                }
-                // 检查是否还有剩余
-                if (coupon.totalCount - coupon.usedCount <= 0) {
-                    return false;
-                }
-                // 检查最低订单金额
-                if (coupon.minOrderAmount && safeSubtotal < parseFloat(coupon.minOrderAmount)) {
-                    return false;
-                }
-                // 检查适用商品
+        const availableCoupons = rows
+            .filter(mc => {
+                const coupon = mc.coupon;
+                if (!coupon || coupon.status !== 'active') return false;
+                if (new Date(coupon.validFrom) > now || new Date(coupon.validTo) < now) return false;
+                if (coupon.minOrderAmount != null && safeSubtotal < parseFloat(coupon.minOrderAmount)) return false;
                 if (productId && coupon.productIds && Array.isArray(coupon.productIds)) {
-                    if (!coupon.productIds.includes(parseInt(productId))) {
-                        return false;
-                    }
+                    if (!coupon.productIds.includes(parseInt(productId))) return false;
                 }
-                // 检查适用SKU
                 if (skuId && coupon.skuIds && Array.isArray(coupon.skuIds)) {
-                    if (!coupon.skuIds.includes(parseInt(skuId))) {
-                        return false;
-                    }
+                    if (!coupon.skuIds.includes(parseInt(skuId))) return false;
                 }
                 return true;
             })
-            .map(coupon => {
+            .map(mc => {
+                const coupon = mc.coupon;
                 const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
                 const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
                 const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
@@ -284,7 +154,75 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
     }
 });
 
-// 领取优惠券（实际上优惠券是直接可用的，这里只是记录）
+// 可领取的优惠券列表（user_claim 且未达总库存与每用户领取限量）
+router.get('/coupons/claimable', authenticateMiniappUser, async (req, res) => {
+    try {
+        const member = req.member;
+        const now = new Date();
+
+        const coupons = await Coupon.findAll({
+            where: {
+                status: 'active',
+                distributionMode: 'user_claim',
+                validFrom: { [Op.lte]: now },
+                validTo: { [Op.gte]: now }
+            },
+            order: [['discountValue', 'DESC']],
+            limit: 50
+        });
+
+        const claimable = [];
+        for (const coupon of coupons) {
+            const totalClaimed = await MemberCoupon.count({ where: { couponId: coupon.id } });
+            if (totalClaimed >= (coupon.totalCount || 0)) continue;
+
+            const userClaimLimit = coupon.userClaimLimit != null ? parseInt(coupon.userClaimLimit, 10) : null;
+            if (Number.isFinite(userClaimLimit) && userClaimLimit >= 0) {
+                const userClaimed = await MemberCoupon.count({
+                    where: { memberId: member.id, couponId: coupon.id }
+                });
+                if (userClaimed >= userClaimLimit) continue;
+            }
+
+            const value = coupon.value != null ? parseFloat(coupon.value) : (coupon.discountValue != null ? parseFloat(coupon.discountValue) : 0);
+            const discountValue = coupon.discountValue != null ? parseFloat(coupon.discountValue) : value;
+            const minOrder = coupon.minOrderAmount != null ? parseFloat(coupon.minOrderAmount) : (coupon.minAmount != null ? parseFloat(coupon.minAmount) : null);
+            claimable.push({
+                id: coupon.id,
+                name: coupon.name,
+                code: coupon.code,
+                type: coupon.type,
+                discountType: coupon.discountType || 'fixed',
+                value: Number.isFinite(value) ? value : 0,
+                discountValue: Number.isFinite(discountValue) ? discountValue : 0,
+                minAmount: coupon.minAmount != null ? parseFloat(coupon.minAmount) : null,
+                minOrderAmount: minOrder,
+                maxDiscount: coupon.maxDiscount != null ? parseFloat(coupon.maxDiscount) : null,
+                maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
+                validFrom: coupon.validFrom,
+                validTo: coupon.validTo,
+                description: coupon.description,
+                userClaimLimit: coupon.userClaimLimit != null ? parseInt(coupon.userClaimLimit, 10) : null,
+                remaining: Math.max(0, (coupon.totalCount || 0) - totalClaimed)
+            });
+        }
+
+        res.json({
+            code: 0,
+            message: '获取成功',
+            data: { coupons: claimable }
+        });
+    } catch (error) {
+        console.error('获取可领取优惠券失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: '获取可领取优惠券失败',
+            error: error.message
+        });
+    }
+});
+
+// 领取优惠券（写入 MemberCoupon，并受 userClaimLimit / totalCount 限制）
 router.post('/coupons/:id/receive', authenticateMiniappUser, async (req, res) => {
     try {
         const { id } = req.params;
@@ -325,17 +263,32 @@ router.post('/coupons/:id/receive', authenticateMiniappUser, async (req, res) =>
             });
         }
 
-        // 检查是否还有剩余
-        if (coupon.totalCount - coupon.usedCount <= 0) {
+        // 检查发放池剩余：按该券已发放数量（MemberCoupon 条数）与 totalCount 比较
+        const totalClaimed = await MemberCoupon.count({ where: { couponId: coupon.id } });
+        if (totalClaimed >= (coupon.totalCount || 0)) {
             return res.status(400).json({
                 code: 1,
                 message: '优惠券已领完'
             });
         }
 
-        // 检查会员使用次数限制
+        // 每用户领取限量：该用户已领取数量
+        const userClaimLimit = coupon.userClaimLimit != null ? parseInt(coupon.userClaimLimit, 10) : null;
+        if (Number.isFinite(userClaimLimit) && userClaimLimit >= 0) {
+            const userClaimed = await MemberCoupon.count({
+                where: { memberId: member.id, couponId: coupon.id }
+            });
+            if (userClaimed >= userClaimLimit) {
+                return res.status(400).json({
+                    code: 1,
+                    message: userClaimLimit <= 1 ? '您已领取过该优惠券' : `您已达到该券的领取上限（${userClaimLimit}张）`
+                });
+            }
+        }
+
+        // 检查会员使用次数限制（按订单使用记录）
         if (coupon.memberUsageLimit) {
-            const memberUsedCount = await OrderItem.count({
+            const memberOrderItems = await OrderItem.findAll({
                 include: [{
                     model: Order,
                     as: 'order',
@@ -345,13 +298,12 @@ router.post('/coupons/:id/receive', authenticateMiniappUser, async (req, res) =>
                     },
                     attributes: []
                 }],
-                where: {
-                    appliedCoupons: {
-                        [Op.contains]: [{ code: coupon.code }]
-                    }
-                }
+                attributes: ['appliedCoupons'],
+                raw: true
             });
-
+            const memberUsedCount = memberOrderItems.filter(item =>
+                Array.isArray(item.appliedCoupons) && item.appliedCoupons.some(c => c && c.code === coupon.code)
+            ).length;
             if (memberUsedCount >= coupon.memberUsageLimit) {
                 return res.status(400).json({
                     code: 1,
@@ -360,7 +312,12 @@ router.post('/coupons/:id/receive', authenticateMiniappUser, async (req, res) =>
             }
         }
 
-        // 优惠券是直接可用的，不需要真正"领取"，这里只是返回成功
+        // 写入领取记录，用户「我的优惠券」与「可用优惠券」均以 MemberCoupon 为准
+        await MemberCoupon.create({
+            memberId: member.id,
+            couponId: coupon.id
+        });
+
         res.json({
             code: 0,
             message: '优惠券已可用',

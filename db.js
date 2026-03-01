@@ -2037,6 +2037,11 @@ const Coupon = sequelize.define('Coupon', {
         allowNull: true,
         comment: '每会员使用次数限制'
     },
+    userClaimLimit: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '每用户领取限量，null表示不限制'
+    },
     productIds: {
         type: DataTypes.JSON,
         allowNull: true,

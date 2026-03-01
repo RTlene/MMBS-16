@@ -232,6 +232,7 @@ router.post('/', authenticateToken, async (req, res) => {
             usedCount: 0,
             usageLimit: body.usageLimit != null ? parseInt(body.usageLimit) : null,
             memberUsageLimit: body.memberUsageLimit != null ? parseInt(body.memberUsageLimit) : null,
+            userClaimLimit: body.userClaimLimit != null ? parseInt(body.userClaimLimit) : null,
             productIds: body.productIds || null,
             skuIds: body.skuIds || null,
             validFrom,
@@ -283,6 +284,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         if (body.totalCount != null) coupon.totalCount = parseInt(body.totalCount);
         if (body.usageLimit !== undefined) coupon.usageLimit = body.usageLimit == null ? null : parseInt(body.usageLimit);
         if (body.memberUsageLimit !== undefined) coupon.memberUsageLimit = body.memberUsageLimit == null ? null : parseInt(body.memberUsageLimit);
+        if (body.userClaimLimit !== undefined) coupon.userClaimLimit = body.userClaimLimit == null ? null : parseInt(body.userClaimLimit);
         if (body.productIds !== undefined) coupon.productIds = body.productIds;
         if (body.skuIds !== undefined) coupon.skuIds = body.skuIds;
         if (body.validFrom != null) coupon.validFrom = new Date(body.validFrom);

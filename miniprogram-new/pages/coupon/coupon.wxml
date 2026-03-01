@@ -12,8 +12,34 @@
     </view>
   </view>
 
-  <!-- 优惠券列表 -->
-  <view class="coupon-list">
+  <!-- 可领取列表 -->
+  <view class="coupon-list" wx:if="{{currentTab === 'claimable'}}">
+    <view 
+      class="coupon-item claimable"
+      wx:for="{{claimableCoupons}}" 
+      wx:key="id"
+    >
+      <view class="coupon-left">
+        <view class="coupon-value">{{item.displayValue}}</view>
+        <view class="coupon-type">{{item.thresholdText}}</view>
+      </view>
+      <view class="coupon-right">
+        <view class="coupon-name">{{item.name}}</view>
+        <view class="coupon-condition">
+          <text class="condition-label">使用门槛：</text>
+          <text class="condition-value">{{item.thresholdText}}</text>
+        </view>
+        <view class="coupon-desc" wx:if="{{item.description}}">{{item.description}}</view>
+        <view class="coupon-time" wx:if="{{item.validRange}}">{{item.validRange}}</view>
+        <button class="btn-receive" data-id="{{item.id}}" catchtap="onReceiveCoupon">立即领取</button>
+      </view>
+    </view>
+    <view class="empty" wx:if="{{claimableCoupons.length === 0 && !loading}}"><text>暂无可领取的优惠券</text></view>
+    <view class="loading" wx:if="{{loading}}"><text>加载中...</text></view>
+  </view>
+
+  <!-- 我的优惠券列表 -->
+  <view class="coupon-list" wx:else>
     <view 
       class="coupon-item {{item.status}}"
       wx:for="{{coupons}}" 
@@ -44,17 +70,14 @@
       </view>
     </view>
 
-    <!-- 空状态 -->
     <view class="empty" wx:if="{{coupons.length === 0 && !loading}}">
       <text>暂无优惠券</text>
     </view>
 
-    <!-- 加载中 -->
     <view class="loading" wx:if="{{loading}}">
       <text>加载中...</text>
     </view>
 
-    <!-- 没有更多 -->
     <view class="no-more" wx:if="{{!hasMore && coupons.length > 0}}">
       <text>没有更多了</text>
     </view>
