@@ -886,23 +886,48 @@ router.post('/products/calculate-price', async (req, res) => {
         const norm = (v) => (Array.isArray(v) ? v : (v != null ? [v] : [])).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
         let couponIds = norm(appliedCoupons);
         let promotionIds = norm(appliedPromotions);
-        // 未传促销时：自动拉取该商品适用的促销并参与计算（后端会按可参与会员等级过滤）
+        const isConnReset = (err) => (err && (err.code === 'ECONNRESET' || (err.original && err.original.code === 'ECONNRESET')));
+        // 未传促销时：自动拉取该商品适用的促销并参与计算（遇 ECONNRESET 重试一次）
         if (promotionIds.length === 0) {
-            const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId || null);
-            promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
+            try {
+                const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId || null);
+                promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
+            } catch (e1) {
+                if (isConnReset(e1)) {
+                    try {
+                        const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId || null);
+                        promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
+                    } catch (e2) {
+                        throw e2;
+                    }
+                } else throw e1;
+            }
         }
         if (process.env.NODE_ENV !== 'production' || req.query.debug === '1') {
             console.log('[calculate-price] body appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> couponIds=', couponIds, 'promotionIds=', promotionIds);
         }
 
         const orderData = { productId, skuId, quantity };
-        const finalOrderData = await PromotionService.applyPromotionsToOrder(
-            orderData,
-            memberId,
-            couponIds,
-            promotionIds,
-            pointUsage
-        );
+        let finalOrderData;
+        try {
+            finalOrderData = await PromotionService.applyPromotionsToOrder(
+                orderData,
+                memberId,
+                couponIds,
+                promotionIds,
+                pointUsage
+            );
+        } catch (e1) {
+            if (isConnReset(e1)) {
+                finalOrderData = await PromotionService.applyPromotionsToOrder(
+                    orderData,
+                    memberId,
+                    couponIds,
+                    promotionIds,
+                    pointUsage
+                );
+            } else throw e1;
+        }
 
         if (req.query.debug === '1') {
             console.log('[calculate-price] result totalAmount=', finalOrderData.totalAmount, 'discounts=', (finalOrderData.discounts || []).length, finalOrderData.discounts);

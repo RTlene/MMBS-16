@@ -111,25 +111,38 @@ Page({
     let orderSubtotalAfterPromo = 0;
     const discountMap = {}; // { name: amount } 合并同名促销
 
+    const fetchPrice = async (item) => {
+      let res = await request.post(API.PRODUCT.CALCULATE_PRICE, {
+        productId: item.productId,
+        skuId: item.skuId || null,
+        quantity: item.quantity || 1,
+        memberId: memberId || 0
+      }, { showLoading: false, showError: false });
+      if (res.code === 0 && res.data && res.data.pricing) return res.data.pricing;
+      res = await request.post(API.PRODUCT.CALCULATE_PRICE, {
+        productId: item.productId,
+        skuId: item.skuId || null,
+        quantity: item.quantity || 1,
+        memberId: memberId || 0
+      }, { showLoading: false, showError: false });
+      return (res.code === 0 && res.data && res.data.pricing) ? res.data.pricing : null;
+    };
+
     try {
       for (const item of items) {
-        const res = await request.post(API.PRODUCT.CALCULATE_PRICE, {
-          productId: item.productId,
-          skuId: item.skuId || null,
-          quantity: item.quantity || 1,
-          memberId: memberId || 0
-        }, { showLoading: false, showError: false });
-        if (res.code !== 0 || !res.data || !res.data.pricing) continue;
-        const p = res.data.pricing;
-        const orig = parseFloat(p.originalAmount) || 0;
-        const finalP = parseFloat(p.finalPrice) != null ? parseFloat(p.finalPrice) : orig;
+        const p = await fetchPrice(item);
+        const unit = parseFloat(item.price || 0) * (item.quantity || 1);
+        const orig = p ? (parseFloat(p.originalAmount) || 0) : unit;
+        const finalP = p && parseFloat(p.finalPrice) != null ? parseFloat(p.finalPrice) : (p ? orig : unit);
         orderOriginalAmount += orig;
         orderSubtotalAfterPromo += finalP;
-        (p.discounts || []).forEach(d => {
-          const name = (d.name || d.description || '促销').trim();
-          const amt = parseFloat(d.amount) || 0;
-          if (amt > 0) discountMap[name] = (discountMap[name] || 0) + amt;
-        });
+        if (p && p.discounts && p.discounts.length) {
+          p.discounts.forEach(d => {
+            const name = (d.name || d.description || '促销').trim();
+            const amt = parseFloat(d.amount) || 0;
+            if (amt > 0) discountMap[name] = (discountMap[name] || 0) + amt;
+          });
+        }
       }
 
       const promotionDiscountTotal = Math.round((orderOriginalAmount - orderSubtotalAfterPromo) * 100) / 100;
