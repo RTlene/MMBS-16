@@ -574,6 +574,30 @@ class PromotionService {
 
             // 根据促销类型计算折扣
             switch (promotion.type) {
+                case 'flash_sale': {
+                    const rateRaw = rules ? Number(rules.discountRate) : NaN; // 折扣率（%），如 20 表示立减 20%
+                    const percentOff = Number.isFinite(rateRaw)
+                        ? (rateRaw > 1 ? rateRaw / 100 : rateRaw)
+                        : NaN;
+                    const limitQtyRaw = rules ? Number(rules.limitQuantity) : NaN;
+                    const limitQty = Number.isFinite(limitQtyRaw) && limitQtyRaw > 0 ? Math.floor(limitQtyRaw) : null;
+                    const discountedQty = limitQty != null ? Math.min(totalQuantity, limitQty) : totalQuantity;
+                    const perUnit = totalQuantity > 0 ? (originalAmount / totalQuantity) : 0;
+                    if (Number.isFinite(percentOff) && percentOff > 0 && percentOff < 1 && perUnit > 0 && discountedQty > 0) {
+                        discountAmount = perUnit * discountedQty * percentOff;
+                        const pct = Math.round(percentOff * 1000) / 10;
+                        discountInfo = { description: `限时抢购立减 ${pct}%` };
+                    }
+                    break;
+                }
+                case 'group_buy': {
+                    const groupPriceRaw = rules ? Number(rules.groupPrice) : NaN;
+                    if (Number.isFinite(groupPriceRaw) && groupPriceRaw >= 0 && unitPrice > groupPriceRaw) {
+                        discountAmount = (unitPrice - groupPriceRaw) * totalQuantity;
+                        discountInfo = { description: `团购价 ¥${groupPriceRaw}` };
+                    }
+                    break;
+                }
                 case 'full_reduction':
                     if (rules && rules.fullReductionRules && rules.fullReductionRules.length > 0) {
                         const result = PromotionRulesService.calculateFullReduction(originalAmount, totalQuantity, rules.fullReductionRules);
@@ -701,6 +725,30 @@ class PromotionService {
 
             // 根据促销类型计算折扣
             switch (promotion.type) {
+                case 'flash_sale': {
+                    const rateRaw = rules ? Number(rules.discountRate) : NaN; // 折扣率（%），如 20 表示立减 20%
+                    const percentOff = Number.isFinite(rateRaw)
+                        ? (rateRaw > 1 ? rateRaw / 100 : rateRaw)
+                        : NaN;
+                    const limitQtyRaw = rules ? Number(rules.limitQuantity) : NaN;
+                    const limitQty = Number.isFinite(limitQtyRaw) && limitQtyRaw > 0 ? Math.floor(limitQtyRaw) : null;
+                    const discountedQty = limitQty != null ? Math.min(totalQuantity, limitQty) : totalQuantity;
+                    const perUnit = totalQuantity > 0 ? (originalAmount / totalQuantity) : 0;
+                    if (Number.isFinite(percentOff) && percentOff > 0 && percentOff < 1 && perUnit > 0 && discountedQty > 0) {
+                        discountAmount = perUnit * discountedQty * percentOff;
+                        const pct = Math.round(percentOff * 1000) / 10;
+                        discountInfo = { description: `限时抢购立减 ${pct}%` };
+                    }
+                    break;
+                }
+                case 'group_buy': {
+                    const groupPriceRaw = rules ? Number(rules.groupPrice) : NaN;
+                    if (Number.isFinite(groupPriceRaw) && groupPriceRaw >= 0 && unitPrice > groupPriceRaw) {
+                        discountAmount = (unitPrice - groupPriceRaw) * totalQuantity;
+                        discountInfo = { description: `团购价 ¥${groupPriceRaw}` };
+                    }
+                    break;
+                }
                 case 'full_reduction':
                     if (rules && rules.fullReductionRules && rules.fullReductionRules.length > 0) {
                         const result = PromotionRulesService.calculateFullReduction(originalAmount, totalQuantity, rules.fullReductionRules);
