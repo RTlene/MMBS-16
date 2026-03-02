@@ -847,19 +847,24 @@ class PromotionService {
             finalPrice -= pointInfo.pointDiscount;
         }
 
-        // 会员折扣与促销强制不叠加；与「不可与会员权益同享」的券也不叠加
+        // 会员等级折扣（discountRate 0-1，如 0.5 表示 5 折/实付 50%）；与促销强制不叠加，与「不可与会员权益同享」的券不叠加
         const noMemberDiscountDueToPromo = promotions.length > 0;
         const noMemberDiscountDueToCoupon = coupons.some(c => c.stackWithMemberBenefit !== true);
         const applyMemberDiscount = !noMemberDiscountDueToPromo && !noMemberDiscountDueToCoupon;
-        if (applyMemberDiscount && member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
-            const memberDiscount = originalAmount * member.memberLevel.directCommissionRate;
-            if (memberDiscount > 0) {
-                discounts.push({
-                    type: 'member',
-                    name: '会员折扣',
-                    amount: memberDiscount
-                });
-                finalPrice -= memberDiscount;
+        if (applyMemberDiscount && member && member.memberLevel) {
+            const rateRaw = member.memberLevel.discountRate != null ? parseFloat(member.memberLevel.discountRate) : NaN;
+            const discountRate = Number.isFinite(rateRaw) && rateRaw > 0 && rateRaw <= 1 ? rateRaw : 1;
+            if (discountRate < 1 && finalPrice > 0) {
+                const memberDiscountAmount = finalPrice * (1 - discountRate);
+                if (memberDiscountAmount > 0) {
+                    discounts.push({
+                        type: 'member',
+                        name: '会员等级折扣',
+                        amount: Math.round(memberDiscountAmount * 100) / 100,
+                        description: `${(discountRate * 100).toFixed(0)}% 折扣`
+                    });
+                    finalPrice = Math.round(finalPrice * discountRate * 100) / 100;
+                }
             }
         }
 
