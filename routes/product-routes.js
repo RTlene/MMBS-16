@@ -77,7 +77,7 @@ router.get('/', async (req, res) => {
       whereClause.status = status;
     }
     
-    const { count, rows } = await Product.findAndCountAll({
+    const { count, rows } = await withDbRetry(() => Product.findAndCountAll({
       where: whereClause,
       include: [
         {
@@ -95,7 +95,7 @@ router.get('/', async (req, res) => {
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
-    });
+    }));
     
     // 处理商品数据，添加SKU统计信息
     const products = rows.map(product => {

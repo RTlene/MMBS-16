@@ -3,6 +3,28 @@ const { MemberLevel } = require('../db');
 const LevelUpgradeService = require('../services/levelUpgradeService');
 const router = express.Router();
 
+const DB_RETRY_CODES = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST'];
+function isDbConnectionError(err) {
+    const code = err && (err.code || (err.original && err.original.code));
+    return DB_RETRY_CODES.includes(code) || (err.original && err.original.errno === -104);
+}
+async function withDbRetry(fn, maxAttempts = 3) {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastErr = err;
+            if (attempt < maxAttempts && err.name === 'SequelizeDatabaseError' && isDbConnectionError(err)) {
+                await new Promise(r => setTimeout(r, 100 * attempt));
+                continue;
+            }
+            throw err;
+        }
+    }
+    throw lastErr;
+}
+
 // 获取会员等级列表
 router.get('/', async (req, res) => {
     try {
@@ -19,12 +41,12 @@ router.get('/', async (req, res) => {
             whereClause.status = status;
         }
         
-        const { count, rows } = await MemberLevel.findAndCountAll({
+        const { count, rows } = await withDbRetry(() => MemberLevel.findAndCountAll({
             where: whereClause,
             order: [['sortOrder', 'ASC'], ['level', 'ASC']],
             limit: parseInt(limit),
             offset: parseInt(offset)
-        });
+        }));
         
         // 确保数据类型正确
         const levels = rows.map(level => ({
@@ -59,11 +81,11 @@ router.get('/', async (req, res) => {
 // 获取所有会员等级（用于下拉选择）
 router.get('/all', async (req, res) => {
     try {
-        const levels = await MemberLevel.findAll({
+        const levels = await withDbRetry(() => MemberLevel.findAll({
             where: { status: 'active' },
             order: [['sortOrder', 'ASC'], ['level', 'ASC']],
             attributes: ['id', 'name', 'level', 'minPoints', 'discountRate', 'color', 'icon']
-        });
+        }));
         
         res.json({
             code: 0,

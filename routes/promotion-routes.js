@@ -388,9 +388,7 @@ function validatePromotionRules(type, rules) {
             if (!rules.limitQuantity || rules.limitQuantity <= 0) {
                 return { valid: false, message: '限购数量必须大于0' };
             }
-            if (!rules.productIds || !Array.isArray(rules.productIds) || rules.productIds.length === 0) {
-                return { valid: false, message: '必须选择参与商品' };
-            }
+            // productIds 为空或未填表示全部商品参与
             break;
         case 'group_buy':
             if (!rules.groupSize || rules.groupSize < 2) {
@@ -399,9 +397,7 @@ function validatePromotionRules(type, rules) {
             if (!rules.groupPrice || rules.groupPrice <= 0) {
                 return { valid: false, message: '团购价格必须大于0' };
             }
-            if (!rules.productIds || !Array.isArray(rules.productIds) || rules.productIds.length === 0) {
-                return { valid: false, message: '必须选择参与商品' };
-            }
+            // productIds 为空或未填表示全部商品参与
             break;
         case 'bundle':
             if (!rules.bundleProducts || !Array.isArray(rules.bundleProducts) || rules.bundleProducts.length < 2) {

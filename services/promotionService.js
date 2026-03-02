@@ -1008,13 +1008,14 @@ class PromotionService {
             if (isNaN(vf.getTime()) || isNaN(vt.getTime()) || vf > now || vt < now) return false;
         }
 
-        const productIds = Array.isArray(promotion.productIds) ? promotion.productIds : (promotion.productIds ? [].concat(promotion.productIds) : []);
+        const rules = parsePromotionRules(promotion.rules);
+        const productIds = (rules && Array.isArray(rules.productIds)) ? rules.productIds : [];
         if (productIds.length > 0) {
             const pid = Number(productId);
             if (!productIds.some((id) => Number(id) === pid)) return false;
         }
 
-        const skuIds = Array.isArray(promotion.skuIds) ? promotion.skuIds : (promotion.skuIds ? [].concat(promotion.skuIds) : []);
+        const skuIds = (rules && Array.isArray(rules.skuIds)) ? rules.skuIds : [];
         if (skuIds.length > 0 && skuId != null) {
             const sid = Number(skuId);
             if (!skuIds.some((id) => Number(id) === sid)) return false;

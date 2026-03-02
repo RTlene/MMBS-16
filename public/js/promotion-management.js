@@ -329,6 +329,7 @@ function updateRulesConfig() {
                 </div>
                 <div class="rule-item">
                     <label>参与商品:</label>
+                    <p class="form-hint" style="margin-bottom:6px">不添加表示全部商品参与。</p>
                     <div id="promotionProductIdsList" class="promo-row-list"></div>
                     <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
                 </div>
@@ -346,6 +347,7 @@ function updateRulesConfig() {
                 </div>
                 <div class="rule-item">
                     <label>参与商品:</label>
+                    <p class="form-hint" style="margin-bottom:6px">不添加表示全部商品参与。</p>
                     <div id="promotionProductIdsList" class="promo-row-list"></div>
                     <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
                 </div>
