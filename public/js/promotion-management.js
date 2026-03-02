@@ -163,12 +163,40 @@ function searchPromotions() {
     loadPromotions();
 }
 
+// 加载可参与会员等级（用于勾选）
+async function loadPromotionMemberLevels(selectedIds) {
+    const container = document.getElementById('promotionMemberLevels');
+    if (!container) return;
+    selectedIds = Array.isArray(selectedIds) ? selectedIds : [];
+    try {
+        const res = await fetch('/api/member-levels?limit=100', {
+            headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+        });
+        const data = await res.json();
+        const levels = (data.code === 0 && data.data && data.data.levels) ? data.data.levels : [];
+        container.innerHTML = levels.map(function (l) {
+            const id = l.id;
+            const checked = selectedIds.indexOf(id) >= 0 ? ' checked' : '';
+            return '<label><input type="checkbox" class="promotion-member-level-cb" value="' + id + '"' + checked + '><span>' + (l.name || '等级' + id) + '</span></label>';
+        }).join('') || '<span class="form-hint">暂无会员等级</span>';
+    } catch (e) {
+        container.innerHTML = '<span class="form-hint">加载失败</span>';
+    }
+}
+
+// 获取选中的可参与会员等级ID
+function getPromotionMemberLevelIds() {
+    const boxes = document.querySelectorAll('#promotionMemberLevels .promotion-member-level-cb:checked');
+    return Array.prototype.map.call(boxes, function (cb) { return parseInt(cb.value, 10); });
+}
+
 // 显示添加促销活动模态框
 function showAddPromotionModal() {
     window.promotionManagementData.currentPromotion = null;
     document.getElementById('promotionModalTitle').textContent = '添加促销活动';
     document.getElementById('promotionForm').reset();
     updateRulesConfig();
+    loadPromotionMemberLevels([]);
     document.getElementById('promotionModal').classList.add('show');
 }
 
@@ -194,6 +222,8 @@ function editPromotion(promotionId) {
     if (promotion.rules) {
         fillRulesConfig(promotion.rules);
     }
+
+    loadPromotionMemberLevels(promotion.memberLevelIds || []);
     
     document.getElementById('promotionModal').classList.add('show');
 }
@@ -277,10 +307,16 @@ function updateRulesConfig() {
             `;
             break;
         case 'full_gift':
-            rulesHTML = `<div class="rule-item"><span>满送规则请在接口或数据库中配置 fullGiftRules（JSON）</span></div>`;
+            rulesHTML = `
+                <div id="fullGiftRulesList"></div>
+                <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullGiftRuleRow()">+ 添加满送规则</button>
+            `;
             break;
         case 'full_discount':
-            rulesHTML = `<div class="rule-item"><span>满折规则请在接口或数据库中配置 fullDiscountRules（JSON）</span></div>`;
+            rulesHTML = `
+                <div id="fullDiscountRulesList"></div>
+                <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullDiscountRuleRow()">+ 添加满折规则</button>
+            `;
             break;
     }
     
@@ -297,15 +333,122 @@ function fillRulesConfig(rules) {
         const discountInput = document.getElementById('fullReductionDiscountAmount');
         if (minInput) minInput.value = r.minAmount || '';
         if (discountInput) discountInput.value = r.discountAmount || '';
-        return;
+    }
+
+    if (rules.fullGiftRules && Array.isArray(rules.fullGiftRules)) {
+        const list = document.getElementById('fullGiftRulesList');
+        if (list) {
+            list.innerHTML = '';
+            rules.fullGiftRules.forEach(function (r) { addFullGiftRuleRow(r); });
+        }
+    }
+    if (rules.fullDiscountRules && Array.isArray(rules.fullDiscountRules)) {
+        const list = document.getElementById('fullDiscountRulesList');
+        if (list) {
+            list.innerHTML = '';
+            rules.fullDiscountRules.forEach(function (r) { addFullDiscountRuleRow(r); });
+        }
     }
     
     Object.keys(rules).forEach(key => {
+        if (key === 'fullGiftRules' || key === 'fullDiscountRules' || key === 'fullReductionRules') return;
         const input = document.getElementById(key);
         if (input) {
             input.value = Array.isArray(rules[key]) ? JSON.stringify(rules[key]) : (rules[key] || '');
         }
     });
+}
+
+// 商品列表缓存（满送规则选赠品用）
+window._promotionProductsCache = null;
+function loadPromotionProducts(cb) {
+    if (window._promotionProductsCache) {
+        if (cb) cb(window._promotionProductsCache);
+        return;
+    }
+    fetch('/api/products?limit=200&status=active', {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+    }).then(function (res) { return res.json(); }).then(function (data) {
+        var list = (data.code === 0 && data.data && data.data.products) ? data.data.products : [];
+        window._promotionProductsCache = list;
+        if (cb) cb(list);
+    }).catch(function () { if (cb) cb([]); });
+}
+
+function addFullGiftRuleRow(rule) {
+    rule = rule || {};
+    var list = document.getElementById('fullGiftRulesList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'rule-item full-gift-rule-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+    var condType = rule.conditionType || 'amount';
+    row.innerHTML =
+        '<select class="form-input cond-type" style="width:100px">' +
+        '<option value="amount"' + (condType === 'amount' ? ' selected' : '') + '>满金额</option>' +
+        '<option value="quantity"' + (condType === 'quantity' ? ' selected' : '') + '>满件数</option>' +
+        '</select>' +
+        '<span class="cond-amount-wrap"><input type="number" class="form-input min-amount" placeholder="满多少元" min="0" step="0.01" value="' + (rule.minAmount != null ? rule.minAmount : '') + '" style="width:100px"> 元</span>' +
+        '<span class="cond-qty-wrap" style="display:none"><input type="number" class="form-input min-quantity" placeholder="满几件" min="1" value="' + (rule.minQuantity != null ? rule.minQuantity : '') + '" style="width:80px"> 件</span>' +
+        '<select class="form-input gift-product-id" style="width:180px"><option value="">请选择赠品</option></select>' +
+        '<input type="number" class="form-input gift-quantity" placeholder="数量" min="1" value="' + (rule.giftQuantity != null ? rule.giftQuantity : 1) + '" style="width:70px"> 件' +
+        '<button type="button" class="btn btn-danger btn-remove-promo-rule" style="padding:4px 10px">删除</button>';
+    list.appendChild(row);
+    var condTypeSel = row.querySelector('.cond-type');
+    var amountWrap = row.querySelector('.cond-amount-wrap');
+    var qtyWrap = row.querySelector('.cond-qty-wrap');
+    function toggleCond() {
+        var isAmount = condTypeSel.value === 'amount';
+        amountWrap.style.display = isAmount ? 'inline' : 'none';
+        qtyWrap.style.display = isAmount ? 'none' : 'inline';
+        if (!isAmount) row.querySelector('.min-amount').value = '';
+        else row.querySelector('.min-quantity').value = '';
+    }
+    condTypeSel.addEventListener('change', toggleCond);
+    toggleCond();
+    row.querySelector('.btn-remove-promo-rule').addEventListener('click', function () { row.remove(); });
+    loadPromotionProducts(function (products) {
+        var sel = row.querySelector('.gift-product-id');
+        products.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = (p.name || '') + (p.id ? ' (ID:' + p.id + ')' : '');
+            if (rule.giftProductId && p.id === rule.giftProductId) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    });
+}
+
+function addFullDiscountRuleRow(rule) {
+    rule = rule || {};
+    var list = document.getElementById('fullDiscountRulesList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'rule-item full-discount-rule-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+    var condType = rule.conditionType || 'amount';
+    var rate = rule.discountRate != null ? rule.discountRate : 0.9;
+    row.innerHTML =
+        '<select class="form-input cond-type" style="width:100px">' +
+        '<option value="amount"' + (condType === 'amount' ? ' selected' : '') + '>满金额</option>' +
+        '<option value="quantity"' + (condType === 'quantity' ? ' selected' : '') + '>满件数</option>' +
+        '</select>' +
+        '<span class="cond-amount-wrap"><input type="number" class="form-input min-amount" placeholder="满多少元" min="0" step="0.01" value="' + (rule.minAmount != null ? rule.minAmount : '') + '" style="width:100px"> 元</span>' +
+        '<span class="cond-qty-wrap" style="display:none"><input type="number" class="form-input min-quantity" placeholder="满几件" min="1" value="' + (rule.minQuantity != null ? rule.minQuantity : '') + '" style="width:80px"> 件</span>' +
+        ' 享 <input type="number" class="form-input discount-rate" placeholder="0.9=9折" min="0.01" max="1" step="0.01" value="' + rate + '" style="width:70px"> 折（0.9即9折）' +
+        '<button type="button" class="btn btn-danger btn-remove-promo-rule" style="padding:4px 10px">删除</button>';
+    list.appendChild(row);
+    var condTypeSel = row.querySelector('.cond-type');
+    var amountWrap = row.querySelector('.cond-amount-wrap');
+    var qtyWrap = row.querySelector('.cond-qty-wrap');
+    function toggleCond() {
+        var isAmount = condTypeSel.value === 'amount';
+        amountWrap.style.display = isAmount ? 'inline' : 'none';
+        qtyWrap.style.display = isAmount ? 'none' : 'inline';
+    }
+    condTypeSel.addEventListener('change', toggleCond);
+    toggleCond();
+    row.querySelector('.btn-remove-promo-rule').addEventListener('click', function () { row.remove(); });
 }
 
 // 保存促销活动
@@ -316,8 +459,10 @@ async function savePromotion() {
         description: document.getElementById('promotionDescription').value,
         startTime: document.getElementById('startTime').value,
         endTime: document.getElementById('endTime').value,
-        rules: getRulesConfig()
+        rules: getRulesConfig(),
+        memberLevelIds: getPromotionMemberLevelIds()
     };
+    if (formData.memberLevelIds.length === 0) formData.memberLevelIds = null;
 
     try {
         const url = window.promotionManagementData.currentPromotion 
@@ -398,6 +543,45 @@ function getRulesConfig() {
                 }];
             }
             break;
+        case 'full_gift': {
+            const giftRows = document.querySelectorAll('#fullGiftRulesList .full-gift-rule-row');
+            rules.fullGiftRules = [];
+            giftRows.forEach(function (row) {
+                var condType = row.querySelector('.cond-type').value;
+                var giftProductId = parseInt(row.querySelector('.gift-product-id').value, 10);
+                var giftQuantity = parseInt(row.querySelector('.gift-quantity').value, 10) || 1;
+                if (!giftProductId) return;
+                var r = { conditionType: condType, giftProductId: giftProductId, giftQuantity: giftQuantity };
+                if (condType === 'amount') {
+                    var ma = parseFloat(row.querySelector('.min-amount').value);
+                    if (!isNaN(ma)) r.minAmount = ma;
+                } else {
+                    var mq = parseInt(row.querySelector('.min-quantity').value, 10);
+                    if (!isNaN(mq)) r.minQuantity = mq;
+                }
+                rules.fullGiftRules.push(r);
+            });
+            break;
+        }
+        case 'full_discount': {
+            const discountRows = document.querySelectorAll('#fullDiscountRulesList .full-discount-rule-row');
+            rules.fullDiscountRules = [];
+            discountRows.forEach(function (row) {
+                var condType = row.querySelector('.cond-type').value;
+                var rate = parseFloat(row.querySelector('.discount-rate').value);
+                if (isNaN(rate) || rate <= 0 || rate > 1) return;
+                var r = { conditionType: condType, discountRate: rate };
+                if (condType === 'amount') {
+                    var ma = parseFloat(row.querySelector('.min-amount').value);
+                    if (!isNaN(ma)) r.minAmount = ma;
+                } else {
+                    var mq = parseInt(row.querySelector('.min-quantity').value, 10);
+                    if (!isNaN(mq)) r.minQuantity = mq;
+                }
+                rules.fullDiscountRules.push(r);
+            });
+            break;
+        }
     }
     
     return rules;

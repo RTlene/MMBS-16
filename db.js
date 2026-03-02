@@ -2100,6 +2100,18 @@ const Coupon = sequelize.define('Coupon', {
         allowNull: true,
         comment: '满折规则配置，支持金额和数量条件，如：[{"conditionType": "amount", "minAmount": 100, "discountRate": 0.9}, {"conditionType": "quantity", "minQuantity": 3, "discountRate": 0.8}]'
     },
+    stackWithPromotion: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '是否可与促销同时生效，默认不可'
+    },
+    stackWithMemberBenefit: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '是否可与会员权益同时生效，默认不可'
+    },
     createdBy: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -2192,6 +2204,11 @@ const Promotion = sequelize.define('Promotion', {
         type: DataTypes.JSON,
         allowNull: true,
         comment: '促销规则配置'
+    },
+    memberLevelIds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: '可参与会员等级ID数组，空或 null 表示全部会员可参与'
     }
 }, {
     tableName: 'promotions',

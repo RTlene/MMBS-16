@@ -361,6 +361,24 @@
         .rule-item:last-child {
             margin-bottom: 0;
         }
+
+        .member-level-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 24px;
+        }
+        .member-level-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .form-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -496,6 +514,11 @@
                             <label class="form-label">结束时间</label>
                             <input type="datetime-local" class="form-input" id="endTime" required>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">可参与会员</label>
+                        <p class="form-hint" style="margin-bottom: 8px;">不选表示全部会员可参与；勾选的等级才可享受该促销。</p>
+                        <div id="promotionMemberLevels" class="member-level-checkboxes"></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">活动规则配置</label>

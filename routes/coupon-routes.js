@@ -244,6 +244,8 @@ router.post('/', authenticateToken, async (req, res) => {
             fullReductionRules: body.fullReductionRules || null,
             fullGiftRules: body.fullGiftRules || null,
             fullDiscountRules: body.fullDiscountRules || null,
+            stackWithPromotion: body.stackWithPromotion === true,
+            stackWithMemberBenefit: body.stackWithMemberBenefit === true,
             createdBy: userId,
             updatedBy: userId
         }));
@@ -299,6 +301,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
             coupon.distributionMode = body.distributionMode;
         }
         if (body.autoGrantRules !== undefined) coupon.autoGrantRules = body.autoGrantRules;
+        if (body.stackWithPromotion !== undefined) coupon.stackWithPromotion = body.stackWithPromotion === true;
+        if (body.stackWithMemberBenefit !== undefined) coupon.stackWithMemberBenefit = body.stackWithMemberBenefit === true;
         coupon.updatedBy = userId;
 
         await withDbRetry(() => coupon.save());

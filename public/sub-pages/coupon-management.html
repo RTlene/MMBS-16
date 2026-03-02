@@ -254,6 +254,18 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">叠加规则</label>
+                        <p class="form-hint" style="margin-bottom: 8px;">默认优惠券不与促销、会员权益同时生效；勾选后允许同时使用。</p>
+                        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <input type="checkbox" id="couponStackWithPromotion" value="1">
+                            <span>可与促销同时生效</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="couponStackWithMemberBenefit" value="1">
+                            <span>可与会员权益同时生效</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">描述</label>
                         <textarea class="form-input" id="couponDescription" rows="2" placeholder="选填"></textarea>
                     </div>

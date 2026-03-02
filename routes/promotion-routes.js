@@ -187,7 +187,8 @@ router.post('/', authenticateToken, async (req, res) => {
             startTime: startTime,
             endTime: endTime,
             status: promotionData.status || 'draft',
-            rules: promotionData.rules || {}
+            rules: promotionData.rules || {},
+            memberLevelIds: Array.isArray(promotionData.memberLevelIds) ? promotionData.memberLevelIds : null
         }));
 
         res.json({
@@ -251,7 +252,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
 
         // 更新促销活动
-        await withDbRetry(() => promotion.update({
+        const updatePayload = {
             name: promotionData.name || promotion.name,
             type: promotionData.type || promotion.type,
             description: promotionData.description !== undefined ? promotionData.description : promotion.description,
@@ -259,7 +260,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
             endTime: promotionData.endTime ? new Date(promotionData.endTime) : promotion.endTime,
             status: promotionData.status || promotion.status,
             rules: promotionData.rules !== undefined ? promotionData.rules : promotion.rules
-        }));
+        };
+        if (promotionData.memberLevelIds !== undefined) {
+            updatePayload.memberLevelIds = Array.isArray(promotionData.memberLevelIds) ? promotionData.memberLevelIds : null;
+        }
+        await withDbRetry(() => promotion.update(updatePayload));
 
         res.json({
             code: 0,

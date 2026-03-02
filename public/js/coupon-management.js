@@ -361,6 +361,10 @@ window.CouponManagement = {
         this.toggleAutoGrantRules();
         var listEl = document.getElementById('autoGrantRulesList');
         if (listEl) listEl.innerHTML = '';
+        var stackPromoEl = document.getElementById('couponStackWithPromotion');
+        var stackMemberEl = document.getElementById('couponStackWithMemberBenefit');
+        if (stackPromoEl) stackPromoEl.checked = false;
+        if (stackMemberEl) stackMemberEl.checked = false;
         document.getElementById('couponModal').classList.add('show');
     },
     editCoupon: function (id) {
@@ -394,6 +398,10 @@ window.CouponManagement = {
         document.getElementById('couponValidFrom').value = this.formatDateTimeLocal(c.validFrom);
         document.getElementById('couponValidTo').value = this.formatDateTimeLocal(c.validTo);
         document.getElementById('couponStatus').value = c.status || 'active';
+        var stackPromoEl = document.getElementById('couponStackWithPromotion');
+        var stackMemberEl = document.getElementById('couponStackWithMemberBenefit');
+        if (stackPromoEl) stackPromoEl.checked = !!c.stackWithPromotion;
+        if (stackMemberEl) stackMemberEl.checked = !!c.stackWithMemberBenefit;
         document.getElementById('couponDescription').value = c.description || '';
         this.toggleGiftConfig();
         if (c.type === 'gift' && c.fullGiftRules && Array.isArray(c.fullGiftRules) && c.fullGiftRules[0]) {
@@ -475,7 +483,9 @@ window.CouponManagement = {
             validTo: validTo.replace('T', ' ').substring(0, 19),
             status: status,
             distributionMode: distributionMode,
-            description: description || undefined
+            description: description || undefined,
+            stackWithPromotion: !!(document.getElementById('couponStackWithPromotion') && document.getElementById('couponStackWithPromotion').checked),
+            stackWithMemberBenefit: !!(document.getElementById('couponStackWithMemberBenefit') && document.getElementById('couponStackWithMemberBenefit').checked)
         };
         if (fullGiftRules) body.fullGiftRules = fullGiftRules;
         if (autoGrantRules) body.autoGrantRules = autoGrantRules;

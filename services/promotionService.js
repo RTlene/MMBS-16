@@ -319,11 +319,32 @@ class PromotionService {
                 unitPrice = selectedSku.price;
             }
 
-            // 验证并获取优惠券
-            const coupons = await this.validateAndGetCoupons(appliedCoupons, memberId, productId, skuId, quantity);
+            // 验证并获取优惠券（需传入 appliedPromotions 以校验是否可与促销同享）
+            let coupons = await this.validateAndGetCoupons(appliedCoupons, memberId, productId, skuId, quantity);
 
-            // 验证并获取促销活动
-            const promotions = await this.validateAndGetPromotions(appliedPromotions, productId, skuId, quantity);
+            // 验证并获取促销活动（需传入 memberId 以校验可参与会员等级）
+            let promotions = await this.validateAndGetPromotions(appliedPromotions, productId, skuId, quantity, memberId);
+
+            // 优惠券与促销同享：若已选促销且券未勾选「可与促销同时生效」，则移除该券
+            if (promotions.length > 0) {
+                coupons = coupons.filter(c => c.stackWithPromotion === true);
+            }
+            // 会员权益与券同享：若本商品有该会员等级会员价且券未勾选「可与会员权益同时生效」，则移除该券
+            let hasMemberBenefit = false;
+            if (member && member.memberLevelId) {
+                const searchSkuId = skuId ? Number(skuId) : 0;
+                const mp = await ProductMemberPrice.findOne({
+                    where: {
+                        productId: product.id,
+                        memberLevelId: member.memberLevelId,
+                        skuId: searchSkuId > 0 ? searchSkuId : 0
+                    }
+                });
+                if (mp) hasMemberBenefit = true;
+            }
+            if (hasMemberBenefit) {
+                coupons = coupons.filter(c => c.stackWithMemberBenefit === true);
+            }
 
             if (process.env.NODE_ENV !== 'production' || (appliedCoupons && appliedCoupons.length + (appliedPromotions && appliedPromotions.length) > 0)) {
                 console.log('[applyPromotionsToOrder] appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> valid coupons=', coupons.length, 'valid promotions=', promotions.length);
@@ -870,8 +891,9 @@ class PromotionService {
 
     /**
      * 验证并获取促销活动
+     * @param {number} [memberId] - 会员ID，用于校验可参与会员等级（memberLevelIds）
      */
-    static async validateAndGetPromotions(promotionIds, productId, skuId, quantity) {
+    static async validateAndGetPromotions(promotionIds, productId, skuId, quantity, memberId = null) {
         const ids = Array.isArray(promotionIds) ? promotionIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
         if (ids.length === 0) return [];
         const promotions = await Promotion.findAll({
@@ -881,9 +903,19 @@ class PromotionService {
             }
         });
 
-        // 验证促销活动可用性
+        let memberLevelId = null;
+        if (memberId) {
+            const member = await Member.findByPk(memberId, { attributes: ['memberLevelId'] });
+            if (member) memberLevelId = member.memberLevelId;
+        }
+
         const validPromotions = [];
         for (const promotion of promotions) {
+            const levelIds = promotion.memberLevelIds;
+            if (Array.isArray(levelIds) && levelIds.length > 0) {
+                const allowed = memberLevelId != null && levelIds.some((id) => Number(id) === Number(memberLevelId));
+                if (!allowed) continue;
+            }
             const isValid = await this.validatePromotion(promotion, productId, skuId, quantity);
             if (isValid) {
                 validPromotions.push(promotion);

@@ -9,13 +9,21 @@
 
 .cart-list {
   flex: 1;
+  width: 100%;
+  box-sizing: border-box;
   padding: 24rpx;
+  padding-left: calc(24rpx + constant(safe-area-inset-left));
+  padding-left: calc(24rpx + env(safe-area-inset-left, 0));
+  padding-right: calc(24rpx + constant(safe-area-inset-right));
+  padding-right: calc(24rpx + env(safe-area-inset-right, 0));
   padding-bottom: 120rpx;
 }
 
 .cart-item {
   display: flex;
   align-items: center;
+  width: 100%;
+  box-sizing: border-box;
   background-color: #FFFFFF;
   border-radius: 12rpx;
   padding: 24rpx;
@@ -64,11 +72,11 @@
 
 .item-info {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 160rpx;
-  min-width: 0;
 }
 
 .item-name {
@@ -127,7 +135,11 @@
 }
 
 .item-delete {
+  flex-shrink: 0;
   margin-left: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .delete-icon {
@@ -183,16 +195,21 @@
   bottom: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 88rpx;
   padding: 20rpx 24rpx;
+  padding-left: calc(24rpx + constant(safe-area-inset-left));
+  padding-left: calc(24rpx + env(safe-area-inset-left, 0));
+  padding-right: calc(24rpx + constant(safe-area-inset-right));
+  padding-right: calc(24rpx + env(safe-area-inset-right, 0));
   background-color: #FFFFFF;
   border-top: 1rpx solid #F1F5F9;
   padding-bottom: calc(20rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
 }
 
 .footer-left {
