@@ -370,6 +370,20 @@
             color: #888;
             margin-top: 4px;
         }
+        .form-section {
+            margin-bottom: 24px;
+        }
+        .form-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        .form-section-body {
+            padding-left: 0;
+        }
     </style>
 </head>
 <body>
@@ -476,46 +490,67 @@
             </div>
             <div class="modal-body">
                 <form id="promotionForm">
-                    <div class="form-group">
-                        <label class="form-label">活动名称</label>
-                        <input type="text" class="form-input" id="promotionName" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">活动类型</label>
-                        <select class="form-input" id="promotionType" required onchange="updateRulesConfig()">
-                            <option value="flash_sale">限时抢购</option>
-                            <option value="group_buy">团购</option>
-                            <option value="bundle">捆绑销售</option>
-                            <option value="free_shipping">包邮</option>
-                            <option value="full_reduction">满减</option>
-                            <option value="full_gift">满送</option>
-                            <option value="full_discount">满折</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">活动描述</label>
-                        <textarea class="form-input" id="promotionDescription" rows="3"></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">开始时间</label>
-                            <input type="datetime-local" class="form-input" id="startTime" required>
+                    <!-- 基本信息 -->
+                    <div class="form-section">
+                        <div class="form-section-title">基本信息</div>
+                        <div class="form-section-body">
+                            <div class="form-group">
+                                <label class="form-label">活动名称</label>
+                                <input type="text" class="form-input" id="promotionName" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">活动类型</label>
+                                <select class="form-input" id="promotionType" required onchange="updateRulesConfig()">
+                                    <option value="flash_sale">限时抢购</option>
+                                    <option value="group_buy">团购</option>
+                                    <option value="bundle">捆绑销售</option>
+                                    <option value="free_shipping">包邮</option>
+                                    <option value="full_reduction">满减</option>
+                                    <option value="full_gift">满送</option>
+                                    <option value="full_discount">满折</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">活动描述</label>
+                                <textarea class="form-input" id="promotionDescription" rows="3"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">开始时间</label>
+                                    <input type="datetime-local" class="form-input" id="startTime" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">结束时间</label>
+                                    <input type="datetime-local" class="form-input" id="endTime" required>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">结束时间</label>
-                            <input type="datetime-local" class="form-input" id="endTime" required>
+                    </div>
+                    <!-- 参与范围 -->
+                    <div class="form-section">
+                        <div class="form-section-title">参与范围</div>
+                        <div class="form-section-body">
+                            <div class="form-group">
+                                <label class="form-label">可参与会员等级</label>
+                                <p class="form-hint" style="margin-bottom: 8px;">一条一条添加，不添加表示全部会员可参与。</p>
+                                <div id="promotionMemberLevelsList" class="promo-row-list"></div>
+                                <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionMemberLevelRow()">+ 添加参与会员等级</button>
+                            </div>
+                            <div class="form-group" id="promotionProductsWrap" style="display:none">
+                                <label class="form-label">参与商品</label>
+                                <p class="form-hint" style="margin-bottom: 8px;">一条一条添加，不添加表示全部商品参与。</p>
+                                <div id="promotionProductIdsList" class="promo-row-list"></div>
+                                <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">可参与会员等级</label>
-                        <p class="form-hint" style="margin-bottom: 8px;">一条一条添加，不添加表示全部会员可参与。</p>
-                        <div id="promotionMemberLevelsList" class="promo-row-list"></div>
-                        <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionMemberLevelRow()">+ 添加参与会员等级</button>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">活动规则配置</label>
-                        <div class="rules-config" id="rulesConfig">
-                            <!-- 规则配置将通过JavaScript动态生成 -->
+                    <!-- 活动规则 -->
+                    <div class="form-section">
+                        <div class="form-section-title">活动规则</div>
+                        <div class="form-section-body">
+                            <div class="rules-config" id="rulesConfig">
+                                <!-- 规则配置将通过JavaScript动态生成 -->
+                            </div>
                         </div>
                     </div>
                 </form>

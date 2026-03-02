@@ -163,11 +163,17 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 // 如果 PromotionService 可用，尝试应用促销
                 try {
                     if (PromotionService && typeof PromotionService.applyPromotionsToOrder === 'function') {
+                        // 未传促销时按商品自动拉取适用促销（后端会按可参与会员等级过滤）
+                        let promotionIds = Array.isArray(appliedPromotions) ? appliedPromotions.map((p) => (p && (p.id != null ? p.id : p))).filter((id) => Number.isFinite(Number(id)) && Number(id) > 0) : [];
+                        if (promotionIds.length === 0) {
+                            const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId);
+                            promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
+                        }
                         const promoResult = await PromotionService.applyPromotionsToOrder(
                             { productId, skuId, quantity },
                             member.id,
                             appliedCoupons,
-                            appliedPromotions,
+                            promotionIds,
                             pointUsage
                         );
                         

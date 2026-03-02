@@ -884,8 +884,13 @@ router.post('/products/calculate-price', async (req, res) => {
         const memberId = memberIdRaw != null && memberIdRaw !== '' ? Number(memberIdRaw) : 0;
         // 归一化为数字数组，避免字符串或单值导致查询/校验异常
         const norm = (v) => (Array.isArray(v) ? v : (v != null ? [v] : [])).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
-        const couponIds = norm(appliedCoupons);
-        const promotionIds = norm(appliedPromotions);
+        let couponIds = norm(appliedCoupons);
+        let promotionIds = norm(appliedPromotions);
+        // 未传促销时：自动拉取该商品适用的促销并参与计算（后端会按可参与会员等级过滤）
+        if (promotionIds.length === 0) {
+            const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId || null);
+            promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
+        }
         if (process.env.NODE_ENV !== 'production' || req.query.debug === '1') {
             console.log('[calculate-price] body appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> couponIds=', couponIds, 'promotionIds=', promotionIds);
         }

@@ -327,12 +327,6 @@ function updateRulesConfig() {
                     <label>限购数量:</label>
                     <input type="number" id="limitQuantity" min="1" placeholder="例如: 1">
                 </div>
-                <div class="rule-item">
-                    <label>参与商品:</label>
-                    <p class="form-hint" style="margin-bottom:6px">不添加表示全部商品参与。</p>
-                    <div id="promotionProductIdsList" class="promo-row-list"></div>
-                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
-                </div>
             `;
             break;
         case 'group_buy':
@@ -344,12 +338,6 @@ function updateRulesConfig() {
                 <div class="rule-item">
                     <label>团购价格:</label>
                     <input type="number" id="groupPrice" min="0" step="0.01" placeholder="例如: 99.00">
-                </div>
-                <div class="rule-item">
-                    <label>参与商品:</label>
-                    <p class="form-hint" style="margin-bottom:6px">不添加表示全部商品参与。</p>
-                    <div id="promotionProductIdsList" class="promo-row-list"></div>
-                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
                 </div>
             `;
             break;
@@ -406,6 +394,10 @@ function updateRulesConfig() {
     }
     
     rulesConfig.innerHTML = rulesHTML;
+    var productsWrap = document.getElementById('promotionProductsWrap');
+    if (productsWrap) {
+        productsWrap.style.display = (type === 'flash_sale' || type === 'group_buy') ? 'block' : 'none';
+    }
 }
 
 // 填充规则配置
