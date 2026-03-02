@@ -325,7 +325,12 @@ class PromotionService {
             // 验证并获取促销活动（需传入 memberId 以校验可参与会员等级）
             let promotions = await this.validateAndGetPromotions(appliedPromotions, productId, skuId, quantity, memberId);
 
-            // 优惠券与促销同享：若已选促销且券未勾选「可与促销同时生效」，则移除该券
+            // 不可叠加：若用户使用了「不可与促销同享」的优惠券，则促销折扣不生效
+            const hasNonStackableCoupon = coupons.some(c => c.stackWithPromotion !== true);
+            if (hasNonStackableCoupon && promotions.length > 0) {
+                promotions = [];
+            }
+            // 优惠券与促销同享：若仍有促销且券未勾选「可与促销同时生效」，则移除该券
             if (promotions.length > 0) {
                 coupons = coupons.filter(c => c.stackWithPromotion === true);
             }
@@ -681,8 +686,8 @@ class PromotionService {
             }
         }
 
-        // 应用会员等级折扣
-        if (member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
+        // 会员折扣与促销不叠加：有促销时不再计算会员等级折扣
+        if (promotions.length === 0 && member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
             const memberDiscount = originalAmount * member.memberLevel.directCommissionRate;
             if (memberDiscount > 0) {
                 discounts.push({
@@ -842,8 +847,11 @@ class PromotionService {
             finalPrice -= pointInfo.pointDiscount;
         }
 
-        // 应用会员等级折扣
-        if (member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
+        // 会员折扣与促销强制不叠加；与「不可与会员权益同享」的券也不叠加
+        const noMemberDiscountDueToPromo = promotions.length > 0;
+        const noMemberDiscountDueToCoupon = coupons.some(c => c.stackWithMemberBenefit !== true);
+        const applyMemberDiscount = !noMemberDiscountDueToPromo && !noMemberDiscountDueToCoupon;
+        if (applyMemberDiscount && member && member.memberLevel && member.memberLevel.directCommissionRate > 0) {
             const memberDiscount = originalAmount * member.memberLevel.directCommissionRate;
             if (memberDiscount > 0) {
                 discounts.push({
