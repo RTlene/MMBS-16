@@ -1063,6 +1063,18 @@ const Member = sequelize.define('Member', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '最后活跃时间'
+    },
+    memberLevelManualOverride: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '会员等级是否手动设置（true 时自动升级不覆盖、不降级）'
+    },
+    distributorLevelManualOverride: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '分销等级是否手动设置（true 时自动升级不覆盖、不降级）'
     }
 }, {
     tableName: 'members',

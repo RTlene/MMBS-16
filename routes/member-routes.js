@@ -785,6 +785,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
             remark: memberData.remark || null,
             lastActiveAt: memberData.lastActiveAt || null
         };
+        // 手动设置等级时标记为“手动覆盖”，自动升级将不再覆盖；清空等级时取消覆盖
+        if (memberData.memberLevelId !== undefined) {
+            cleanedData.memberLevelManualOverride = (memberData.memberLevelId != null && memberData.memberLevelId !== '');
+        }
+        if (memberData.distributorLevelId !== undefined) {
+            cleanedData.distributorLevelManualOverride = (memberData.distributorLevelId != null && memberData.distributorLevelId !== '');
+        }
 
         // 验证必填字段
         if (!cleanedData.nickname) {
@@ -1143,9 +1150,15 @@ router.put('/:id/level', authenticateToken, async (req, res) => {
             operatorId: req.user.id
         });
 
-        // 更新会员等级
-        await member.update({ [levelField]: levelId });
-        
+        // 更新会员等级，并标记为手动设置（避免自动升级覆盖）
+        const updatePayload = { [levelField]: levelId };
+        if (levelType === 'member') {
+            updatePayload.memberLevelManualOverride = (levelId != null && levelId !== '');
+        } else if (levelType === 'distributor') {
+            updatePayload.distributorLevelManualOverride = (levelId != null && levelId !== '');
+        }
+        await member.update(updatePayload);
+
         res.json({
             code: 0,
             message: '会员等级更新成功',

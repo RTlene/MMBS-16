@@ -165,40 +165,58 @@ class LevelUpgradeService {
     }
 
     /**
-     * 尝试将会员等级更新为「满足条件的最高等级」（仅当启用自动升级的等级存在且与当前不同时更新）
+     * 尝试将会员等级更新为「满足条件的最高等级」
+     * - 若会员等级为手动设置（memberLevelManualOverride），则不覆盖、不降级
+     * - 自动升级仅允许升级：条件不达标时不降级，不置空
      */
     static async tryUpgradeMemberLevel(memberId) {
-        const member = await Member.findByPk(memberId, { attributes: ['id', 'memberLevelId', 'totalPoints'] });
+        const member = await Member.findByPk(memberId, {
+            attributes: ['id', 'memberLevelId', 'totalPoints', 'memberLevelManualOverride']
+        });
         if (!member) return { changed: false };
+        if (member.memberLevelManualOverride) {
+            return { changed: false };
+        }
         const eligible = await this.getEligibleMemberLevel(member.totalPoints);
         const currentId = member.memberLevelId ? parseInt(member.memberLevelId, 10) : null;
-        const newId = eligible ? eligible.id : null;
+        let currentLevel = null;
+        if (currentId) {
+            currentLevel = await MemberLevel.findByPk(currentId, { attributes: ['id', 'level'] });
+        }
+        const currentLevelNum = currentLevel ? parseInt(currentLevel.level, 10) : 0;
+        // 仅升级不降级：无匹配等级时保持当前等级；有匹配时仅当新等级更高才更新
+        if (!eligible) return { changed: false };
+        if (eligible.level <= currentLevelNum) return { changed: false };
+        const newId = eligible.id;
         if (newId === currentId) return { changed: false };
         await member.update({ memberLevelId: newId });
-        if (newId != null) {
-            await MemberLevelChangeRecord.create({
-                memberId: member.id,
-                levelType: 'member',
-                oldLevelId: currentId,
-                newLevelId: newId,
-                reason: 'auto_upgrade',
-                description: `自动升级：积分 ${member.totalPoints} 满足等级「${eligible.name}」条件`
-            });
-        }
-        return { changed: true, newLevelId: newId, newLevelName: eligible ? eligible.name : null };
+        await MemberLevelChangeRecord.create({
+            memberId: member.id,
+            levelType: 'member',
+            oldLevelId: currentId,
+            newLevelId: newId,
+            reason: 'auto_upgrade',
+            description: `自动升级：积分 ${member.totalPoints} 满足等级「${eligible.name}」条件`
+        });
+        return { changed: true, newLevelId: newId, newLevelName: eligible.name };
     }
 
     /**
      * 尝试将分销等级更新为「满足条件的最高等级」
-     * 销售额条件使用「总销售额」totalSales。
+     * - 若分销等级为手动设置（distributorLevelManualOverride），则不覆盖、不降级
+     * - 自动升级仅允许升级：条件不达标时不降级，不置空。销售额条件使用「总销售额」totalSales。
      * @param {number} memberId
      * @param {{ totalSales?: number, totalFans?: number }} [override] 若在刚重算粉丝后调用，可传入避免读库拿到旧值
      */
     static async tryUpgradeDistributorLevel(memberId, override) {
         const member = await Member.findByPk(memberId, {
-            attributes: ['id', 'distributorLevelId', 'totalSales', 'totalFans']
+            attributes: ['id', 'distributorLevelId', 'totalSales', 'totalFans', 'distributorLevelManualOverride']
         });
         if (!member) return { changed: false };
+        if (member.distributorLevelManualOverride) {
+            console.log('[等级升级] 分销等级检查 memberId=%s (override=是) 跳过自动覆盖', memberId);
+            return { changed: false };
+        }
         const totalSales = override && override.totalSales !== undefined ? override.totalSales : member.totalSales;
         const totalFans = override && override.totalFans !== undefined ? override.totalFans : member.totalFans;
         const activeFans = override && override.activeFans !== undefined
@@ -207,26 +225,37 @@ class LevelUpgradeService {
         console.log('[等级升级] 分销等级检查 memberId=%s totalSales=%s totalFans=%s activeFans=%s (override=%s)', memberId, totalSales, totalFans, activeFans, override ? '是' : '否');
         const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans, activeFans);
         const currentId = member.distributorLevelId ? parseInt(member.distributorLevelId, 10) : null;
-        const newId = eligible ? eligible.id : null;
+        let currentLevel = null;
+        if (currentId) {
+            currentLevel = await DistributorLevel.findByPk(currentId, { attributes: ['id', 'level'] });
+        }
+        const currentLevelNum = currentLevel ? parseInt(currentLevel.level, 10) : 0;
+        // 仅升级不降级：无匹配等级时保持当前等级；有匹配时仅当新等级更高才更新
+        if (!eligible) {
+            return { changed: false };
+        }
+        if (eligible.level <= currentLevelNum) {
+            console.log('[等级升级] 分销等级未变更 memberId=%s 当前已是 levelId=%s（仅升级不降级）', memberId, currentId);
+            return { changed: false };
+        }
+        const newId = eligible.id;
         if (newId === currentId) {
             console.log('[等级升级] 分销等级未变更 memberId=%s 当前已是 levelId=%s', memberId, currentId);
             return { changed: false };
         }
         console.log('[等级升级] 执行分销等级变更 memberId=%s %s -> %s', memberId, currentId, newId);
         await member.update({ distributorLevelId: newId });
-        if (newId != null) {
-            const usedFans = eligible.useActiveFansForUpgrade ? activeFans : totalFans;
-            const fansLabel = eligible.useActiveFansForUpgrade ? '活跃粉丝' : '粉丝';
-            await MemberLevelChangeRecord.create({
-                memberId: member.id,
-                levelType: 'distributor',
-                oldLevelId: currentId,
-                newLevelId: newId,
-                reason: 'auto_upgrade',
-                description: `自动升级：总销售额 ${totalSales}、${fansLabel} ${usedFans} 满足等级「${eligible.name}」条件`
-            });
-        }
-        return { changed: true, newLevelId: newId, newLevelName: eligible ? eligible.name : null };
+        const usedFans = eligible.useActiveFansForUpgrade ? activeFans : totalFans;
+        const fansLabel = eligible.useActiveFansForUpgrade ? '活跃粉丝' : '粉丝';
+        await MemberLevelChangeRecord.create({
+            memberId: member.id,
+            levelType: 'distributor',
+            oldLevelId: currentId,
+            newLevelId: newId,
+            reason: 'auto_upgrade',
+            description: `自动升级：总销售额 ${totalSales}、${fansLabel} ${usedFans} 满足等级「${eligible.name}」条件`
+        });
+        return { changed: true, newLevelId: newId, newLevelName: eligible.name };
     }
 
     /**
