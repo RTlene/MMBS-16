@@ -26,10 +26,10 @@ Page({
     submitting: false,
     // 配送方式：delivery-配送上门，pickup-门店自提
     deliveryType: 'delivery',
-    storeList: [],           // 门店列表（含距离）
-    selectedStore: null,     // 选中的自提门店
-    showStorePicker: false,  // 是否显示门店选择弹窗
-    userLat: null,           // 用户纬度（用于请求带距离的门店列表）
+    storeList: [],
+    selectedStore: null,
+    showStorePicker: false,
+    userLat: null,
     userLng: null,
     memberInfo: null,
     availableCommission: 0,
@@ -38,7 +38,13 @@ Page({
     usePoints: 0,
     commissionDeduction: 0,
     pointsDeduction: 0,
-    POINTS_TO_MONEY_RATE: 100
+    POINTS_TO_MONEY_RATE: 100,
+    // 价格计算与公式展示
+    pricingLoading: true,
+    orderOriginalAmount: 0,       // 商品原价合计
+    promotionDiscountTotal: 0,    // 促销优惠总金额
+    subtotalAfterPromo: 0,       // 促销后小计（优惠券/佣金/积分前的金额）
+    pricingDiscounts: []         // 促销明细 [{ type, name, amount }]
   },
 
   onLoad() {
@@ -58,36 +64,104 @@ Page({
 
     this.pendingOrder = pendingOrder;
     const items = pendingOrder.items;
-    
-    // 计算价格明细
-    const originalAmount = items.reduce((sum, item) => {
+
+    const localOriginal = items.reduce((sum, item) => {
       return sum + (parseFloat(item.price || 0) * (item.quantity || 1));
     }, 0);
-    
-    // 暂时没有优惠，后续可以接入优惠券API
-    const discountAmount = 0;
-    const totalAmount = originalAmount - discountAmount;
 
     const appMember = app.globalData.memberInfo || {};
 
     this.setData({
       items,
-      originalAmount: parseFloat(originalAmount.toFixed(2)),
-      discountAmount: parseFloat(discountAmount.toFixed(2)),
-      totalAmount: parseFloat(totalAmount.toFixed(2)),
+      originalAmount: parseFloat(localOriginal.toFixed(2)),
+      orderOriginalAmount: parseFloat(localOriginal.toFixed(2)),
+      discountAmount: 0,
+      totalAmount: parseFloat(localOriginal.toFixed(2)),
+      subtotalAfterPromo: parseFloat(localOriginal.toFixed(2)),
+      promotionDiscountTotal: 0,
+      pricingDiscounts: [],
+      pricingLoading: true,
       availableCoupons: [],
       receiverName: appMember.realName || appMember.nickname || '',
       receiverPhone: appMember.phone || appMember.mobile || '',
       shippingAddress: ''
     });
-    
-    // 加载可用优惠券（传入当前 items/originalAmount，避免 setData 未完成时读到空数据）
-    this.loadAvailableCoupons(items, originalAmount);
 
+    this.loadOrderPricing();
     this.loadAddresses();
     this.loadMemberInfo();
     // 获取定位并加载门店列表（自提时按距离排序）
     this.getUserLocationAndLoadStores();
+  },
+
+  /**
+   * 请求后端计算每项价格（含促销），汇总原价、促销后小计、促销明细
+   */
+  async loadOrderPricing() {
+    const items = this.data.items || [];
+    const app = getApp();
+    const memberId = (app.globalData.memberInfo && app.globalData.memberInfo.id) || (app.globalData.memberId) || 0;
+
+    if (!items.length) {
+      this.setData({ pricingLoading: false });
+      return;
+    }
+
+    let orderOriginalAmount = 0;
+    let orderSubtotalAfterPromo = 0;
+    const discountMap = {}; // { name: amount } 合并同名促销
+
+    try {
+      for (const item of items) {
+        const res = await request.post(API.PRODUCT.CALCULATE_PRICE, {
+          productId: item.productId,
+          skuId: item.skuId || null,
+          quantity: item.quantity || 1,
+          memberId: memberId || 0
+        }, { showLoading: false, showError: false });
+        if (res.code !== 0 || !res.data || !res.data.pricing) continue;
+        const p = res.data.pricing;
+        const orig = parseFloat(p.originalAmount) || 0;
+        const finalP = parseFloat(p.finalPrice) != null ? parseFloat(p.finalPrice) : orig;
+        orderOriginalAmount += orig;
+        orderSubtotalAfterPromo += finalP;
+        (p.discounts || []).forEach(d => {
+          const name = (d.name || d.description || '促销').trim();
+          const amt = parseFloat(d.amount) || 0;
+          if (amt > 0) discountMap[name] = (discountMap[name] || 0) + amt;
+        });
+      }
+
+      const promotionDiscountTotal = Math.round((orderOriginalAmount - orderSubtotalAfterPromo) * 100) / 100;
+      const pricingDiscounts = Object.keys(discountMap).map(name => ({
+        type: 'promotion',
+        name,
+        amount: parseFloat((discountMap[name] || 0).toFixed(2))
+      }));
+
+      const subtotal = parseFloat(orderSubtotalAfterPromo.toFixed(2));
+      const totalAmount = Math.max(0, subtotal - (this.data.discountAmount || 0) - (this.data.commissionDeduction || 0) - (this.data.pointsDeduction || 0));
+
+      this.setData({
+        pricingLoading: false,
+        orderOriginalAmount: parseFloat(orderOriginalAmount.toFixed(2)),
+        promotionDiscountTotal: parseFloat(promotionDiscountTotal.toFixed(2)),
+        subtotalAfterPromo: subtotal,
+        pricingDiscounts,
+        originalAmount: parseFloat(orderOriginalAmount.toFixed(2)),
+        totalAmount: parseFloat(totalAmount.toFixed(2))
+      });
+
+      this.loadAvailableCoupons(this.data.items, subtotal);
+    } catch (e) {
+      console.error('[OrderConfirm] loadOrderPricing fail', e);
+      this.setData({
+        pricingLoading: false,
+        subtotalAfterPromo: this.data.originalAmount,
+        orderOriginalAmount: this.data.originalAmount
+      });
+      this.loadAvailableCoupons(this.data.items, this.data.originalAmount);
+    }
   },
 
   /** 获取用户定位并加载门店列表 */
@@ -327,10 +401,9 @@ Page({
    */
   selectCoupon(coupon) {
     if (!coupon) return;
-    
-    // 代金券=面值 value；折扣券=折扣率 discountValue（固定金额用代金券）
+
+    const baseAmount = (this.data.subtotalAfterPromo != null && this.data.subtotalAfterPromo > 0) ? this.data.subtotalAfterPromo : this.data.originalAmount;
     let discountAmount = 0;
-    const originalAmount = this.data.originalAmount;
     const isCashOrFixed = coupon.type === 'cash' || coupon.discountType === 'fixed';
     if (isCashOrFixed) {
       discountAmount = parseFloat(coupon.value != null ? coupon.value : (coupon.discountValue != null ? coupon.discountValue : 0));
@@ -340,29 +413,22 @@ Page({
       if (v > 0 && v <= 1) payRatio = v;
       else if (v > 1 && v <= 10) payRatio = v / 10;
       else if (v > 10) payRatio = v / 100;
-      discountAmount = originalAmount * (1 - Math.min(1, payRatio));
+      discountAmount = baseAmount * (1 - Math.min(1, payRatio));
       if (coupon.maxDiscountAmount != null) discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
       if (coupon.maxDiscount != null) discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscount));
     }
-    
-    // 检查最低订单金额
-    if (coupon.minOrderAmount && originalAmount < parseFloat(coupon.minOrderAmount)) {
-      wx.showToast({
-        title: `订单金额需满${coupon.minOrderAmount}元`,
-        icon: 'none'
-      });
+
+    if (coupon.minOrderAmount && baseAmount < parseFloat(coupon.minOrderAmount)) {
+      wx.showToast({ title: `订单金额需满${coupon.minOrderAmount}元`, icon: 'none' });
       return;
     }
-    
-    const totalAmount = Math.max(0, originalAmount - discountAmount);
-    
+
+    const totalAmount = Math.max(0, baseAmount - discountAmount);
     this.setData({
       selectedCoupon: coupon,
       discountAmount: parseFloat(discountAmount.toFixed(2)),
       totalAmount: parseFloat(totalAmount.toFixed(2))
     });
-    
-    // 重新计算抵扣后的金额
     this.calculateFinalAmount();
   },
 
@@ -384,69 +450,64 @@ Page({
     // 再次点击已选中的优惠券则取消选择（用 data-id 比较最可靠，兼容数字/字符串）
     const selectedId = selected ? String(selected.id) : '';
     const tappedId = tapId != null ? String(tapId) : (coupon && coupon.id != null ? String(coupon.id) : '');
+    const baseAmount = (this.data.subtotalAfterPromo != null && this.data.subtotalAfterPromo > 0) ? this.data.subtotalAfterPromo : this.data.originalAmount;
     if (selectedId && tappedId && selectedId === tappedId) {
       this.setData({
         selectedCoupon: null,
         discountAmount: 0,
-        totalAmount: this.data.originalAmount,
+        totalAmount: parseFloat(baseAmount.toFixed(2)),
         showCouponPicker: false
       });
       this.calculateFinalAmount();
       return;
     }
     if (!coupon || !coupon.id) return;
-    
-    // 代金券=面值 value；折扣券=折扣率 discountValue（不做固定金额，固定金额用代金券）
+
     let discountAmount = 0;
     const isCashOrFixed = coupon.type === 'cash' || coupon.discountType === 'fixed';
     if (isCashOrFixed) {
-      // 代金券：只使用面值 value
       discountAmount = parseFloat(coupon.value != null ? coupon.value : (coupon.discountValue != null ? coupon.discountValue : 0));
     } else if (coupon.type === 'discount' || coupon.discountType === 'percent' || coupon.discountType === 'percentage') {
-      // 折扣券：只使用折扣率 discountValue，不使用面值 value；支持 0.9/9/90 等折数表示
       const v = parseFloat(coupon.discountValue != null ? coupon.discountValue : 0);
       let payRatio = 1;
       if (v > 0 && v <= 1) payRatio = v;
       else if (v > 1 && v <= 10) payRatio = v / 10;
       else if (v > 10) payRatio = v / 100;
-      discountAmount = this.data.originalAmount * (1 - Math.min(1, payRatio));
-      if (coupon.maxDiscountAmount != null) {
-        discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
-      }
+      discountAmount = baseAmount * (1 - Math.min(1, payRatio));
+      if (coupon.maxDiscountAmount != null) discountAmount = Math.min(discountAmount, parseFloat(coupon.maxDiscountAmount));
     }
-    
-    const totalAmount = Math.max(0, this.data.originalAmount - discountAmount);
-    
+
+    const totalAmount = Math.max(0, baseAmount - discountAmount);
     this.setData({
       selectedCoupon: coupon,
       discountAmount: parseFloat(discountAmount.toFixed(2)),
       totalAmount: parseFloat(totalAmount.toFixed(2)),
       showCouponPicker: false
     });
+    this.calculateFinalAmount();
   },
 
   /**
    * 取消选择优惠券
    */
   onRemoveCoupon() {
+    const baseAmount = (this.data.subtotalAfterPromo != null && this.data.subtotalAfterPromo > 0) ? this.data.subtotalAfterPromo : this.data.originalAmount;
     this.setData({
       selectedCoupon: null,
       discountAmount: 0,
-      totalAmount: this.data.originalAmount
+      totalAmount: parseFloat(baseAmount.toFixed(2))
     });
-    
-    // 重新计算抵扣后的金额
     this.calculateFinalAmount();
   },
   
   /**
-   * 计算最终金额（考虑优惠券、佣金、积分抵扣）
+   * 计算最终金额（促销后小计 - 优惠券 - 佣金 - 积分）
    */
   calculateFinalAmount() {
-    const { originalAmount, discountAmount, availableCommission, availablePoints, useCommission, usePoints, POINTS_TO_MONEY_RATE } = this.data;
-    
-    // 先减去优惠券折扣
-    let finalAmount = Math.max(0, originalAmount - discountAmount);
+    const { subtotalAfterPromo, originalAmount, discountAmount, availableCommission, availablePoints, useCommission, usePoints, POINTS_TO_MONEY_RATE } = this.data;
+    const baseAmount = (subtotalAfterPromo != null && subtotalAfterPromo > 0) ? subtotalAfterPromo : originalAmount;
+
+    let finalAmount = Math.max(0, baseAmount - discountAmount);
     
     // 计算佣金抵扣
     let commissionDeduction = 0;
@@ -568,16 +629,15 @@ Page({
   },
 
   /**
-   * 加载可用优惠券（可选传入 items、originalAmount，避免 setData 未完成时读到空数据）
+   * 加载可用优惠券（subtotal 建议用促销后小计，以便门槛正确）
    */
-  async loadAvailableCoupons(itemsArg, originalAmountArg) {
+  async loadAvailableCoupons(itemsArg, subtotalArg) {
     try {
       const items = itemsArg != null ? itemsArg : (this.data.items || []);
-      const originalAmount = originalAmountArg != null ? originalAmountArg : (this.data.originalAmount || 0);
+      const subtotal = subtotalArg != null ? subtotalArg : (this.data.subtotalAfterPromo != null && this.data.subtotalAfterPromo > 0 ? this.data.subtotalAfterPromo : this.data.originalAmount || 0);
       if (!items.length) return;
 
       const productIds = items.map(item => item.productId).filter(Boolean);
-      const subtotal = originalAmount;
 
       const params = {
         subtotal: subtotal

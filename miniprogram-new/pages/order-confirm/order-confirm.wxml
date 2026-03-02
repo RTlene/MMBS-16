@@ -125,17 +125,36 @@
     </view>
   </view>
 
-  <!-- 价格明细 -->
+  <!-- 价格明细与公式 -->
   <view class="section-block summary-section">
     <view class="block-title">
       <text class="block-title-icon">💰</text>
       <text class="block-title-text">订单明细</text>
     </view>
     <view class="summary-card">
-    <view class="summary-row">
-      <text class="summary-label">商品合计</text>
-      <text class="summary-value">¥{{originalAmount}}</text>
+    <view class="summary-row" wx:if="{{pricingLoading}}">
+      <text class="summary-label">正在计算价格…</text>
     </view>
+    <block wx:else>
+    <view class="summary-row">
+      <text class="summary-label">商品原价</text>
+      <text class="summary-value">¥{{orderOriginalAmount || originalAmount}}</text>
+    </view>
+    <view class="summary-row promotion-row" wx:if="{{promotionDiscountTotal > 0}}">
+      <view class="promotion-left">
+        <text class="summary-label">促销优惠</text>
+        <view class="promotion-detail" wx:for="{{pricingDiscounts}}" wx:key="name">
+          <text class="promotion-detail-name">{{item.name}}</text>
+          <text class="promotion-detail-amount">-¥{{item.amount}}</text>
+        </view>
+      </view>
+      <text class="summary-value discount">-¥{{promotionDiscountTotal}}</text>
+    </view>
+    <view class="summary-row" wx:if="{{promotionDiscountTotal > 0}}">
+      <text class="summary-label">小计（促销后）</text>
+      <text class="summary-value">¥{{subtotalAfterPromo}}</text>
+    </view>
+    </block>
     
     <!-- 优惠券选择 -->
     <view class="summary-row coupon-row" bindtap="onShowCouponPicker">
@@ -208,11 +227,38 @@
       <text class="deduction-input-unit">积分（100积分=1元）</text>
     </view>
     
-    <!-- 价格明细 -->
-    <view class="price-detail" wx:if="{{discountAmount > 0 || commissionDeduction > 0 || pointsDeduction > 0}}">
+    <!-- 价格计算公式 -->
+    <view class="price-formula-block">
+      <view class="formula-title">价格计算</view>
+      <view class="formula-line">
+        <text class="formula-text">商品原价 ¥{{orderOriginalAmount || originalAmount}}</text>
+      </view>
+      <view class="formula-line" wx:if="{{promotionDiscountTotal > 0}}">
+        <text class="formula-text formula-minus">- 促销优惠 ¥{{promotionDiscountTotal}}</text>
+      </view>
+      <view class="formula-line" wx:if="{{discountAmount > 0}}">
+        <text class="formula-text formula-minus">- 优惠券 ¥{{discountAmount}}</text>
+      </view>
+      <view class="formula-line" wx:if="{{commissionDeduction > 0}}">
+        <text class="formula-text formula-minus">- 佣金抵扣 ¥{{commissionDeduction}}</text>
+      </view>
+      <view class="formula-line" wx:if="{{pointsDeduction > 0}}">
+        <text class="formula-text formula-minus">- 积分抵扣 ¥{{pointsDeduction}}</text>
+      </view>
+      <view class="formula-line formula-result">
+        <text class="formula-text">= 实付 ¥{{totalAmount}}</text>
+      </view>
+    </view>
+    
+    <!-- 价格明细（折叠式，与公式一致） -->
+    <view class="price-detail" wx:if="{{discountAmount > 0 || commissionDeduction > 0 || pointsDeduction > 0 || promotionDiscountTotal > 0}}">
       <view class="detail-row">
-        <text class="detail-label">原价</text>
-        <text class="detail-value">¥{{originalAmount}}</text>
+        <text class="detail-label">商品原价</text>
+        <text class="detail-value">¥{{orderOriginalAmount || originalAmount}}</text>
+      </view>
+      <view class="detail-row discount-row" wx:if="{{promotionDiscountTotal > 0}}">
+        <text class="detail-label">促销优惠</text>
+        <text class="detail-value discount">-¥{{promotionDiscountTotal}}</text>
       </view>
       <view class="detail-row discount-row" wx:if="{{discountAmount > 0}}">
         <text class="detail-label">优惠券</text>

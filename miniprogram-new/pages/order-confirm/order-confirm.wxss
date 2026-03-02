@@ -342,6 +342,57 @@
   color: #CCCCCC;
 }
 
+/* 促销行与明细 */
+.promotion-row {
+  align-items: flex-start;
+}
+.promotion-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.promotion-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24rpx;
+  color: #666;
+}
+.promotion-detail-name { margin-right: 16rpx; }
+.promotion-detail-amount { color: #FA5151; font-weight: 600; }
+.summary-value.discount { color: #FA5151; font-weight: 600; }
+
+/* 价格计算公式 */
+.price-formula-block {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: #f8f9fa;
+  border-radius: 12rpx;
+  border: 1rpx solid #eee;
+}
+.formula-title {
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 12rpx;
+  font-weight: 600;
+}
+.formula-line {
+  margin-bottom: 8rpx;
+}
+.formula-line:last-child,
+.formula-result { margin-bottom: 0; }
+.formula-text {
+  font-size: 26rpx;
+  color: #333;
+}
+.formula-minus { color: #FA5151; }
+.formula-result .formula-text {
+  font-weight: 600;
+  color: #d4af37;
+  font-size: 28rpx;
+}
+
 /* 价格明细 */
 .price-detail {
   margin-top: 16rpx;
