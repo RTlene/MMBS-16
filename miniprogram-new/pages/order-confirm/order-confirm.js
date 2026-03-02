@@ -153,7 +153,8 @@ Page({
         amount: parseFloat((discountMap[name] || 0).toFixed(2))
       }));
 
-      const subtotal = parseFloat(orderSubtotalAfterPromo.toFixed(2));
+      const orderOrig = parseFloat(orderOriginalAmount.toFixed(2));
+      let subtotal = parseFloat(orderSubtotalAfterPromo.toFixed(2));
       let discountAmount = this.data.discountAmount || 0;
       if (selectedCouponOpt) {
         const c = selectedCouponOpt;
@@ -166,19 +167,23 @@ Page({
           if (v > 0 && v <= 1) payRatio = v;
           else if (v > 1 && v <= 10) payRatio = v / 10;
           else if (v > 10) payRatio = v / 100;
-          discountAmount = subtotal * (1 - Math.min(1, payRatio));
+          discountAmount = orderOrig * (1 - Math.min(1, payRatio));
           if (c.maxDiscountAmount != null) discountAmount = Math.min(discountAmount, parseFloat(c.maxDiscountAmount));
+        }
+        // 选不可叠加券时后端已不应用促销，返回的 subtotal 已是「原价-券」；展示上小计用原价，实付 = 原价 - 券 - 佣金 - 积分，避免重复减券
+        if (selectedCouponOpt.stackWithPromotion === false) {
+          subtotal = orderOrig;
         }
       }
       const totalAmount = Math.max(0, subtotal - discountAmount - (this.data.commissionDeduction || 0) - (this.data.pointsDeduction || 0));
 
       this.setData({
         pricingLoading: false,
-        orderOriginalAmount: parseFloat(orderOriginalAmount.toFixed(2)),
+        orderOriginalAmount: orderOrig,
         promotionDiscountTotal: parseFloat(promotionDiscountTotal.toFixed(2)),
         subtotalAfterPromo: subtotal,
         pricingDiscounts,
-        originalAmount: parseFloat(orderOriginalAmount.toFixed(2)),
+        originalAmount: orderOrig,
         discountAmount: parseFloat(discountAmount.toFixed(2)),
         totalAmount: parseFloat(totalAmount.toFixed(2))
       });
