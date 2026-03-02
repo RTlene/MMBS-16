@@ -483,6 +483,18 @@ const MemberLevel = sequelize.define("MemberLevel", {
         defaultValue: 0,
         comment: '间接佣金比例（%）'
   },
+    discountRate: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: 1,
+        comment: '会员折扣率（0-1，如 0.9 表示 9 折）'
+    },
+    pointsRate: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: 1,
+        comment: '积分获得倍率（如 1.5 表示 1.5 倍）'
+    },
   status: {
     type: DataTypes.ENUM('active', 'inactive'),
         allowNull: false,
