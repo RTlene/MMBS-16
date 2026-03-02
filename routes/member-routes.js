@@ -903,9 +903,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
             const activeMemberCheckService = require('../services/activeMemberCheckService');
             activeMemberCheckService.setMemberActive(member.id).catch(() => {});
         } catch (_) {}
+        // 本请求若在 body 中传了等级字段，视为手动设置，本次不执行自动升级覆盖（不依赖 DB 的 manualOverride 列即可生效）
+        const skipLevelOverwrite = {};
+        if (memberData.hasOwnProperty('memberLevelId')) skipLevelOverwrite.member = true;
+        if (memberData.hasOwnProperty('distributorLevelId')) skipLevelOverwrite.distributor = true;
         try {
-            console.log('[会员更新] 触发等级/粉丝检查 memberId=%s oldReferrerId=%s newReferrerId=%s', member.id, oldReferrerId, newReferrerId);
-            await LevelUpgradeService.onMemberDataChanged(member.id, { oldReferrerId, newReferrerId });
+            console.log('[会员更新] 触发等级/粉丝检查 memberId=%s oldReferrerId=%s newReferrerId=%s skipLevelOverwrite=%s', member.id, oldReferrerId, newReferrerId, Object.keys(skipLevelOverwrite).length ? JSON.stringify(skipLevelOverwrite) : '无');
+            await LevelUpgradeService.onMemberDataChanged(member.id, { oldReferrerId, newReferrerId, skipLevelOverwrite: Object.keys(skipLevelOverwrite).length ? skipLevelOverwrite : undefined });
         } catch (e) {
             console.error('会员信息变更后等级/粉丝检查失败:', e);
         }

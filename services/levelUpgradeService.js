@@ -80,13 +80,14 @@ class LevelUpgradeService {
 
     /**
      * 会员信息变更后：对该会员做升级检查；若推荐人变更则对旧/新推荐人整条上级链重算粉丝并做升级检查
+     * @param {object} [options.skipLevelOverwrite] 本请求内跳过等级覆盖：{ member: true, distributor: true } 表示本次请求已手动设置该等级，不执行自动升级
      */
     static async onMemberDataChanged(memberId, options = {}) {
-        const { oldReferrerId, newReferrerId } = options;
+        const { oldReferrerId, newReferrerId, skipLevelOverwrite } = options;
         const oldId = oldReferrerId != null && oldReferrerId >= 1 ? oldReferrerId : null;
         const newId = newReferrerId != null && newReferrerId >= 1 ? newReferrerId : null;
         try {
-            await this.tryUpgradeMember(memberId);
+            await this.tryUpgradeMember(memberId, undefined, skipLevelOverwrite);
         } catch (e) {
             console.error('[等级升级] 该会员检查失败:', e);
         }
@@ -262,18 +263,27 @@ class LevelUpgradeService {
      * 对指定会员执行会员等级 + 分销等级自动升级检查
      * @param {number} memberId
      * @param {{ totalFans?: number, totalSales?: number }} [override] 刚重算粉丝后传入，避免读库拿到旧值
+     * @param {{ member?: boolean, distributor?: boolean }} [skipLevelOverwrite] 本请求内跳过：为 true 时不执行该类型自动升级（用于本次请求已手动设置等级）
      */
-    static async tryUpgradeMember(memberId, override) {
+    static async tryUpgradeMember(memberId, override, skipLevelOverwrite) {
         const results = { memberLevel: { changed: false }, distributorLevel: { changed: false } };
-        try {
-            results.memberLevel = await this.tryUpgradeMemberLevel(memberId);
-        } catch (e) {
-            console.error('[等级自动升级] 会员等级检查失败 memberId=%s:', memberId, e.message);
+        if (!skipLevelOverwrite || !skipLevelOverwrite.member) {
+            try {
+                results.memberLevel = await this.tryUpgradeMemberLevel(memberId);
+            } catch (e) {
+                console.error('[等级自动升级] 会员等级检查失败 memberId=%s:', memberId, e.message);
+            }
+        } else {
+            console.log('[等级升级] 本请求已设置会员等级，跳过自动升级 memberId=%s', memberId);
         }
-        try {
-            results.distributorLevel = await this.tryUpgradeDistributorLevel(memberId, override);
-        } catch (e) {
-            console.error('[等级自动升级] 分销等级检查失败 memberId=%s:', memberId, e.message);
+        if (!skipLevelOverwrite || !skipLevelOverwrite.distributor) {
+            try {
+                results.distributorLevel = await this.tryUpgradeDistributorLevel(memberId, override);
+            } catch (e) {
+                console.error('[等级自动升级] 分销等级检查失败 memberId=%s:', memberId, e.message);
+            }
+        } else {
+            console.log('[等级升级] 本请求已设置分销等级，跳过自动升级 memberId=%s', memberId);
         }
         return results;
     }
