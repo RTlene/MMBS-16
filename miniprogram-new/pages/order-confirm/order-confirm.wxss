@@ -362,6 +362,12 @@
 .promotion-detail-name { margin-right: 16rpx; }
 .promotion-detail-amount { color: #FA5151; font-weight: 600; }
 .summary-value.discount { color: #FA5151; font-weight: 600; }
+.promotion-invalidated-row .summary-value.promotion-strikethrough { text-decoration: line-through; color: #999; }
+.promotion-invalidated-hint { font-size: 22rpx; color: #999; margin-top: 6rpx; display: block; }
+.formula-invalidated { display: flex; flex-wrap: wrap; align-items: center; gap: 8rpx; }
+.formula-strikethrough { text-decoration: line-through; color: #999; }
+.formula-hint { font-size: 22rpx; color: #999; }
+.detail-row-invalidated .detail-value.detail-strikethrough { text-decoration: line-through; color: #999; }
 
 /* 价格计算公式 */
 .price-formula-block {

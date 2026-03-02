@@ -41,10 +41,11 @@ Page({
     POINTS_TO_MONEY_RATE: 100,
     // 价格计算与公式展示
     pricingLoading: true,
-    orderOriginalAmount: 0,       // 商品原价合计
-    promotionDiscountTotal: 0,    // 促销优惠总金额
-    subtotalAfterPromo: 0,       // 促销后小计（优惠券/佣金/积分前的金额）
-    pricingDiscounts: []         // 促销明细 [{ type, name, amount }]
+    orderOriginalAmount: 0,
+    promotionDiscountTotal: 0,
+    subtotalAfterPromo: 0,
+    pricingDiscounts: [],
+    promotionDiscountInvalidatedByCoupon: 0  // 选不可与促销同享的券时，保存被失效的促销金额用于展示划掉
   },
 
   onLoad() {
@@ -95,12 +96,14 @@ Page({
   },
 
   /**
-   * 请求后端计算每项价格（含促销），汇总原价、促销后小计、促销明细
+   * 请求后端计算每项价格（含促销/券不叠加逻辑），汇总原价、促销后小计、促销明细
+   * @param {Object} selectedCouponOpt - 当前选中的优惠券，传入时后端会按「不可叠加」规则返回价格
    */
-  async loadOrderPricing() {
+  async loadOrderPricing(selectedCouponOpt) {
     const items = this.data.items || [];
     const app = getApp();
     const memberId = (app.globalData.memberInfo && app.globalData.memberInfo.id) || (app.globalData.memberId) || 0;
+    const appliedCoupons = selectedCouponOpt ? [{ id: selectedCouponOpt.id }] : [];
 
     if (!items.length) {
       this.setData({ pricingLoading: false });
@@ -109,22 +112,20 @@ Page({
 
     let orderOriginalAmount = 0;
     let orderSubtotalAfterPromo = 0;
-    const discountMap = {}; // { name: amount } 合并同名促销
+    const discountMap = {};
 
     const fetchPrice = async (item) => {
-      let res = await request.post(API.PRODUCT.CALCULATE_PRICE, {
+      const body = {
         productId: item.productId,
         skuId: item.skuId || null,
         quantity: item.quantity || 1,
-        memberId: memberId || 0
-      }, { showLoading: false, showError: false });
+        memberId: memberId || 0,
+        appliedCoupons,
+        appliedPromotions: []
+      };
+      let res = await request.post(API.PRODUCT.CALCULATE_PRICE, body, { showLoading: false, showError: false });
       if (res.code === 0 && res.data && res.data.pricing) return res.data.pricing;
-      res = await request.post(API.PRODUCT.CALCULATE_PRICE, {
-        productId: item.productId,
-        skuId: item.skuId || null,
-        quantity: item.quantity || 1,
-        memberId: memberId || 0
-      }, { showLoading: false, showError: false });
+      res = await request.post(API.PRODUCT.CALCULATE_PRICE, body, { showLoading: false, showError: false });
       return (res.code === 0 && res.data && res.data.pricing) ? res.data.pricing : null;
     };
 
@@ -153,7 +154,23 @@ Page({
       }));
 
       const subtotal = parseFloat(orderSubtotalAfterPromo.toFixed(2));
-      const totalAmount = Math.max(0, subtotal - (this.data.discountAmount || 0) - (this.data.commissionDeduction || 0) - (this.data.pointsDeduction || 0));
+      let discountAmount = this.data.discountAmount || 0;
+      if (selectedCouponOpt) {
+        const c = selectedCouponOpt;
+        const isCashOrFixed = c.type === 'cash' || c.discountType === 'fixed';
+        if (isCashOrFixed) {
+          discountAmount = parseFloat(c.value != null ? c.value : (c.discountValue != null ? c.discountValue : 0));
+        } else if (c.type === 'discount' || c.discountType === 'percent' || c.discountType === 'percentage') {
+          const v = parseFloat(c.discountValue != null ? c.discountValue : 0);
+          let payRatio = 1;
+          if (v > 0 && v <= 1) payRatio = v;
+          else if (v > 1 && v <= 10) payRatio = v / 10;
+          else if (v > 10) payRatio = v / 100;
+          discountAmount = subtotal * (1 - Math.min(1, payRatio));
+          if (c.maxDiscountAmount != null) discountAmount = Math.min(discountAmount, parseFloat(c.maxDiscountAmount));
+        }
+      }
+      const totalAmount = Math.max(0, subtotal - discountAmount - (this.data.commissionDeduction || 0) - (this.data.pointsDeduction || 0));
 
       this.setData({
         pricingLoading: false,
@@ -162,6 +179,7 @@ Page({
         subtotalAfterPromo: subtotal,
         pricingDiscounts,
         originalAmount: parseFloat(orderOriginalAmount.toFixed(2)),
+        discountAmount: parseFloat(discountAmount.toFixed(2)),
         totalAmount: parseFloat(totalAmount.toFixed(2))
       });
 
@@ -437,12 +455,14 @@ Page({
     }
 
     const totalAmount = Math.max(0, baseAmount - discountAmount);
+    const invalidated = (coupon.stackWithPromotion === false) ? (this.data.promotionDiscountTotal || 0) : 0;
     this.setData({
       selectedCoupon: coupon,
       discountAmount: parseFloat(discountAmount.toFixed(2)),
-      totalAmount: parseFloat(totalAmount.toFixed(2))
+      totalAmount: parseFloat(totalAmount.toFixed(2)),
+      promotionDiscountInvalidatedByCoupon: invalidated
     });
-    this.calculateFinalAmount();
+    this.loadOrderPricing(coupon);
   },
 
   /**
@@ -469,9 +489,10 @@ Page({
         selectedCoupon: null,
         discountAmount: 0,
         totalAmount: parseFloat(baseAmount.toFixed(2)),
-        showCouponPicker: false
+        showCouponPicker: false,
+        promotionDiscountInvalidatedByCoupon: 0
       });
-      this.calculateFinalAmount();
+      this.loadOrderPricing(null);
       return;
     }
     if (!coupon || !coupon.id) return;
@@ -491,13 +512,15 @@ Page({
     }
 
     const totalAmount = Math.max(0, baseAmount - discountAmount);
+    const invalidated = (coupon.stackWithPromotion === false) ? (this.data.promotionDiscountTotal || 0) : 0;
     this.setData({
       selectedCoupon: coupon,
       discountAmount: parseFloat(discountAmount.toFixed(2)),
       totalAmount: parseFloat(totalAmount.toFixed(2)),
-      showCouponPicker: false
+      showCouponPicker: false,
+      promotionDiscountInvalidatedByCoupon: invalidated
     });
-    this.calculateFinalAmount();
+    this.loadOrderPricing(coupon);
   },
 
   /**
@@ -508,9 +531,10 @@ Page({
     this.setData({
       selectedCoupon: null,
       discountAmount: 0,
-      totalAmount: parseFloat(baseAmount.toFixed(2))
+      totalAmount: parseFloat(baseAmount.toFixed(2)),
+      promotionDiscountInvalidatedByCoupon: 0
     });
-    this.calculateFinalAmount();
+    this.loadOrderPricing(null);
   },
   
   /**
@@ -753,6 +777,14 @@ Page({
           items.forEach(cartItem => {
             app.removeFromCart(cartItem.productId, cartItem.skuId);
           });
+          app.updateCartInfo();
+          try {
+            if (app.globalData.cartCount > 0) {
+              wx.setTabBarBadge({ index: 3, text: String(app.globalData.cartCount) });
+            } else {
+              wx.removeTabBarBadge({ index: 3 });
+            }
+          } catch (e) { /* tabBar 可能未就绪 */ }
         }
         app.globalData.pendingOrder = null;
 

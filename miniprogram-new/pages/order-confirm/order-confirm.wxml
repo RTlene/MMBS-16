@@ -150,7 +150,14 @@
       </view>
       <text class="summary-value discount">-¥{{promotionDiscountTotal}}</text>
     </view>
-    <view class="summary-row" wx:if="{{promotionDiscountTotal > 0}}">
+    <view class="summary-row promotion-invalidated-row" wx:if="{{promotionDiscountInvalidatedByCoupon > 0}}">
+      <view class="promotion-left">
+        <text class="summary-label">促销优惠</text>
+        <text class="promotion-invalidated-hint">使用不可与促销同享的优惠券，本单促销不生效</text>
+      </view>
+      <text class="summary-value discount promotion-strikethrough">-¥{{promotionDiscountInvalidatedByCoupon}}</text>
+    </view>
+    <view class="summary-row" wx:if="{{promotionDiscountTotal > 0 || promotionDiscountInvalidatedByCoupon > 0}}">
       <text class="summary-label">小计（促销后）</text>
       <text class="summary-value">¥{{subtotalAfterPromo}}</text>
     </view>
@@ -236,6 +243,10 @@
       <view class="formula-line" wx:if="{{promotionDiscountTotal > 0}}">
         <text class="formula-text formula-minus">- 促销优惠 ¥{{promotionDiscountTotal}}</text>
       </view>
+      <view class="formula-line formula-invalidated" wx:if="{{promotionDiscountInvalidatedByCoupon > 0}}">
+        <text class="formula-text formula-minus formula-strikethrough">- 促销优惠 ¥{{promotionDiscountInvalidatedByCoupon}}</text>
+        <text class="formula-hint">（不可与当前优惠券同享，已失效）</text>
+      </view>
       <view class="formula-line" wx:if="{{discountAmount > 0}}">
         <text class="formula-text formula-minus">- 优惠券 ¥{{discountAmount}}</text>
       </view>
@@ -251,7 +262,7 @@
     </view>
     
     <!-- 价格明细（折叠式，与公式一致） -->
-    <view class="price-detail" wx:if="{{discountAmount > 0 || commissionDeduction > 0 || pointsDeduction > 0 || promotionDiscountTotal > 0}}">
+    <view class="price-detail" wx:if="{{discountAmount > 0 || commissionDeduction > 0 || pointsDeduction > 0 || promotionDiscountTotal > 0 || promotionDiscountInvalidatedByCoupon > 0}}">
       <view class="detail-row">
         <text class="detail-label">商品原价</text>
         <text class="detail-value">¥{{orderOriginalAmount || originalAmount}}</text>
@@ -259,6 +270,10 @@
       <view class="detail-row discount-row" wx:if="{{promotionDiscountTotal > 0}}">
         <text class="detail-label">促销优惠</text>
         <text class="detail-value discount">-¥{{promotionDiscountTotal}}</text>
+      </view>
+      <view class="detail-row discount-row detail-row-invalidated" wx:if="{{promotionDiscountInvalidatedByCoupon > 0}}">
+        <text class="detail-label">促销优惠（已失效）</text>
+        <text class="detail-value discount detail-strikethrough">-¥{{promotionDiscountInvalidatedByCoupon}}</text>
       </view>
       <view class="detail-row discount-row" wx:if="{{discountAmount > 0}}">
         <text class="detail-label">优惠券</text>

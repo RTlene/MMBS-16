@@ -201,7 +201,9 @@ router.get('/coupons/available', authenticateMiniappUser, async (req, res) => {
                 maxDiscountAmount: coupon.maxDiscountAmount != null ? parseFloat(coupon.maxDiscountAmount) : null,
                 validFrom: coupon.validFrom,
                 validTo: coupon.validTo,
-                description: coupon.description
+                description: coupon.description,
+                stackWithPromotion: !!coupon.stackWithPromotion,
+                stackWithMemberBenefit: !!coupon.stackWithMemberBenefit
             };
         };
 
