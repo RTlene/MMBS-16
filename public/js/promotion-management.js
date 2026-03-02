@@ -163,31 +163,106 @@ function searchPromotions() {
     loadPromotions();
 }
 
-// 加载可参与会员等级（用于勾选）
-async function loadPromotionMemberLevels(selectedIds) {
-    const container = document.getElementById('promotionMemberLevels');
-    if (!container) return;
-    selectedIds = Array.isArray(selectedIds) ? selectedIds : [];
-    try {
-        const res = await fetch('/api/member-levels?limit=100', {
-            headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
-        });
-        const data = await res.json();
-        const levels = (data.code === 0 && data.data && data.data.levels) ? data.data.levels : [];
-        container.innerHTML = levels.map(function (l) {
-            const id = l.id;
-            const checked = selectedIds.indexOf(id) >= 0 ? ' checked' : '';
-            return '<label><input type="checkbox" class="promotion-member-level-cb" value="' + id + '"' + checked + '><span>' + (l.name || '等级' + id) + '</span></label>';
-        }).join('') || '<span class="form-hint">暂无会员等级</span>';
-    } catch (e) {
-        container.innerHTML = '<span class="form-hint">加载失败</span>';
+// 会员等级列表缓存（参与会员等级下拉用）
+window._promotionMemberLevelsCache = null;
+function loadPromotionMemberLevelsForSelect(cb) {
+    if (window._promotionMemberLevelsCache) {
+        if (cb) cb(window._promotionMemberLevelsCache);
+        return;
     }
+    fetch('/api/member-levels?limit=100', {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+    }).then(function (res) { return res.json(); }).then(function (data) {
+        var levels = (data.code === 0 && data.data && data.data.levels) ? data.data.levels : [];
+        window._promotionMemberLevelsCache = levels;
+        if (cb) cb(levels);
+    }).catch(function () { if (cb) cb([]); });
 }
 
-// 获取选中的可参与会员等级ID
+// 添加一条「参与会员等级」行
+function addPromotionMemberLevelRow(levelId) {
+    var list = document.getElementById('promotionMemberLevelsList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'rule-item promo-member-level-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    row.innerHTML =
+        '<select class="form-input promo-member-level-select" style="width:200px">' +
+        '<option value="">请选择会员等级</option></select>' +
+        '<button type="button" class="btn btn-danger btn-remove-promo-row" style="padding:4px 10px">删除</button>';
+    list.appendChild(row);
+    loadPromotionMemberLevelsForSelect(function (levels) {
+        var sel = row.querySelector('.promo-member-level-select');
+        levels.forEach(function (l) {
+            var opt = document.createElement('option');
+            opt.value = l.id;
+            opt.textContent = l.name || '等级' + l.id;
+            if (levelId != null && l.id === levelId) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    });
+    row.querySelector('.btn-remove-promo-row').addEventListener('click', function () { row.remove(); });
+}
+
+// 获取参与会员等级ID列表（从逐行选择中收集）
 function getPromotionMemberLevelIds() {
-    const boxes = document.querySelectorAll('#promotionMemberLevels .promotion-member-level-cb:checked');
-    return Array.prototype.map.call(boxes, function (cb) { return parseInt(cb.value, 10); });
+    var rows = document.querySelectorAll('#promotionMemberLevelsList .promo-member-level-row');
+    var ids = [];
+    rows.forEach(function (row) {
+        var sel = row.querySelector('.promo-member-level-select');
+        if (sel && sel.value) ids.push(parseInt(sel.value, 10));
+    });
+    return ids;
+}
+
+// 添加一条「参与商品」行（限时抢购、团购用）
+function addPromotionProductRow(productId) {
+    var list = document.getElementById('promotionProductIdsList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'rule-item promo-product-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    row.innerHTML =
+        '<select class="form-input promo-product-select" style="width:220px">' +
+        '<option value="">请选择商品</option></select>' +
+        '<button type="button" class="btn btn-danger btn-remove-promo-row" style="padding:4px 10px">删除</button>';
+    list.appendChild(row);
+    loadPromotionProducts(function (products) {
+        var sel = row.querySelector('.promo-product-select');
+        products.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = (p.name || '') + (p.id ? ' (ID:' + p.id + ')' : '');
+            if (productId != null && p.id === productId) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    });
+    row.querySelector('.btn-remove-promo-row').addEventListener('click', function () { row.remove(); });
+}
+
+// 添加一条「捆绑商品」行
+function addPromotionBundleProductRow(productId) {
+    var list = document.getElementById('promotionBundleProductsList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'rule-item promo-bundle-product-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    row.innerHTML =
+        '<select class="form-input promo-bundle-product-select" style="width:220px">' +
+        '<option value="">请选择商品</option></select>' +
+        '<button type="button" class="btn btn-danger btn-remove-promo-row" style="padding:4px 10px">删除</button>';
+    list.appendChild(row);
+    loadPromotionProducts(function (products) {
+        var sel = row.querySelector('.promo-bundle-product-select');
+        products.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = (p.name || '') + (p.id ? ' (ID:' + p.id + ')' : '');
+            if (productId != null && p.id === productId) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    });
+    row.querySelector('.btn-remove-promo-row').addEventListener('click', function () { row.remove(); });
 }
 
 // 显示添加促销活动模态框
@@ -196,7 +271,8 @@ function showAddPromotionModal() {
     document.getElementById('promotionModalTitle').textContent = '添加促销活动';
     document.getElementById('promotionForm').reset();
     updateRulesConfig();
-    loadPromotionMemberLevels([]);
+    var list = document.getElementById('promotionMemberLevelsList');
+    if (list) list.innerHTML = '';
     document.getElementById('promotionModal').classList.add('show');
 }
 
@@ -223,8 +299,12 @@ function editPromotion(promotionId) {
         fillRulesConfig(promotion.rules);
     }
 
-    loadPromotionMemberLevels(promotion.memberLevelIds || []);
-    
+    var memberList = document.getElementById('promotionMemberLevelsList');
+    if (memberList) {
+        memberList.innerHTML = '';
+        (promotion.memberLevelIds || []).forEach(function (id) { addPromotionMemberLevelRow(id); });
+    }
+
     document.getElementById('promotionModal').classList.add('show');
 }
 
@@ -249,7 +329,8 @@ function updateRulesConfig() {
                 </div>
                 <div class="rule-item">
                     <label>参与商品:</label>
-                    <input type="text" id="productIds" placeholder="商品ID，用逗号分隔">
+                    <div id="promotionProductIdsList" class="promo-row-list"></div>
+                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
                 </div>
             `;
             break;
@@ -265,7 +346,8 @@ function updateRulesConfig() {
                 </div>
                 <div class="rule-item">
                     <label>参与商品:</label>
-                    <input type="text" id="productIds" placeholder="商品ID，用逗号分隔">
+                    <div id="promotionProductIdsList" class="promo-row-list"></div>
+                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
                 </div>
             `;
             break;
@@ -273,7 +355,8 @@ function updateRulesConfig() {
             rulesHTML = `
                 <div class="rule-item">
                     <label>捆绑商品:</label>
-                    <input type="text" id="bundleProducts" placeholder="商品ID，用逗号分隔">
+                    <div id="promotionBundleProductsList" class="promo-row-list"></div>
+                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionBundleProductRow()">+ 添加捆绑商品</button>
                 </div>
                 <div class="rule-item">
                     <label>捆绑价格:</label>
@@ -335,6 +418,21 @@ function fillRulesConfig(rules) {
         if (discountInput) discountInput.value = r.discountAmount || '';
     }
 
+    if (rules.productIds && Array.isArray(rules.productIds)) {
+        var list = document.getElementById('promotionProductIdsList');
+        if (list) {
+            list.innerHTML = '';
+            rules.productIds.forEach(function (pid) { addPromotionProductRow(pid); });
+        }
+    }
+    if (rules.bundleProducts && Array.isArray(rules.bundleProducts)) {
+        var list = document.getElementById('promotionBundleProductsList');
+        if (list) {
+            list.innerHTML = '';
+            rules.bundleProducts.forEach(function (pid) { addPromotionBundleProductRow(pid); });
+        }
+    }
+
     if (rules.fullGiftRules && Array.isArray(rules.fullGiftRules)) {
         const list = document.getElementById('fullGiftRulesList');
         if (list) {
@@ -351,7 +449,7 @@ function fillRulesConfig(rules) {
     }
     
     Object.keys(rules).forEach(key => {
-        if (key === 'fullGiftRules' || key === 'fullDiscountRules' || key === 'fullReductionRules') return;
+        if (key === 'fullGiftRules' || key === 'fullDiscountRules' || key === 'fullReductionRules' || key === 'productIds' || key === 'bundleProducts') return;
         const input = document.getElementById(key);
         if (input) {
             input.value = Array.isArray(rules[key]) ? JSON.stringify(rules[key]) : (rules[key] || '');
@@ -502,30 +600,48 @@ function getRulesConfig() {
     const rules = {};
     
     switch (type) {
-        case 'flash_sale':
+        case 'flash_sale': {
             const discountRate = document.getElementById('discountRate');
             const limitQuantity = document.getElementById('limitQuantity');
-            const productIds = document.getElementById('productIds');
             if (discountRate && discountRate.value) rules.discountRate = parseFloat(discountRate.value);
             if (limitQuantity && limitQuantity.value) rules.limitQuantity = parseInt(limitQuantity.value);
-            if (productIds && productIds.value) rules.productIds = productIds.value.split(',').map(id => parseInt(id.trim()));
+            var productRows = document.querySelectorAll('#promotionProductIdsList .promo-product-row');
+            var pids = [];
+            productRows.forEach(function (row) {
+                var sel = row.querySelector('.promo-product-select');
+                if (sel && sel.value) pids.push(parseInt(sel.value, 10));
+            });
+            if (pids.length > 0) rules.productIds = pids;
             break;
-        case 'group_buy':
+        }
+        case 'group_buy': {
             const groupSize = document.getElementById('groupSize');
             const groupPrice = document.getElementById('groupPrice');
-            const productIds2 = document.getElementById('productIds');
             if (groupSize && groupSize.value) rules.groupSize = parseInt(groupSize.value);
             if (groupPrice && groupPrice.value) rules.groupPrice = parseFloat(groupPrice.value);
-            if (productIds2 && productIds2.value) rules.productIds = productIds2.value.split(',').map(id => parseInt(id.trim()));
+            var productRows2 = document.querySelectorAll('#promotionProductIdsList .promo-product-row');
+            var pids2 = [];
+            productRows2.forEach(function (row) {
+                var sel = row.querySelector('.promo-product-select');
+                if (sel && sel.value) pids2.push(parseInt(sel.value, 10));
+            });
+            if (pids2.length > 0) rules.productIds = pids2;
             break;
-        case 'bundle':
-            const bundleProducts = document.getElementById('bundleProducts');
+        }
+        case 'bundle': {
             const bundlePrice = document.getElementById('bundlePrice');
             const savings = document.getElementById('savings');
-            if (bundleProducts && bundleProducts.value) rules.bundleProducts = bundleProducts.value.split(',').map(id => parseInt(id.trim()));
             if (bundlePrice && bundlePrice.value) rules.bundlePrice = parseFloat(bundlePrice.value);
             if (savings && savings.value) rules.savings = parseFloat(savings.value);
+            var bundleRows = document.querySelectorAll('#promotionBundleProductsList .promo-bundle-product-row');
+            var bpids = [];
+            bundleRows.forEach(function (row) {
+                var sel = row.querySelector('.promo-bundle-product-select');
+                if (sel && sel.value) bpids.push(parseInt(sel.value, 10));
+            });
+            if (bpids.length > 0) rules.bundleProducts = bpids;
             break;
+        }
         case 'free_shipping':
             const minAmount = document.getElementById('minAmount');
             const regions = document.getElementById('regions');

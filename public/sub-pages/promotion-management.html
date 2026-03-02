@@ -362,17 +362,8 @@
             margin-bottom: 0;
         }
 
-        .member-level-checkboxes {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px 24px;
-        }
-        .member-level-checkboxes label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            font-weight: normal;
+        .promo-row-list {
+            margin-bottom: 4px;
         }
         .form-hint {
             font-size: 12px;
@@ -516,9 +507,10 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">可参与会员</label>
-                        <p class="form-hint" style="margin-bottom: 8px;">不选表示全部会员可参与；勾选的等级才可享受该促销。</p>
-                        <div id="promotionMemberLevels" class="member-level-checkboxes"></div>
+                        <label class="form-label">可参与会员等级</label>
+                        <p class="form-hint" style="margin-bottom: 8px;">一条一条添加，不添加表示全部会员可参与。</p>
+                        <div id="promotionMemberLevelsList" class="promo-row-list"></div>
+                        <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionMemberLevelRow()">+ 添加参与会员等级</button>
                     </div>
                     <div class="form-group">
                         <label class="form-label">活动规则配置</label>
