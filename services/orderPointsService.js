@@ -1,12 +1,13 @@
 /**
  * 订单支付成功后的会员积分发放
- * 订单完成（status=paid）时按配置给下单会员增加积分，防重复发放
+ * 暂用简单规则：实际消费 1 元 = 1 积分（基础），再按会员等级积分倍率乘算；防重复发放
  */
 
-const { Order, Member, MemberLevel, MemberPointsRecord, PointSourceConfig } = require('../db');
+const { Order, Member, MemberLevel, MemberPointsRecord } = require('../db');
 
 /**
  * 订单支付成功后发放积分（幂等：同一订单只发一次）
+ * 规则：实付金额（元）× 1 × 会员积分倍率 = 积分，向下取整
  * @param {number} orderId 订单ID
  * @returns {Promise<{ granted: boolean, points?: number, message?: string }>}
  */
@@ -23,16 +24,6 @@ async function grantPointsForOrderPaid(orderId) {
 
     const orderAmount = Math.max(0, parseFloat(order.totalAmount) || 0);
 
-    let basePoints = 0;
-    let multiplier = 1;
-    const orderSourceConfig = await PointSourceConfig.findOne({
-        where: { source: 'order', isEnabled: true }
-    });
-    if (orderSourceConfig) {
-        basePoints = parseInt(orderSourceConfig.basePoints, 10) || 0;
-        multiplier = parseFloat(orderSourceConfig.multiplier) || 1;
-    }
-
     const member = await Member.findByPk(memberId, {
         attributes: ['id', 'totalPoints', 'availablePoints', 'memberLevelId'],
         include: [{ model: MemberLevel, as: 'memberLevel', attributes: ['pointsRate'], required: false }]
@@ -40,7 +31,7 @@ async function grantPointsForOrderPaid(orderId) {
     if (!member) return { granted: false, message: '会员不存在' };
 
     const pointsRate = parseFloat(member.memberLevel && member.memberLevel.pointsRate) || 1;
-    const rawPoints = (basePoints + orderAmount * multiplier) * pointsRate;
+    const rawPoints = orderAmount * pointsRate;
     const points = Math.max(0, Math.round(rawPoints));
     if (points <= 0) return { granted: false, message: '计算积分为0' };
 
