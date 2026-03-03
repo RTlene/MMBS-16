@@ -495,7 +495,8 @@ function renderMembers() {
     const selectedMembers = window.memberManagementData.selectedMembers;
     window.memberManagementData.members.forEach(member => {
         const row = document.createElement('tr');
-        const checked = selectedMembers.has(member.id) ? ' checked' : '';
+        const memberIdNum = Number(member.id);
+        const checked = selectedMembers.has(memberIdNum) ? ' checked' : '';
         row.innerHTML = `
             <td><input type="checkbox" class="member-checkbox" value="${member.id}"${checked}></td>
             <td>${member.nickname || '-'}</td>
@@ -521,7 +522,7 @@ function renderMembers() {
     // 根据当前页选中情况更新表头「全选」勾选框状态
     const selectAllEl = document.getElementById('selectAll');
     if (selectAllEl && window.memberManagementData.members.length > 0) {
-        const idsOnPage = window.memberManagementData.members.map(m => m.id);
+        const idsOnPage = window.memberManagementData.members.map(m => Number(m.id));
         const allSelected = idsOnPage.every(id => selectedMembers.has(id));
         const someSelected = idsOnPage.some(id => selectedMembers.has(id));
         selectAllEl.checked = allSelected;

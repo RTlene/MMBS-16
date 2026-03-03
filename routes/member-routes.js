@@ -569,9 +569,15 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
             });
         }
 
-        await deleteMemberRelatedRecords(ids);
-        await Member.destroy({ where: { id: { [Op.in]: ids } } });
-
+        const t = await Member.sequelize.transaction();
+        try {
+            await deleteMemberRelatedRecords(ids, t);
+            await Member.destroy({ where: { id: { [Op.in]: ids } }, transaction: t });
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
         res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
         console.error('批量删除会员失败:', error);
@@ -976,14 +982,40 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// 删除会员前清理关联表（避免外键约束）
-async function deleteMemberRelatedRecords(memberIds) {
+/**
+ * 删除会员前按依赖顺序清理所有关联表（避免外键约束）
+ * 顺序：子表先于父表；refund_records 引用 return_requests，故先删 refund_records。
+ * 不删 orders（有订单时接口直接报错，不执行此处）。
+ * @param {number|number[]} memberIds - 会员 ID 或 ID 数组
+ * @param {import('sequelize').Transaction} [transaction] - 可选，若传入则在本事务内执行（与删除会员同事务）
+ */
+async function deleteMemberRelatedRecords(memberIds, transaction) {
     const ids = Array.isArray(memberIds) ? memberIds : [memberIds];
     if (ids.length === 0) return;
     const sequelize = Member.sequelize;
     const placeholders = ids.map(() => '?').join(',');
-    await sequelize.query(`DELETE FROM commission_withdrawals WHERE memberId IN (${placeholders})`, { replacements: ids });
-    await sequelize.query(`DELETE FROM commission_calculations WHERE memberId IN (${placeholders}) OR referrerId IN (${placeholders}) OR recipientId IN (${placeholders})`, { replacements: [...ids, ...ids, ...ids] });
+    const idTriple = [...ids, ...ids, ...ids];
+    const opts = transaction ? { transaction } : {};
+
+    const steps = [
+        ['commission_calculations', `DELETE FROM commission_calculations WHERE memberId IN (${placeholders}) OR referrerId IN (${placeholders}) OR recipientId IN (${placeholders})`, idTriple],
+        ['member_commission_records', `DELETE FROM member_commission_records WHERE memberId IN (${placeholders})`, ids],
+        ['commission_withdrawals', `DELETE FROM commission_withdrawals WHERE memberId IN (${placeholders})`, ids],
+        ['team_incentive_calculations', `DELETE FROM team_incentive_calculations WHERE distributorId IN (${placeholders}) OR referrerId IN (${placeholders})`, [...ids, ...ids]],
+        ['member_level_change_records', `DELETE FROM member_level_change_records WHERE memberId IN (${placeholders})`, ids],
+        ['member_points_records', `DELETE FROM member_points_records WHERE memberId IN (${placeholders})`, ids],
+        ['refund_records', `DELETE FROM refund_records WHERE memberId IN (${placeholders})`, ids],
+        ['return_requests', `DELETE FROM return_requests WHERE memberId IN (${placeholders})`, ids],
+        ['VerificationCodes', `DELETE FROM VerificationCodes WHERE memberId IN (${placeholders})`, ids],
+        ['point_records', `DELETE FROM point_records WHERE memberId IN (${placeholders})`, ids],
+        ['point_exchanges', `DELETE FROM point_exchanges WHERE memberId IN (${placeholders})`, ids],
+        ['member_coupons', `DELETE FROM member_coupons WHERE memberId IN (${placeholders})`, ids],
+        ['member_addresses', `DELETE FROM member_addresses WHERE memberId IN (${placeholders})`, ids],
+    ];
+
+    for (const [, sql, replacements] of steps) {
+        await sequelize.query(sql, { replacements, ...opts });
+    }
 }
 
 // 删除会员
@@ -1016,9 +1048,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             });
         }
 
-        await deleteMemberRelatedRecords(id);
-        await member.destroy();
-
+        const t = await Member.sequelize.transaction();
+        try {
+            await deleteMemberRelatedRecords(id, t);
+            await member.destroy({ transaction: t });
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
         res.json({ code: 0, message: '会员删除成功' });
     } catch (error) {
         console.error('删除会员失败:', error);
@@ -1059,9 +1097,15 @@ router.delete('/', authenticateToken, async (req, res) => {
             });
         }
 
-        await deleteMemberRelatedRecords(ids);
-        await Member.destroy({ where: { id: { [Op.in]: ids } } });
-
+        const t = await Member.sequelize.transaction();
+        try {
+            await deleteMemberRelatedRecords(ids, t);
+            await Member.destroy({ where: { id: { [Op.in]: ids } }, transaction: t });
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
         res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
         console.error('批量删除会员失败:', error);
