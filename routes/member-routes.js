@@ -530,6 +530,43 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
     }
 });
 
+// 批量删除会员（与 DELETE / 逻辑一致，供前端 POST /api/members/batch-delete 调用）
+router.post('/batch-delete', authenticateToken, async (req, res) => {
+    try {
+        const { ids } = req.body;
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({
+                code: 1,
+                message: '请选择要删除的会员'
+            });
+        }
+
+        const hasReferrals = await Member.count({
+            where: { referrerId: { [Op.in]: ids } }
+        });
+        if (hasReferrals > 0) {
+            return res.status(400).json({
+                code: 1,
+                message: '选中的会员中有推荐人，无法删除'
+            });
+        }
+
+        await Member.destroy({ where: { id: { [Op.in]: ids } } });
+
+        res.json({
+            code: 0,
+            message: `成功删除 ${ids.length} 个会员`
+        });
+    } catch (error) {
+        console.error('批量删除会员失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: '批量删除会员失败: ' + error.message
+        });
+    }
+});
+
 // 获取会员详情
 router.get('/:id', authenticateToken, async (req, res) => {
     try {

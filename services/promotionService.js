@@ -334,8 +334,9 @@ class PromotionService {
             if (promotions.length > 0) {
                 coupons = coupons.filter(c => c.stackWithPromotion === true);
             }
-            // 会员权益与券同享：若本商品有该会员等级会员价且券未勾选「可与会员权益同时生效」，则移除该券
+            // 会员价仅单独使用：若本商品有该会员等级会员价，则取消所有其他优惠（促销、券、积分、会员等级折扣）
             let hasMemberBenefit = false;
+            let memberPrice = null;
             if (member && member.memberLevelId) {
                 const searchSkuId = skuId ? Number(skuId) : 0;
                 const mp = await ProductMemberPrice.findOne({
@@ -345,28 +346,34 @@ class PromotionService {
                         skuId: searchSkuId > 0 ? searchSkuId : 0
                     }
                 });
-                if (mp) hasMemberBenefit = true;
+                if (mp) {
+                    hasMemberBenefit = true;
+                    memberPrice = parseFloat(mp.price);
+                }
             }
-            if (hasMemberBenefit) {
+            if (hasMemberBenefit && memberPrice != null && Number.isFinite(memberPrice)) {
+                unitPrice = memberPrice;
+                promotions = [];
+                coupons = [];
+                pointUsage = null;
+            } else if (hasMemberBenefit) {
                 coupons = coupons.filter(c => c.stackWithMemberBenefit === true);
             }
 
             if (process.env.NODE_ENV !== 'production' || (appliedCoupons && appliedCoupons.length + (appliedPromotions && appliedPromotions.length) > 0)) {
-                console.log('[applyPromotionsToOrder] appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> valid coupons=', coupons.length, 'valid promotions=', promotions.length);
+                console.log('[applyPromotionsToOrder] appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> valid coupons=', coupons.length, 'valid promotions=', promotions.length, 'memberPriceOnly=', hasMemberBenefit && memberPrice != null);
             }
 
-            // 验证积分使用
-            const pointInfo = await this.validatePointUsage(pointUsage, memberId, productId, skuId, quantity);
+            const pointInfo = hasMemberBenefit && memberPrice != null ? null : await this.validatePointUsage(pointUsage, memberId, productId, skuId, quantity);
 
-            // 计算最终价格
             const priceCalculation = await this.calculateFinalPrice(
                 unitPrice,
                 quantity,
                 coupons,
                 promotions,
                 pointInfo,
-                member,
-                quantity // 传入订单数量
+                hasMemberBenefit && memberPrice != null ? null : member,
+                quantity
             );
 
             // 构建订单数据
