@@ -712,29 +712,22 @@ class PromotionService {
     }
 
     /**
-     * 计算最终价格（支持满金额和满数量条件）
+     * 单条价格路径计算（仅内部使用）：应用指定的促销/券/积分/会员折扣，返回该路径的实付与明细
      */
-    static async calculateFinalPrice(unitPrice, quantity, coupons, promotions, pointInfo, member, orderQuantity = null) {
+    static async _calculateOnePath(unitPrice, quantity, promotions, coupons, pointInfo, applyMemberDiscount, member, orderQuantity) {
         const originalAmount = unitPrice * quantity;
         let finalPrice = originalAmount;
         const discounts = [];
-
-        // 如果没有传入orderQuantity，使用quantity作为默认值
         const totalQuantity = orderQuantity || quantity;
 
-        // 应用促销活动
         for (const promotion of promotions) {
             let discountAmount = 0;
             let discountInfo = null;
             const rules = parsePromotionRules(promotion.rules);
-
-            // 根据促销类型计算折扣
             switch (promotion.type) {
                 case 'flash_sale': {
-                    const rateRaw = rules ? Number(rules.discountRate) : NaN; // 折扣率（%），如 20 表示立减 20%
-                    const percentOff = Number.isFinite(rateRaw)
-                        ? (rateRaw > 1 ? rateRaw / 100 : rateRaw)
-                        : NaN;
+                    const rateRaw = rules ? Number(rules.discountRate) : NaN;
+                    const percentOff = Number.isFinite(rateRaw) ? (rateRaw > 1 ? rateRaw / 100 : rateRaw) : NaN;
                     const limitQtyRaw = rules ? Number(rules.limitQuantity) : NaN;
                     const limitQty = Number.isFinite(limitQtyRaw) && limitQtyRaw > 0 ? Math.floor(limitQtyRaw) : null;
                     const discountedQty = limitQty != null ? Math.min(totalQuantity, limitQty) : totalQuantity;
@@ -762,11 +755,9 @@ class PromotionService {
                     }
                     break;
                 case 'full_gift':
-                    // 满送不直接减少金额，而是添加赠品
                     if (rules && rules.fullGiftRules && rules.fullGiftRules.length > 0) {
                         const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
                         discountInfo = result;
-                        // 满送不减少金额，但记录赠品信息
                     }
                     break;
                 case 'full_discount':
@@ -779,25 +770,15 @@ class PromotionService {
                 default:
                     discountAmount = this.calculateDiscountAmount(promotion, originalAmount, quantity);
             }
-            
             if (discountAmount > 0) {
-                discounts.push({
-                    type: 'promotion',
-                    id: promotion.id,
-                    name: promotion.name,
-                    amount: discountAmount,
-                    description: discountInfo ? discountInfo.description : null
-                });
+                discounts.push({ type: 'promotion', id: promotion.id, name: promotion.name, amount: discountAmount, description: discountInfo ? discountInfo.description : null });
                 finalPrice -= discountAmount;
             }
         }
 
-        // 应用优惠券
         for (const coupon of coupons) {
             let discountAmount = 0;
             let discountInfo = null;
-            
-            // 根据优惠券类型计算折扣
             switch (coupon.discountType) {
                 case 'full_reduction':
                     if (coupon.fullReductionRules) {
@@ -807,11 +788,9 @@ class PromotionService {
                     }
                     break;
                 case 'full_gift':
-                    // 满送不直接减少金额，而是添加赠品
                     if (coupon.fullGiftRules) {
                         const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, coupon.fullGiftRules);
                         discountInfo = result;
-                        // 满送不减少金额，但记录赠品信息
                     }
                     break;
                 case 'full_discount':
@@ -824,33 +803,17 @@ class PromotionService {
                 default:
                     discountAmount = this.calculateDiscountAmount(coupon, originalAmount, quantity);
             }
-            
             if (discountAmount > 0) {
-                discounts.push({
-                    type: 'coupon',
-                    id: coupon.id,
-                    name: coupon.name,
-                    amount: discountAmount,
-                    description: discountInfo ? discountInfo.description : null
-                });
+                discounts.push({ type: 'coupon', id: coupon.id, name: coupon.name, amount: discountAmount, description: discountInfo ? discountInfo.description : null });
                 finalPrice -= discountAmount;
             }
         }
 
-        // 应用积分折扣
         if (pointInfo && pointInfo.pointDiscount > 0) {
-            discounts.push({
-                type: 'points',
-                name: '积分抵扣',
-                amount: pointInfo.pointDiscount
-            });
+            discounts.push({ type: 'points', name: '积分抵扣', amount: pointInfo.pointDiscount });
             finalPrice -= pointInfo.pointDiscount;
         }
 
-        // 会员等级折扣（discountRate 0-1，如 0.5 表示 5 折/实付 50%）；与促销强制不叠加，与「不可与会员权益同享」的券不叠加
-        const noMemberDiscountDueToPromo = promotions.length > 0;
-        const noMemberDiscountDueToCoupon = coupons.some(c => c.stackWithMemberBenefit !== true);
-        const applyMemberDiscount = !noMemberDiscountDueToPromo && !noMemberDiscountDueToCoupon;
         if (applyMemberDiscount && member && member.memberLevel) {
             const rateRaw = member.memberLevel.discountRate != null ? parseFloat(member.memberLevel.discountRate) : NaN;
             const discountRate = Number.isFinite(rateRaw) && rateRaw > 0 && rateRaw <= 1 ? rateRaw : 1;
@@ -868,13 +831,32 @@ class PromotionService {
             }
         }
 
+        return { finalPrice: Math.max(0, finalPrice), discounts };
+    }
+
+    /**
+     * 计算最终价格：促销与会员折扣不叠加，取两条路径中实付更低（优惠更大）的一方
+     */
+    static async calculateFinalPrice(unitPrice, quantity, coupons, promotions, pointInfo, member, orderQuantity = null) {
+        const originalAmount = unitPrice * quantity;
+        const totalQuantity = orderQuantity || quantity;
+
+        // 路径 A：促销 + 当前券 + 积分（不应用会员等级折扣）
+        const pathA = await this._calculateOnePath(unitPrice, quantity, promotions, coupons, pointInfo, false, null, totalQuantity);
+        // 路径 B：不用促销，仅可与会员同享的券 + 积分 + 会员等级折扣
+        const couponsForMember = (coupons || []).filter(c => c.stackWithMemberBenefit === true);
+        const pathB = await this._calculateOnePath(unitPrice, quantity, [], couponsForMember, pointInfo, true, member, totalQuantity);
+
+        const useB = pathB.finalPrice < pathA.finalPrice;
+        const result = useB ? pathB : pathA;
+        const finalPrice = result.finalPrice;
         const savings = originalAmount - finalPrice;
         const savingsRate = originalAmount > 0 ? (savings / originalAmount) * 100 : 0;
 
         return {
             originalAmount,
-            finalPrice: Math.max(0, finalPrice),
-            discounts,
+            finalPrice,
+            discounts: result.discounts,
             savings,
             savingsRate: Math.round(savingsRate * 100) / 100
         };
