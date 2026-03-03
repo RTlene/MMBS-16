@@ -349,14 +349,33 @@ class OrderManagement {
         return buttons;
     }
 
-    // 显示删除订单弹窗（需输入当前账号密码）
+    // 显示删除订单弹窗（需输入当前账号密码）- 单笔
     showDeleteOrderModal(orderId, orderNo) {
         this.pendingDeleteOrderId = orderId;
+        this.pendingDeleteOrderIds = null;
         const modal = document.getElementById('deleteOrderModal');
+        const descEl = document.getElementById('deleteOrderModalDesc');
         const orderNoEl = document.getElementById('deleteOrderPasswordOrderNo');
         const input = document.getElementById('deleteOrderPasswordInput');
         if (modal) {
-            if (orderNoEl) orderNoEl.textContent = orderNo || ('订单#' + orderId);
+            if (descEl) descEl.innerHTML = '即将删除订单 <strong id="deleteOrderPasswordOrderNo"></strong>，此操作不可恢复。';
+            const noEl = document.getElementById('deleteOrderPasswordOrderNo');
+            if (noEl) noEl.textContent = orderNo || ('订单#' + orderId);
+            if (input) { input.value = ''; input.focus(); }
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+        }
+    }
+
+    // 显示批量删除订单弹窗
+    showBatchDeleteOrderModal(ids) {
+        this.pendingDeleteOrderId = null;
+        this.pendingDeleteOrderIds = ids && ids.length ? ids : null;
+        const modal = document.getElementById('deleteOrderModal');
+        const descEl = document.getElementById('deleteOrderModalDesc');
+        const input = document.getElementById('deleteOrderPasswordInput');
+        if (modal) {
+            if (descEl) descEl.textContent = `将删除 ${this.pendingDeleteOrderIds.length} 个订单，此操作不可恢复。`;
             if (input) { input.value = ''; input.focus(); }
             modal.classList.add('show');
             modal.style.display = 'flex';
@@ -365,6 +384,7 @@ class OrderManagement {
 
     closeDeleteOrderModal() {
         this.pendingDeleteOrderId = null;
+        this.pendingDeleteOrderIds = null;
         const modal = document.getElementById('deleteOrderModal');
         if (modal) {
             modal.classList.remove('show');
@@ -373,19 +393,40 @@ class OrderManagement {
     }
 
     async confirmDeleteOrder() {
-        const orderId = this.pendingDeleteOrderId;
         const input = document.getElementById('deleteOrderPasswordInput');
         const password = input?.value?.trim();
         if (!password) {
             showAlert('请输入当前登录账号的密码', 'error');
             return;
         }
-        if (!orderId) {
+        const ids = this.pendingDeleteOrderIds;
+        const singleId = this.pendingDeleteOrderId;
+        if (ids && ids.length > 0) {
+            try {
+                const response = await fetch('/api/orders/batch-delete', {
+                    method: 'POST',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids, password })
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showAlert(result.message || '批量删除成功', 'success');
+                    this.closeDeleteOrderModal();
+                    await this.loadOrders();
+                } else {
+                    showAlert(result.message || '批量删除失败', 'error');
+                }
+            } catch (e) {
+                showAlert('批量删除失败: ' + (e.message || '网络错误'), 'error');
+            }
+            return;
+        }
+        if (!singleId) {
             this.closeDeleteOrderModal();
             return;
         }
         try {
-            const response = await fetch(`/api/orders/${orderId}`, {
+            const response = await fetch(`/api/orders/${singleId}`, {
                 method: 'DELETE',
                 headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
@@ -1774,6 +1815,15 @@ function getSelectedPaidOrderIds() {
     const paidSet = new Set(orders.filter(o => o.status === 'paid').map(o => o.id));
     return ids.filter(id => paidSet.has(id));
 }
+window.batchDeleteOrders = function() {
+    const ids = getSelectedOrderIds();
+    if (ids.length === 0) {
+        showAlert('请先勾选要删除的订单');
+        return;
+    }
+    orderManagement.showBatchDeleteOrderModal(ids);
+};
+
 window.batchShipOrders = function() {
     const paidIds = getSelectedPaidOrderIds();
     if (paidIds.length === 0) {

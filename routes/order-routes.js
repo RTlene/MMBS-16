@@ -619,6 +619,62 @@ router.post('/import-shipping', upload.single('file'), async (req, res) => {
     }
 });
 
+// 批量删除订单（需密码验证）
+router.post('/batch-delete', async (req, res) => {
+    try {
+        let ids = req.body?.ids;
+        if (!Array.isArray(ids)) ids = ids != null ? [ids] : [];
+        ids = ids.map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id) && id > 0);
+        const password = req.body?.password;
+        if (!password || String(password).trim() === '') {
+            return res.status(400).json({ code: 1, message: '请输入当前登录账号的密码以确认删除' });
+        }
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ code: 1, message: '未登录' });
+        }
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(401).json({ code: 1, message: '用户不存在' });
+        }
+        const valid = await bcrypt.compare(String(password).trim(), user.password);
+        if (!valid) {
+            return res.status(400).json({ code: 1, message: '密码错误，无法删除订单' });
+        }
+        if (ids.length === 0) {
+            return res.status(400).json({ code: 1, message: '请选择要删除的订单' });
+        }
+        const orders = await Order.findAll({ where: { id: { [Op.in]: ids } } });
+        const foundIds = new Set(orders.map((o) => o.id));
+        const notFound = ids.filter((id) => !foundIds.has(id));
+        if (notFound.length > 0) {
+            return res.status(404).json({ code: 1, message: `部分订单不存在: ${notFound.join(', ')}` });
+        }
+        const t = await sequelize.transaction();
+        try {
+            for (const order of orders) {
+                const orderId = order.id;
+                await RefundRecord.destroy({ where: { orderId }, transaction: t });
+                await ReturnRequest.destroy({ where: { orderId }, transaction: t });
+                await OrderOperationLog.destroy({ where: { orderId }, transaction: t });
+                await MemberCommissionRecord.destroy({ where: { orderId }, transaction: t });
+                await VerificationCode.destroy({ where: { orderId }, transaction: t });
+                await CommissionCalculation.destroy({ where: { orderId }, transaction: t });
+                await OrderItem.destroy({ where: { orderId }, transaction: t });
+                await Order.destroy({ where: { id: orderId }, transaction: t });
+            }
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+        res.json({ code: 0, message: `已删除 ${orders.length} 个订单` });
+    } catch (error) {
+        console.error('批量删除订单失败:', error);
+        res.status(500).json({ code: 1, message: error.message || '批量删除订单失败' });
+    }
+});
+
 // 获取订单详情
 router.get('/:id', async (req, res) => {
     try {
