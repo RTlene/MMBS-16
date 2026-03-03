@@ -7,6 +7,7 @@ class OrderManagement {
         this.currentStatus = '';
         this.orders = [];
         this.currentOrder = null;
+        this.selectedOrders = new Set();
     }
 
     /**
@@ -88,12 +89,31 @@ class OrderManagement {
                 }
             });
         });
-        // 全选
+        // 全选（仅影响当前页，并同步到 selectedOrders）
         document.getElementById('selectAll')?.addEventListener('change', (e) => {
+            const checked = e.target.checked;
             document.querySelectorAll('.order-checkbox').forEach(cb => {
-                cb.checked = e.target.checked;
+                cb.checked = checked;
+                const id = parseInt(cb.value, 10);
+                if (Number.isFinite(id)) {
+                    if (checked) this.selectedOrders.add(id);
+                    else this.selectedOrders.delete(id);
+                }
             });
         });
+        // 行勾选变更时同步到 selectedOrders（跨页记忆）
+        const orderTableBody = document.getElementById('orderTableBody');
+        if (orderTableBody) {
+            orderTableBody.addEventListener('change', (e) => {
+                if (e.target?.classList?.contains('order-checkbox')) {
+                    const id = parseInt(e.target.value, 10);
+                    if (Number.isFinite(id)) {
+                        if (e.target.checked) this.selectedOrders.add(id);
+                        else this.selectedOrders.delete(id);
+                    }
+                }
+            });
+        }
         // 批量发货确认
         document.getElementById('batchShipConfirmBtn')?.addEventListener('click', () => {
             if (window.confirmBatchShipOrders) window.confirmBatchShipOrders();
@@ -222,9 +242,11 @@ class OrderManagement {
             // 构建行HTML
             let rowHtml = '';
             
-            // 如果有复选框列，添加复选框
+            // 如果有复选框列，添加复选框（跨页记忆：根据 selectedOrders 设置 checked）
             if (hasCheckbox) {
-                rowHtml += `<td><input type="checkbox" class="order-checkbox" value="${order.id}"></td>`;
+                const orderIdNum = Number(order.id);
+                const checked = this.selectedOrders.has(orderIdNum) ? ' checked' : '';
+                rowHtml += `<td><input type="checkbox" class="order-checkbox" value="${order.id}"${checked}></td>`;
             }
             
             // 订单号
@@ -292,6 +314,24 @@ class OrderManagement {
             row.innerHTML = rowHtml;
             tbody.appendChild(row);
         });
+
+        // 根据当前页选中情况更新表头「全选」勾选框状态
+        if (hasCheckbox && this.orders.length > 0) {
+            const selectAllEl = document.getElementById('selectAll');
+            if (selectAllEl) {
+                const idsOnPage = this.orders.map(o => Number(o.id));
+                const allSelected = idsOnPage.every(id => this.selectedOrders.has(id));
+                const someSelected = idsOnPage.some(id => this.selectedOrders.has(id));
+                selectAllEl.checked = allSelected;
+                selectAllEl.indeterminate = someSelected && !allSelected;
+            }
+        } else {
+            const selectAllEl = document.getElementById('selectAll');
+            if (selectAllEl) {
+                selectAllEl.checked = false;
+                selectAllEl.indeterminate = false;
+            }
+        }
         
         console.log('[OrderManagement] 订单列表渲染完成，共渲染', this.orders.length, '条订单');
     }
@@ -410,6 +450,7 @@ class OrderManagement {
                 });
                 const result = await response.json();
                 if (result.code === 0) {
+                    ids.forEach(id => this.selectedOrders.delete(id));
                     showAlert(result.message || '批量删除成功', 'success');
                     this.closeDeleteOrderModal();
                     await this.loadOrders();
@@ -483,21 +524,21 @@ class OrderManagement {
         // 上一页
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${this.currentPage === 1 ? 'disabled' : ''}`;
-        prevLi.innerHTML = `<a class="page-link" href="#" onclick="orderManagement.goToPage(${this.currentPage - 1})">上一页</a>`;
+        prevLi.innerHTML = `<a class="page-link" href="javascript:void(0)" onclick="orderManagement.goToPage(${this.currentPage - 1}); return false;">上一页</a>`;
         pagination.appendChild(prevLi);
 
         // 页码
         for (let i = 1; i <= this.totalPages; i++) {
             const li = document.createElement('li');
             li.className = `page-item ${i === this.currentPage ? 'active' : ''}`;
-            li.innerHTML = `<a class="page-link" href="#" onclick="orderManagement.goToPage(${i})">${i}</a>`;
+            li.innerHTML = `<a class="page-link" href="javascript:void(0)" onclick="orderManagement.goToPage(${i}); return false;">${i}</a>`;
             pagination.appendChild(li);
         }
 
         // 下一页
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${this.currentPage === this.totalPages ? 'disabled' : ''}`;
-        nextLi.innerHTML = `<a class="page-link" href="#" onclick="orderManagement.goToPage(${this.currentPage + 1})">下一页</a>`;
+        nextLi.innerHTML = `<a class="page-link" href="javascript:void(0)" onclick="orderManagement.goToPage(${this.currentPage + 1}); return false;">下一页</a>`;
         pagination.appendChild(nextLi);
     }
 
@@ -1802,6 +1843,9 @@ window.exportOrders = function() {
 
 // ==================== 批量发货（勾选订单） ====================
 function getSelectedOrderIds() {
+    if (orderManagement?.selectedOrders) {
+        return Array.from(orderManagement.selectedOrders);
+    }
     const ids = [];
     document.querySelectorAll('.order-checkbox:checked').forEach(cb => {
         const v = parseInt(cb.value, 10);
@@ -1811,9 +1855,9 @@ function getSelectedOrderIds() {
 }
 function getSelectedPaidOrderIds() {
     const ids = getSelectedOrderIds();
-    const orders = orderManagement.orders || [];
-    const paidSet = new Set(orders.filter(o => o.status === 'paid').map(o => o.id));
-    return ids.filter(id => paidSet.has(id));
+    const orders = orderManagement?.orders || [];
+    const paidSet = new Set(orders.filter(o => o.status === 'paid').map(o => Number(o.id)));
+    return ids.filter(id => paidSet.has(Number(id)));
 }
 window.batchDeleteOrders = function() {
     const ids = getSelectedOrderIds();

@@ -304,12 +304,66 @@
             color: #666;
         }
 
+        .table-section {
+            min-height: 420px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-section .table {
+            margin-bottom: 0;
+        }
+
+        .table-section .table tbody tr:only-child td.text-center {
+            padding: 48px 16px;
+            color: #999;
+        }
+
         .pagination {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 5px;
-            padding: 20px;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 16px 20px;
+            margin-top: auto;
+        }
+
+        .pagination .page-item {
+            list-style: none;
+            margin: 0;
+        }
+
+        .pagination .page-link {
+            display: inline-block;
+            min-width: 36px;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            background: #fff;
+            color: #333;
+            text-align: center;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: border-color .2s, background .2s, color .2s;
+        }
+
+        .pagination .page-link:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .pagination .page-item.active .page-link {
+            border-color: #1890ff;
+            background: #1890ff;
+            color: #fff;
+        }
+
+        .pagination .page-item.disabled .page-link {
+            cursor: not-allowed;
+            opacity: 0.6;
+            pointer-events: none;
         }
 
         .pagination button:disabled {
