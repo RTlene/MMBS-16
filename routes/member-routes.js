@@ -1,14 +1,16 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
-const { 
-    Member, 
-    MemberLevel, 
-    DistributorLevel, 
+const {
+    Member,
+    MemberLevel,
+    DistributorLevel,
     TeamExpansionLevel,
     MemberPointsRecord,
     MemberCommissionRecord,
-    MemberLevelChangeRecord
+    MemberLevelChangeRecord,
+    CommissionWithdrawal,
+    CommissionCalculation
 } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
@@ -530,40 +532,40 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
     }
 });
 
-// 批量删除会员（与 DELETE / 逻辑一致，供前端 POST /api/members/batch-delete 调用）
+// 批量删除会员（推荐人及其全部粉丝均选中时可删除；供前端 POST /api/members/batch-delete 调用）
 router.post('/batch-delete', authenticateToken, async (req, res) => {
     try {
-        const { ids } = req.body;
+        let ids = req.body.ids != null ? req.body.ids : req.body;
+        if (!Array.isArray(ids)) ids = ids != null ? [ids] : [];
+        ids = ids.map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id) && id > 0);
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        if (ids.length === 0) {
             return res.status(400).json({
                 code: 1,
                 message: '请选择要删除的会员'
             });
         }
 
-        const hasReferrals = await Member.count({
-            where: { referrerId: { [Op.in]: ids } }
+        const idSet = new Set(ids);
+        const referredBySelected = await Member.findAll({
+            where: { referrerId: { [Op.in]: ids } },
+            attributes: ['id']
         });
-        if (hasReferrals > 0) {
+        const allFansSelected = referredBySelected.every((m) => idSet.has(m.id));
+        if (referredBySelected.length > 0 && !allFansSelected) {
             return res.status(400).json({
                 code: 1,
-                message: '选中的会员中有推荐人，无法删除'
+                message: '选中的会员中包含推荐人时，须同时选中其全部粉丝后再删除'
             });
         }
 
+        await deleteMemberRelatedRecords(ids);
         await Member.destroy({ where: { id: { [Op.in]: ids } } });
 
-        res.json({
-            code: 0,
-            message: `成功删除 ${ids.length} 个会员`
-        });
+        res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
         console.error('批量删除会员失败:', error);
-        res.status(500).json({
-            code: 1,
-            message: '批量删除会员失败: ' + error.message
-        });
+        res.status(500).json({ code: 1, message: '批量删除会员失败: ' + error.message });
     }
 });
 
@@ -964,81 +966,84 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// 删除会员前清理关联表（避免外键约束）
+async function deleteMemberRelatedRecords(memberIds) {
+    const ids = Array.isArray(memberIds) ? memberIds : [memberIds];
+    if (ids.length === 0) return;
+    await CommissionWithdrawal.destroy({ where: { memberId: { [Op.in]: ids } } });
+    await CommissionCalculation.destroy({
+        where: {
+            [Op.or]: [
+                { memberId: { [Op.in]: ids } },
+                { referrerId: { [Op.in]: ids } },
+                { recipientId: { [Op.in]: ids } }
+            ]
+        }
+    });
+}
+
 // 删除会员
 router.delete('/:id', authenticateToken, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ code: 1, message: '无效的会员ID' });
+        }
 
         const member = await Member.findByPk(id);
         if (!member) {
-            return res.status(404).json({
-                code: 1,
-                message: '会员不存在'
-            });
+            return res.status(404).json({ code: 1, message: '会员不存在' });
         }
 
-        // 检查是否有推荐人
-        const hasReferrals = await Member.count({ where: { referrerId: id } });
-        if (hasReferrals > 0) {
+        const hasFans = await Member.count({ where: { referrerId: id } });
+        if (hasFans > 0) {
             return res.status(400).json({
                 code: 1,
-                message: '该会员有推荐人，无法删除'
+                message: '该会员有下级粉丝，请先删除其粉丝或同时选中推荐人及全部粉丝后批量删除'
             });
         }
 
+        await deleteMemberRelatedRecords(id);
         await member.destroy();
-        
-        res.json({
-            code: 0,
-            message: '会员删除成功'
-        });
+
+        res.json({ code: 0, message: '会员删除成功' });
     } catch (error) {
         console.error('删除会员失败:', error);
-        res.status(500).json({
-            code: 1,
-            message: '删除会员失败: ' + error.message
-        });
+        res.status(500).json({ code: 1, message: '删除会员失败: ' + error.message });
     }
 });
 
-// 批量删除会员
+// 批量删除会员（DELETE 方式，逻辑与 POST /batch-delete 一致）
 router.delete('/', authenticateToken, async (req, res) => {
     try {
-        const { ids } = req.body;
+        let ids = req.body && req.body.ids != null ? req.body.ids : (req.body && Array.isArray(req.body) ? req.body : []);
+        if (!Array.isArray(ids)) ids = ids != null ? [ids] : [];
+        ids = ids.map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id) && id > 0);
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({
-                code: 1,
-                message: '请选择要删除的会员'
-            });
+        if (ids.length === 0) {
+            return res.status(400).json({ code: 1, message: '请选择要删除的会员' });
         }
 
-        // 检查是否有推荐人
-        const hasReferrals = await Member.count({ 
-            where: { 
-                referrerId: { [Op.in]: ids } 
-            } 
+        const idSet = new Set(ids);
+        const referredBySelected = await Member.findAll({
+            where: { referrerId: { [Op.in]: ids } },
+            attributes: ['id']
         });
-        
-        if (hasReferrals > 0) {
+        const allFansSelected = referredBySelected.every((m) => idSet.has(m.id));
+        if (referredBySelected.length > 0 && !allFansSelected) {
             return res.status(400).json({
                 code: 1,
-                message: '选中的会员中有推荐人，无法删除'
+                message: '选中的会员中包含推荐人时，须同时选中其全部粉丝后再删除'
             });
         }
 
+        await deleteMemberRelatedRecords(ids);
         await Member.destroy({ where: { id: { [Op.in]: ids } } });
-        
-        res.json({
-            code: 0,
-            message: `成功删除 ${ids.length} 个会员`
-        });
+
+        res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
         console.error('批量删除会员失败:', error);
-        res.status(500).json({
-            code: 1,
-            message: '批量删除会员失败: ' + error.message
-        });
+        res.status(500).json({ code: 1, message: '批量删除会员失败: ' + error.message });
     }
 });
 
