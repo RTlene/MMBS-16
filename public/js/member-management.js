@@ -84,6 +84,19 @@ function bindEventListeners() {
         selectAll.addEventListener('change', toggleSelectAll);
         console.log('Select all checkbox bound');
     }
+
+    const memberTableBody = document.getElementById('memberTableBody');
+    if (memberTableBody) {
+        memberTableBody.addEventListener('change', function(e) {
+            if (e.target && e.target.classList.contains('member-checkbox')) {
+                const id = parseInt(e.target.value, 10);
+                if (Number.isFinite(id)) {
+                    if (e.target.checked) window.memberManagementData.selectedMembers.add(id);
+                    else window.memberManagementData.selectedMembers.delete(id);
+                }
+            }
+        });
+    }
     
     // 搜索框回车事件
     const searchInput = document.getElementById('searchInput');

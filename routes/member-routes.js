@@ -970,16 +970,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
 async function deleteMemberRelatedRecords(memberIds) {
     const ids = Array.isArray(memberIds) ? memberIds : [memberIds];
     if (ids.length === 0) return;
-    await CommissionWithdrawal.destroy({ where: { memberId: { [Op.in]: ids } } });
-    await CommissionCalculation.destroy({
-        where: {
-            [Op.or]: [
-                { memberId: { [Op.in]: ids } },
-                { referrerId: { [Op.in]: ids } },
-                { recipientId: { [Op.in]: ids } }
-            ]
-        }
-    });
+    const sequelize = Member.sequelize;
+    const placeholders = ids.map(() => '?').join(',');
+    await sequelize.query(`DELETE FROM commission_withdrawals WHERE memberId IN (${placeholders})`, { replacements: ids });
+    await sequelize.query(`DELETE FROM commission_calculations WHERE memberId IN (${placeholders}) OR referrerId IN (${placeholders}) OR recipientId IN (${placeholders})`, { replacements: [...ids, ...ids, ...ids] });
 }
 
 // 删除会员
