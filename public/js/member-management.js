@@ -492,10 +492,12 @@ function renderMembers() {
     
     tbody.innerHTML = '';
 
+    const selectedMembers = window.memberManagementData.selectedMembers;
     window.memberManagementData.members.forEach(member => {
         const row = document.createElement('tr');
+        const checked = selectedMembers.has(member.id) ? ' checked' : '';
         row.innerHTML = `
-            <td><input type="checkbox" class="member-checkbox" value="${member.id}"></td>
+            <td><input type="checkbox" class="member-checkbox" value="${member.id}"${checked}></td>
             <td>${member.nickname || '-'}</td>
             <td>${member.phone || '-'}</td>
             <td>${member.memberLevelName || '普通会员'}</td>
@@ -515,7 +517,20 @@ function renderMembers() {
         `;
         tbody.appendChild(row);
     });
-    
+
+    // 根据当前页选中情况更新表头「全选」勾选框状态
+    const selectAllEl = document.getElementById('selectAll');
+    if (selectAllEl && window.memberManagementData.members.length > 0) {
+        const idsOnPage = window.memberManagementData.members.map(m => m.id);
+        const allSelected = idsOnPage.every(id => selectedMembers.has(id));
+        const someSelected = idsOnPage.some(id => selectedMembers.has(id));
+        selectAllEl.checked = allSelected;
+        selectAllEl.indeterminate = someSelected && !allSelected;
+    } else if (selectAllEl) {
+        selectAllEl.checked = false;
+        selectAllEl.indeterminate = false;
+    }
+
     // 添加调试信息
     console.log('Member table rendered, checking button functions...');
     console.log('viewMemberDetail function:', typeof window.viewMemberDetail);
@@ -1280,7 +1295,11 @@ async function deleteMember(id) {
             alert('删除成功');
             loadMembers();
         } else {
-            alert('删除失败: ' + result.message);
+            if (result.codeKey === 'MEMBER_HAS_ORDERS') {
+                alert('需要密码授权\n\n' + result.message);
+            } else {
+                alert('删除失败: ' + result.message);
+            }
         }
     } catch (error) {
         console.error('删除会员失败:', error);
@@ -1320,7 +1339,11 @@ async function batchDeleteMembers() {
             document.getElementById('selectAll').checked = false;
             loadMembers();
         } else {
-            alert('批量删除失败: ' + result.message);
+            if (result.codeKey === 'MEMBER_HAS_ORDERS') {
+                alert('需要密码授权\n\n' + result.message);
+            } else {
+                alert('批量删除失败: ' + result.message);
+            }
         }
     } catch (error) {
         console.error('批量删除会员失败:', error);

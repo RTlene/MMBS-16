@@ -10,7 +10,8 @@ const {
     MemberCommissionRecord,
     MemberLevelChangeRecord,
     CommissionWithdrawal,
-    CommissionCalculation
+    CommissionCalculation,
+    Order
 } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
@@ -559,6 +560,15 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
             });
         }
 
+        const membersWithOrdersCount = await Order.count({ where: { memberId: { [Op.in]: ids } } });
+        if (membersWithOrdersCount > 0) {
+            return res.status(400).json({
+                code: 1,
+                codeKey: 'MEMBER_HAS_ORDERS',
+                message: '部分会员存在订单，无法直接删除。请先在「订单管理」中删除这些会员的订单（删除订单需输入当前登录密码授权）后，再删除会员。'
+            });
+        }
+
         await deleteMemberRelatedRecords(ids);
         await Member.destroy({ where: { id: { [Op.in]: ids } } });
 
@@ -997,6 +1007,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             });
         }
 
+        const orderCount = await Order.count({ where: { memberId: id } });
+        if (orderCount > 0) {
+            return res.status(400).json({
+                code: 1,
+                codeKey: 'MEMBER_HAS_ORDERS',
+                message: '该会员存在订单，无法直接删除。请先在「订单管理」中删除该会员的订单（删除订单需输入当前登录密码授权）后，再删除会员。'
+            });
+        }
+
         await deleteMemberRelatedRecords(id);
         await member.destroy();
 
@@ -1028,6 +1047,15 @@ router.delete('/', authenticateToken, async (req, res) => {
             return res.status(400).json({
                 code: 1,
                 message: '选中的会员中包含推荐人时，须同时选中其全部粉丝后再删除'
+            });
+        }
+
+        const membersWithOrdersCount = await Order.count({ where: { memberId: { [Op.in]: ids } } });
+        if (membersWithOrdersCount > 0) {
+            return res.status(400).json({
+                code: 1,
+                codeKey: 'MEMBER_HAS_ORDERS',
+                message: '部分会员存在订单，无法直接删除。请先在「订单管理」中删除这些会员的订单（删除订单需输入当前登录密码授权）后，再删除会员。'
             });
         }
 
