@@ -415,8 +415,12 @@ Page({
   // ==================== 事件处理 ====================
 
   /**
-   * 轮播图切换
+   * 大海报图片加载错误（复用首图错误处理，index 固定为 0）
    */
+  onPosterImageError() {
+    this.onBannerImageError({ currentTarget: { dataset: { index: 0 } } });
+  },
+
   /**
    * 轮播图图片加载错误
    */

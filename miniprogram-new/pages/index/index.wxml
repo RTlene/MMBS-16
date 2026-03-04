@@ -1,4 +1,4 @@
-<!--pages/index/index.wxml - 首页重排版：首图轮播、活动横幅、热门商品、资讯列表、精选推荐，均可在后台管理-->
+<!--pages/index/index.wxml - 首页：1大海报 2热门分类 3横幅(无图隐藏) 4热门商品 5资讯 6精选推荐-->
 <view class="index-page">
   <!-- 浮动搜索栏 -->
   <view class="search-bar" style="opacity: {{searchOpacity}};">
@@ -8,36 +8,28 @@
     </view>
   </view>
 
-  <!-- 1. 首图轮播（后台：轮播图管理 - 位置选「首页首图」） -->
-  <view class="banner-section" wx:if="{{banners.length > 0}}">
-    <swiper
-      class="banner-swiper"
-      indicator-dots="{{true}}"
-      indicator-color="rgba(255,255,255,0.5)"
-      indicator-active-color="#FFFFFF"
-      autoplay="{{true}}"
-      interval="{{3000}}"
-      duration="{{500}}"
-      circular="{{true}}"
-      bindchange="onBannerChange"
-    >
-      <swiper-item wx:for="{{banners}}" wx:key="id" bindtap="onBannerTap" data-index="{{index}}">
-        <view class="banner-slide">
-          <image class="banner-image" src="{{item.imageUrl}}" mode="aspectFill" binderror="onBannerImageError" data-index="{{index}}" show-menu-by-longpress="{{false}}" loading="eager" />
-          <view class="banner-placeholder" wx:if="{{item.loadError}}">
-            <text class="placeholder-icon">📷</text>
-            <text class="placeholder-text">图片加载失败</text>
-          </view>
-        </view>
-      </swiper-item>
-    </swiper>
-  </view>
-  <view class="banner-empty" wx:if="{{!loading && dataLoaded && banners.length === 0}}">
-    <text class="empty-icon">🖼️</text>
-    <text class="empty-text">暂无轮播图</text>
+  <!-- 1. 大海报（后台：轮播图管理 - 首页首图，取第一张） -->
+  <view class="poster-section" wx:if="{{banners.length > 0}}">
+    <view class="poster-slide" bindtap="onBannerTap" data-index="0">
+      <image class="poster-image" src="{{banners[0].imageUrl}}" mode="aspectFill" binderror="onPosterImageError" show-menu-by-longpress="{{false}}" loading="eager" />
+      <view class="poster-placeholder" wx:if="{{banners[0].loadError}}">
+        <text class="placeholder-icon">📷</text>
+        <text class="placeholder-text">图片加载失败</text>
+      </view>
+    </view>
   </view>
 
-  <!-- 2. 活动横幅轮播（后台：轮播图管理 - 位置选「活动横幅」） -->
+  <!-- 2. 热门分类（后台：商品分类管理） -->
+  <view class="category-section" wx:if="{{categories.length > 0}}">
+    <view class="category-grid">
+      <view class="category-item" wx:for="{{categories}}" wx:key="id" bindtap="onCategoryTap" data-id="{{item.id}}">
+        <image class="category-icon" src="{{item.icon || '../../images/category-default.png'}}" mode="aspectFit" />
+        <text class="category-name">{{item.name}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 3. 横幅（后台：轮播图管理 - 位置选「活动横幅」，无图时隐藏） -->
   <view class="activity-banner-section" wx:if="{{activityBanners.length > 0}}">
     <swiper
       class="activity-swiper"
@@ -54,16 +46,6 @@
         <image class="activity-banner-image" src="{{item.imageUrl}}" mode="aspectFill" />
       </swiper-item>
     </swiper>
-  </view>
-
-  <!-- 3. 分类导航（后台：商品分类管理） -->
-  <view class="category-section" wx:if="{{categories.length > 0}}">
-    <view class="category-grid">
-      <view class="category-item" wx:for="{{categories}}" wx:key="id" bindtap="onCategoryTap" data-id="{{item.id}}">
-        <image class="category-icon" src="{{item.icon || '../../images/category-default.png'}}" mode="aspectFit" />
-        <text class="category-name">{{item.name}}</text>
-      </view>
-    </view>
   </view>
 
   <!-- 4. 热门商品（后台：商品管理 - 勾选「热门」） -->
