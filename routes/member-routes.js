@@ -51,6 +51,27 @@ function parseJsonOrNull(v) {
     }
 }
 
+/** 导入用：birthday 可能是 Excel 序列号(如45852)或 YYYY-MM-DD，返回合法 DATEONLY 或 null */
+function safeBirthday(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    const s = String(v).trim();
+    if (!s) return null;
+    const n = Number(s);
+    if (Number.isFinite(n) && n >= 1 && n <= 99999) {
+        const date = new Date((n - 25569) * 86400 * 1000);
+        if (!Number.isNaN(date.getTime())) {
+            const y = date.getUTCFullYear(), m = date.getUTCMonth() + 1, d = date.getUTCDate();
+            if (y >= 1000 && y <= 9999) return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+    }
+    const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const yn = parseInt(match[1], 10), mn = parseInt(match[2], 10), dn = parseInt(match[3], 10);
+        if (yn >= 1000 && yn <= 9999 && mn >= 1 && mn <= 12 && dn >= 1 && dn <= 31) return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+    return null;
+}
+
 // 获取会员列表
 router.get('/', authenticateToken, async (req, res) => {
     try {
@@ -423,7 +444,7 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
                 phone: (r.phone || '').trim() || null,
                 avatar: (r.avatar || '').trim() || null,
                 gender: (r.gender || '').trim() || null,
-                birthday: (r.birthday || '').trim() || null,
+                birthday: safeBirthday(r.birthday),
                 province: (r.province || '').trim() || null,
                 city: (r.city || '').trim() || null,
                 district: (r.district || '').trim() || null,
