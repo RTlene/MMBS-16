@@ -26,6 +26,14 @@ function normalizeDate(v) {
   if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
   const m2 = s.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m2) return `${m2[1]}-${m2[2]}-${m2[3]}`;
+  const n = Number(s);
+  if (Number.isFinite(n) && n >= 1 && n <= 99999) {
+    const d = new Date((n - 25569) * 86400 * 1000);
+    if (!Number.isNaN(d.getTime())) {
+      const y = d.getUTCFullYear(), mo = d.getUTCMonth() + 1, day = d.getUTCDate();
+      if (y >= 1000 && y <= 9999) return `${y}-${String(mo).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
   return s;
 }
 

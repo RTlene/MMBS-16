@@ -51,11 +51,12 @@ function parseJsonOrNull(v) {
     }
 }
 
-/** 导入用：birthday 可能是 Excel 序列号(如45852)或 YYYY-MM-DD，返回合法 DATEONLY 或 null */
+/** 导入用：birthday 可能是 Excel 序列号(如45852)或 YYYY-MM-DD，返回合法 DATEONLY 或 null，绝不返回非法值 */
 function safeBirthday(v) {
     if (v === '' || v === null || v === undefined) return null;
     const s = String(v).trim();
     if (!s) return null;
+    if (/^\d{5,}-\d{2}-\d{2}/.test(s)) return null;
     const n = Number(s);
     if (Number.isFinite(n) && n >= 1 && n <= 99999) {
         const date = new Date((n - 25569) * 86400 * 1000);
@@ -63,6 +64,7 @@ function safeBirthday(v) {
             const y = date.getUTCFullYear(), m = date.getUTCMonth() + 1, d = date.getUTCDate();
             if (y >= 1000 && y <= 9999) return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         }
+        return null;
     }
     const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) {
