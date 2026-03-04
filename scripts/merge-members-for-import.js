@@ -72,9 +72,9 @@ function main() {
     const birthday = normalizeDate(get(r, '生日'));
     const address = get(r, '地址') || '';
     const points = getNum(r, '积分');
+    const balance = getNum(r, '余额');
     const memberLevel = get(r, '会员等级') || '';
     const distributorLevel = get(r, '分销等级') || '';
-    const balance = get(r, '余额');
     const regTime = get(r, '注册时间') || '';
     const userId = get(r, '用户ID') || '';
     const referrerId = get(r, '推荐人ID') || '';
@@ -83,7 +83,7 @@ function main() {
     if (memberLevel) remarkParts.push('原会员等级:' + memberLevel);
     if (distributorLevel) remarkParts.push('原分销等级:' + distributorLevel);
     if (regTime) remarkParts.push('注册时间:' + regTime);
-    if (balance !== '' && balance != null) remarkParts.push('原余额:' + balance);
+    if (balance !== '' && balance != null && balance !== 0) remarkParts.push('原余额:' + balance);
     const remark = remarkParts.join('; ');
 
     const row = {};
@@ -114,8 +114,8 @@ function main() {
     row.totalSales = 0;
     row.directSales = 0;
     row.indirectSales = 0;
-    row.totalCommission = 0;
-    row.availableCommission = 0;
+    row.totalCommission = balance;
+    row.availableCommission = balance;
     row.frozenCommission = 0;
     row.totalTeamIncentive = 0;
     row.availableTeamIncentive = 0;

@@ -397,6 +397,9 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
             errors: []
         };
 
+        /** 首次未解析到的推荐人（CSV 中为旧系统用户ID），在全部插入后再按 memberCode 补全 */
+        const deferredReferrers = [];
+
         for (let idx = 0; idx < objs.length; idx++) {
             const r = objs[idx] || {};
             const line = idx + 2; // header is line 1
@@ -494,6 +497,23 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
                     payload.teamExpansionLevelId = null;
                 }
             }
+            // referrerId：CSV 中可能是旧系统「推荐人ID」(用户ID)，需按 memberCode 解析为库内 member.id，否则会 Out of range
+            const rawReferrerId = payload.referrerId;
+            if (payload.referrerId != null) {
+                const referrerByPk = await Member.findByPk(payload.referrerId);
+                if (referrerByPk) {
+                    payload.referrerId = referrerByPk.id;
+                } else {
+                    const referrerByCode = await Member.findOne({ where: { memberCode: String(payload.referrerId) } });
+                    if (referrerByCode) {
+                        payload.referrerId = referrerByCode.id;
+                    } else {
+                        results.errors.push({ line, reason: '推荐人 ID ' + payload.referrerId + ' 在库中无对应会员(id 或 memberCode)，已置空，将在此批导入结束后再尝试按 memberCode 补全' });
+                        payload.referrerId = null;
+                        deferredReferrers.push({ memberCode: payload.memberCode, openid: payload.openid, referrerIdFromCsv: rawReferrerId });
+                    }
+                }
+            }
 
             const id = safeInt(r.id);
             const openid = payload.openid;
@@ -523,6 +543,17 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
                 }
                 await Member.create(data);
                 results.created += 1;
+            }
+        }
+
+        // 第二遍：对首次未解析的推荐人按 memberCode 补全（推荐人可能在本批后续行才插入）
+        for (const d of deferredReferrers) {
+            const memberWhere = [d.memberCode && { memberCode: d.memberCode }, d.openid && { openid: d.openid }].filter(Boolean);
+            if (memberWhere.length === 0) continue;
+            const member = await Member.findOne({ where: { [Op.or]: memberWhere } });
+            const referrer = await Member.findOne({ where: { memberCode: String(d.referrerIdFromCsv) } });
+            if (member && referrer) {
+                await member.update({ referrerId: referrer.id });
             }
         }
 
