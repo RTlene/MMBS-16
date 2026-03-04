@@ -51,12 +51,6 @@ function parseJsonOrNull(v) {
     }
 }
 
-/** 移除 4 字节 UTF-8 字符（如 emoji），避免 MySQL utf8 报错 Incorrect string value */
-function stripUtf8mb4(str) {
-    if (str == null || typeof str !== 'string') return str;
-    return str.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '');
-}
-
 // 获取会员列表
 router.get('/', authenticateToken, async (req, res) => {
     try {
@@ -418,22 +412,22 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
             }
 
             const payload = {
-                nickname: stripUtf8mb4(nickname),
+                nickname,
                 openid: (r.openid || '').trim() || null,
                 unionid: (r.unionid || '').trim() || null,
                 memberLevelId: safeInt(r.memberLevelId),
                 distributorLevelId: safeInt(r.distributorLevelId),
                 teamExpansionLevelId: safeInt(r.teamExpansionLevelId),
                 memberCode: (r.memberCode || '').trim() || null,
-                realName: stripUtf8mb4((r.realName || '').trim()) || null,
+                realName: (r.realName || '').trim() || null,
                 phone: (r.phone || '').trim() || null,
                 avatar: (r.avatar || '').trim() || null,
                 gender: (r.gender || '').trim() || null,
                 birthday: (r.birthday || '').trim() || null,
-                province: stripUtf8mb4((r.province || '').trim()) || null,
-                city: stripUtf8mb4((r.city || '').trim()) || null,
-                district: stripUtf8mb4((r.district || '').trim()) || null,
-                address: stripUtf8mb4((r.address || '').trim()) || null,
+                province: (r.province || '').trim() || null,
+                city: (r.city || '').trim() || null,
+                district: (r.district || '').trim() || null,
+                address: (r.address || '').trim() || null,
                 status: (r.status || '').trim() || 'active',
 
                 totalPoints: safeInt(r.totalPoints) ?? undefined,
@@ -474,7 +468,7 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
                 indirectReferrals: safeInt(r.indirectReferrals) ?? undefined,
                 levelHistory: parseJsonOrNull(r.levelHistory),
 
-                remark: stripUtf8mb4((r.remark || '').trim()) || null,
+                remark: (r.remark || '').trim() || null,
                 lastActiveAt: (r.lastActiveAt || '').trim() || null
             };
 

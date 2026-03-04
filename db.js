@@ -28,6 +28,8 @@ const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USERNAME, MYSQL_PASSWORD, 
   },
   dialectOptions: {
     connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci',
   },
   logging: process.env.DB_LOG_SQL === 'true' ? console.log : false
 });
