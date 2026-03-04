@@ -220,9 +220,12 @@ router.get('/public/:position', async (req, res) => {
         const { position } = req.params;
         const now = new Date();
         const positionValue = POSITION_MAP[position] ?? position;
-        // 大海报：兼容旧数据，同时拉取 homepage(1) 与 poster(6)
+        // 大海报：兼容旧数据（历史上 position 可能存数字或字符串）
+        // - 新：poster(6)
+        // - 旧：homepage(1) 或 'homepage'
+        // - 也兼容误存的 'poster'
         const positionWhere = position === 'poster'
-            ? { [Op.in]: [POSITION_MAP.homepage, POSITION_MAP.poster] }
+            ? { [Op.in]: [POSITION_MAP.homepage, POSITION_MAP.poster, 'homepage', 'poster'] }
             : positionValue;
 
         const banners = await Banner.findAll({
