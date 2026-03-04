@@ -157,8 +157,8 @@ Page({
    */
   async loadBanners() {
     try {
-      const url = replaceUrlParams(API.BANNER.PUBLIC, { position: 'homepage' });
-      console.log('[Index] 请求轮播图URL:', url);
+      const url = replaceUrlParams(API.BANNER.PUBLIC, { position: 'poster' });
+      console.log('[Index] 请求大海报轮播URL:', url);
       
       const result = await request.get(url, {}, {
         showLoading: false,
@@ -417,8 +417,14 @@ Page({
   /**
    * 大海报图片加载错误（复用首图错误处理，index 固定为 0）
    */
-  onPosterImageError() {
-    this.onBannerImageError({ currentTarget: { dataset: { index: 0 } } });
+  onPosterImageError(e) {
+    const index = (e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.index != null)
+      ? e.currentTarget.dataset.index : 0;
+    this.onBannerImageError({ currentTarget: { dataset: { index } } });
+  },
+
+  onPosterSwiperChange(e) {
+    this.setData({ currentBannerIndex: e.detail.current });
   },
 
   /**

@@ -38,7 +38,7 @@
   color: #94A3B8;
 }
 
-/* 1. 大海报（首图单张大图） */
+/* 1. 大海报轮播（首图大图轮播） */
 .poster-section {
   position: relative;
   height: 420rpx;
@@ -48,10 +48,19 @@
   background-color: #F1F5F9;
 }
 
-.poster-slide {
-  position: relative;
+.poster-swiper {
   width: 100%;
   height: 100%;
+}
+
+.poster-swiper .poster-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.poster-swiper swiper-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;

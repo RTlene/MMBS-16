@@ -659,11 +659,14 @@ window.searchProductsForBanner = searchProductsForBanner;
 window.selectProduct = selectProduct;
 window.showProductDropdown = showProductDropdown;
 
-// 获取位置文本
+// 获取位置文本（支持数字 1=homepage, 5=activity, 6=poster 等）
 function getPositionText(position) {
+    const numMap = { 1: '首页首图', 5: '横幅', 6: '大海报', 2: '商品页', 3: '分类页', 4: '会员页' };
+    if (typeof position === 'number') return numMap[position] || String(position);
     const positionMap = {
         'homepage': '首页首图',
-        'activity': '活动横幅',
+        'poster': '大海报',
+        'activity': '横幅',
         'product': '商品页',
         'category': '分类页',
         'member': '会员页'

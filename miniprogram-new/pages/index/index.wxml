@@ -8,15 +8,27 @@
     </view>
   </view>
 
-  <!-- 1. 大海报（后台：轮播图管理 - 首页首图，取第一张） -->
+  <!-- 1. 大海报轮播（后台：横幅管理 - 展示位置选「大海报」） -->
   <view class="poster-section" wx:if="{{banners.length > 0}}">
-    <view class="poster-slide" bindtap="onBannerTap" data-index="0">
-      <image class="poster-image" src="{{banners[0].imageUrl}}" mode="aspectFill" binderror="onPosterImageError" show-menu-by-longpress="{{false}}" loading="eager" />
-      <view class="poster-placeholder" wx:if="{{banners[0].loadError}}">
-        <text class="placeholder-icon">📷</text>
-        <text class="placeholder-text">图片加载失败</text>
-      </view>
-    </view>
+    <swiper
+      class="poster-swiper"
+      indicator-dots="{{true}}"
+      indicator-color="rgba(255,255,255,0.4)"
+      indicator-active-color="#fff"
+      autoplay="{{true}}"
+      interval="{{4500}}"
+      duration="{{400}}"
+      circular="{{true}}"
+      bindchange="onPosterSwiperChange"
+    >
+      <swiper-item wx:for="{{banners}}" wx:key="id" bindtap="onBannerTap" data-index="{{index}}">
+        <image class="poster-image" src="{{item.imageUrl}}" mode="aspectFill" binderror="onPosterImageError" data-index="{{index}}" show-menu-by-longpress="{{false}}" loading="eager" />
+        <view class="poster-placeholder" wx:if="{{item.loadError}}">
+          <text class="placeholder-icon">📷</text>
+          <text class="placeholder-text">图片加载失败</text>
+        </view>
+      </swiper-item>
+    </swiper>
   </view>
 
   <!-- 2. 热门分类（后台：商品分类管理） -->

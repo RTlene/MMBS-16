@@ -21,10 +21,13 @@ function getHeaders() {
 
 window.StoreManagement = {
     init() {
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') searchStores();
+            });
+        }
         loadStores();
-        document.getElementById('searchInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') searchStores();
-        });
     }
 };
 
@@ -34,18 +37,30 @@ function searchStores() {
 }
 
 async function loadStores() {
-    const search = (document.getElementById('searchInput')?.value || '').trim();
-    const status = document.getElementById('statusFilter')?.value || '';
+    const searchEl = document.getElementById('searchInput');
+    const statusEl = document.getElementById('statusFilter');
+    const search = (searchEl && searchEl.value ? searchEl.value : '').trim();
+    const status = (statusEl && statusEl.value) ? statusEl.value : '';
     const params = new URLSearchParams({ page: currentPage, limit });
     if (search) params.append('search', search);
     if (status) params.append('status', status);
 
     try {
         const res = await fetch(`${API_BASE}?${params}`, { headers: getHeaders() });
+        if (!res.ok) {
+            const text = await res.text();
+            try {
+                const err = JSON.parse(text);
+                alert(err.message || '加载失败');
+            } else {
+                alert('加载门店列表失败：' + res.status);
+            }
+            return;
+        }
         const result = await res.json();
         if (result.code === 0 && result.data) {
             storeList = Array.isArray(result.data.list) ? result.data.list : (Array.isArray(result.data) ? result.data : []);
-            totalPages = result.data.totalPages || 1;
+            totalPages = (result.data.totalPages != null) ? result.data.totalPages : 1;
             renderTable();
             renderPagination();
         } else {
@@ -152,24 +167,28 @@ async function editStore(id) {
 }
 
 function saveStore() {
-    const name = (document.getElementById('storeName').value || '').trim();
+    const nameEl = document.getElementById('storeName');
+    const name = (nameEl && nameEl.value ? nameEl.value : '').trim();
     if (!name) {
         alert('请填写门店名称');
         return;
     }
+    const getVal = (id) => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
     const payload = {
         name,
-        address: (document.getElementById('storeAddress').value || '').trim() || null,
-        region: (document.getElementById('storeRegion').value || '').trim() || null,
-        latitude: document.getElementById('storeLatitude').value.trim() || null,
-        longitude: document.getElementById('storeLongitude').value.trim() || null,
-        phone: (document.getElementById('storePhone').value || '').trim() || null,
-        businessHours: (document.getElementById('storeBusinessHours').value || '').trim() || null,
-        sortOrder: parseInt(document.getElementById('storeSortOrder').value, 10) || 0,
-        status: document.getElementById('storeStatus').value
+        address: getVal('storeAddress') || null,
+        region: getVal('storeRegion') || null,
+        latitude: getVal('storeLatitude') || null,
+        longitude: getVal('storeLongitude') || null,
+        phone: getVal('storePhone') || null,
+        businessHours: getVal('storeBusinessHours') || null,
+        sortOrder: parseInt(getVal('storeSortOrder'), 10) || 0,
+        status: (document.getElementById('storeStatus') || {}).value || 'active'
     };
-    if (payload.latitude !== null) payload.latitude = parseFloat(payload.latitude);
-    if (payload.longitude !== null) payload.longitude = parseFloat(payload.longitude);
+    if (payload.latitude !== null && payload.latitude !== '') payload.latitude = parseFloat(payload.latitude);
+    else payload.latitude = null;
+    if (payload.longitude !== null && payload.longitude !== '') payload.longitude = parseFloat(payload.longitude);
+    else payload.longitude = null;
 
     const url = editingStoreId ? `${API_BASE}/${editingStoreId}` : API_BASE;
     const method = editingStoreId ? 'PUT' : 'POST';
