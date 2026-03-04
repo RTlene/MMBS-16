@@ -74,6 +74,25 @@ function safeBirthday(v) {
     return null;
 }
 
+function parseRemarkLevels(remark) {
+    if (!remark || typeof remark !== 'string') return { memberLevelName: null, distributorLevelName: null };
+    const memberMatch = remark.match(/原会员等级\s*:\s*([^;]+)/);
+    const distributorMatch = remark.match(/原分销等级\s*:\s*([^;]+)/);
+    const trim = (s) => (s ? String(s).trim() : '');
+    return {
+        memberLevelName: memberMatch ? trim(memberMatch[1]) : null,
+        distributorLevelName: distributorMatch ? trim(distributorMatch[1]) : null
+    };
+}
+
+function parseRemarkBalance(remark) {
+    if (!remark || typeof remark !== 'string') return null;
+    const m = remark.match(/原余额\s*:\s*([0-9]+(?:\.[0-9]+)?)/);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : null;
+}
+
 // 获取会员列表
 router.get('/', authenticateToken, async (req, res) => {
     try {
@@ -423,6 +442,22 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
         /** 首次未解析到的推荐人（CSV 中为旧系统用户ID），在全部插入后再按 memberCode 补全 */
         const deferredReferrers = [];
 
+        // 原等级名 → 目标等级名（与后台「等级管理」中名称一致）
+        const MEMBER_LEVEL_NAME_MAP = {
+            '普通会员': '普通会员',
+            'RCT-批发商': '黑金',
+            'RCT-合作人': '合伙人'
+        };
+        const DISTRIBUTOR_LEVEL_NAME_MAP = {
+            '个人分销商': '分享达人'
+        };
+
+        async function resolveLevelIdByName(Model, name) {
+            if (!name) return null;
+            const rec = await Model.findOne({ where: { name: String(name).trim() } });
+            return rec ? rec.id : null;
+        }
+
         for (let idx = 0; idx < objs.length; idx++) {
             const r = objs[idx] || {};
             const line = idx + 2; // header is line 1
@@ -498,6 +533,16 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
             // 清理 undefined（避免覆盖）
             Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
+            // 从 remark 兜底：等级名、原余额（防 CSV 列错位/未映射）
+            const remark = payload.remark || '';
+            const { memberLevelName: rawMemberName, distributorLevelName: rawDistributorName } = parseRemarkLevels(remark);
+            const remarkBalance = parseRemarkBalance(remark);
+            if ((payload.totalCommission == null || payload.availableCommission == null) && remarkBalance != null) {
+                if (payload.totalCommission == null) payload.totalCommission = remarkBalance;
+                if (payload.availableCommission == null) payload.availableCommission = remarkBalance;
+                if (payload.frozenCommission == null) payload.frozenCommission = 0;
+            }
+
             // 校验会员等级、分销等级、团队拓展等级是否存在；不存在则置空并记录警告，避免写入无效 ID
             if (payload.memberLevelId != null) {
                 const memberLevel = await MemberLevel.findByPk(payload.memberLevelId);
@@ -519,6 +564,18 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
                     results.errors.push({ line, reason: '团队拓展等级 ID ' + payload.teamExpansionLevelId + ' 不存在，已置空' });
                     payload.teamExpansionLevelId = null;
                 }
+            }
+
+            // 若等级 ID 无效/为空：按 remark 中等级名称（或别名映射后的目标名称）自动解析为系统真实 ID
+            if (payload.memberLevelId == null && rawMemberName) {
+                const targetName = MEMBER_LEVEL_NAME_MAP[rawMemberName] || rawMemberName;
+                const resolvedId = await resolveLevelIdByName(MemberLevel, targetName);
+                if (resolvedId != null) payload.memberLevelId = resolvedId;
+            }
+            if (payload.distributorLevelId == null && rawDistributorName) {
+                const targetName = DISTRIBUTOR_LEVEL_NAME_MAP[rawDistributorName] || rawDistributorName;
+                const resolvedId = await resolveLevelIdByName(DistributorLevel, targetName);
+                if (resolvedId != null) payload.distributorLevelId = resolvedId;
             }
             // referrerId：CSV 中可能是旧系统「推荐人ID」(用户ID)，需按 memberCode 解析为库内 member.id，否则会 Out of range
             const rawReferrerId = payload.referrerId;

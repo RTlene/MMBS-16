@@ -81,8 +81,18 @@ function main() {
   });
 
   const csv = toCsv(HEADERS, outRows);
-  fs.writeFileSync(OUTPUT_CSV, csv, 'utf8');
-  console.log('已输出:', OUTPUT_CSV);
+  try {
+    fs.writeFileSync(OUTPUT_CSV, csv, 'utf8');
+    console.log('已输出:', OUTPUT_CSV);
+  } catch (e) {
+    if (e && e.code === 'EBUSY') {
+      const fallback = path.join(DOCS, 'members_import_remapped.new.csv');
+      fs.writeFileSync(fallback, csv, 'utf8');
+      console.log('目标文件被占用，已改输出:', fallback);
+    } else {
+      throw e;
+    }
+  }
   console.log('总行数:', outRows.length);
   console.log('已填等级行数:', filled);
 }
