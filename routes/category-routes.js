@@ -10,6 +10,30 @@ const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
 
+async function resolveIconUrl(icon) {
+    const raw = (icon && String(icon).trim()) || '';
+    if (!raw) return null;
+    // COS 私有桶：返回签名 URL，避免 403
+    if (cosStorage.isConfigured()) {
+        const objectKey = cosStorage.parseObjectKeyFromUrl(raw);
+        if (objectKey) {
+            try {
+                const signed = await cosStorage.getSignedUrl(objectKey, 86400);
+                if (signed) return signed;
+            } catch (_) {}
+        }
+    }
+    // 云托管对象存储 file_id：换临时下载链接，避免 H5/小程序无法直接访问
+    if (wxCloudStorage.isConfigured() && raw.startsWith('cloud://')) {
+        try {
+            const temp = await wxCloudStorage.getTempDownloadUrl(raw, 86400);
+            if (temp) return temp;
+        } catch (_) {}
+    }
+    // 本地静态资源或已是可访问 URL
+    return raw;
+}
+
 const categoryIconDir = path.join(__dirname, '../public/uploads/categories');
 if (!fs.existsSync(categoryIconDir)) {
     fs.mkdirSync(categoryIconDir, { recursive: true });
@@ -42,11 +66,15 @@ router.get('/', authenticateToken, async (req, res) => {
             limit: parseInt(limit),
             offset: parseInt(offset)
         });
+        const categories = await Promise.all((rows || []).map(async (c) => {
+            const json = c && c.toJSON ? c.toJSON() : c;
+            return { ...json, icon: await resolveIconUrl(json.icon) };
+        }));
 
         res.json({
             code: 0,
             data: {
-                categories: rows,
+                categories,
                 total: count,
                 page: parseInt(page),
                 limit: parseInt(limit),
@@ -169,7 +197,9 @@ router.get('/:id', async (req, res) => {
       res.json({
         code: 0,
         message: '获取成功',
-        data: category
+        data: Object.assign(category.toJSON ? category.toJSON() : category, {
+            icon: await resolveIconUrl(category.icon)
+        })
       });
     } catch (error) {
       console.error('获取分类失败:', error);
