@@ -38,11 +38,12 @@
   color: #94A3B8;
 }
 
-/* 1. 大海报轮播（首图大图轮播） */
+/* 1. 大海报轮播（竖版大图） */
 .poster-section {
   position: relative;
-  height: 420rpx;
-  margin: 24rpx 24rpx 0;
+  /* 竖版比例：避免横图占满导致视觉偏移 */
+  height: 960rpx;
+  margin: 24rpx 32rpx 0;
   border-radius: 14rpx;
   overflow: hidden;
   background-color: #F1F5F9;

@@ -5,6 +5,8 @@ const fs = require('fs');
 const multer = require('multer');
 const { Category } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const cosStorage = require('../services/cosStorage');
+const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
 
@@ -13,10 +15,7 @@ if (!fs.existsSync(categoryIconDir)) {
     fs.mkdirSync(categoryIconDir, { recursive: true });
 }
 const uploadIcon = multer({
-    storage: multer.diskStorage({
-        destination: (_req, _file, cb) => cb(null, categoryIconDir),
-        filename: (_req, file, cb) => cb(null, 'cat-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname || '.png'))
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 2 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => (file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('只允许上传图片')))
 });
@@ -71,10 +70,44 @@ router.post('/upload-icon', authenticateToken, (req, res, next) => {
             if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ code: 1, message: '图片大小不能超过 2MB' });
             return res.status(400).json({ code: 1, message: err.message || '上传失败' });
         }
-        if (!req.file) return res.status(400).json({ code: 1, message: '未上传文件' });
-        const url = '/uploads/categories/' + req.file.filename;
-        res.json({ code: 0, message: '上传成功', data: { url } });
+        next();
     });
+}, async (req, res) => {
+    try {
+        if (!req.file || !req.file.buffer) return res.status(400).json({ code: 1, message: '未上传文件' });
+
+        const ext = path.extname(req.file.originalname || '') || '.png';
+        const safeExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext.toLowerCase()) ? ext : '.png';
+        const filename = 'cat-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + safeExt;
+
+        // 优先对象存储：COS（可在后台直接展示 URL），其次云托管对象存储（返回 cloud:// file_id），最后本地
+        if (cosStorage.isConfigured()) {
+            const objectKey = `categories/${filename}`;
+            await cosStorage.putObjectBuffer(objectKey, req.file.buffer);
+            const url = cosStorage.getPublicUrl(objectKey);
+            return res.json({ code: 0, message: '上传成功', data: { url } });
+        }
+
+        if (wxCloudStorage.isConfigured()) {
+            const tempPath = path.join(categoryIconDir, filename);
+            fs.writeFileSync(tempPath, req.file.buffer);
+            try {
+                const cloudPath = (process.env.WX_CLOUD_STORAGE_PREFIX || 'categories').replace(/^\/+/, '').replace(/\/+$/, '') + '/' + filename;
+                const fileId = await wxCloudStorage.uploadFromPath(tempPath, cloudPath);
+                return res.json({ code: 0, message: '上传成功', data: { url: fileId } });
+            } finally {
+                try { fs.unlinkSync(tempPath); } catch (_) {}
+            }
+        }
+
+        const localPath = path.join(categoryIconDir, filename);
+        fs.writeFileSync(localPath, req.file.buffer);
+        const url = '/uploads/categories/' + filename;
+        return res.json({ code: 0, message: '上传成功', data: { url } });
+    } catch (e) {
+        console.error('上传分类图标失败:', e);
+        return res.status(500).json({ code: 1, message: e.message || '上传失败' });
+    }
 });
 
 // 创建分类
