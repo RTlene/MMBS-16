@@ -1,0 +1,33 @@
+<view class="chat-page">
+  <view class="messages" id="msg-list">
+    <view wx:if="{{loading && messages.length === 0}}" class="loading-tip">加载中...</view>
+    <view wx:elif="{{!conversationId && !loading}}" class="empty-tip">正在创建会话...</view>
+    <block wx:else>
+      <view
+        wx:for="{{messages}}"
+        wx:key="id"
+        class="msg-row {{item.senderType === 'member' ? 'mine' : 'theirs'}}"
+      >
+        <view class="bubble">
+          <text wx:if="{{item.messageType === 'text'}}">{{item.contentText}}</text>
+          <image wx:elif="{{item.messageType === 'image'}}" src="{{item.contentUrl}}" mode="widthFix" class="msg-img" />
+        </view>
+      </view>
+    </block>
+  </view>
+  <view class="input-bar">
+    <view class="input-wrap">
+      <input
+        class="input"
+        placeholder="输入消息"
+        value="{{inputText}}"
+        bindinput="onInput"
+        bindconfirm="onSend"
+        confirm-type="send"
+        focus="{{inputFocus}}"
+      />
+      <button class="btn-img" bindtap="onChooseImage">图片</button>
+      <button class="btn-send" bindtap="onSend">发送</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,33 @@
+{
+  "description": "MMBS-16 商城小程序 - 客服开发独立项目（仅聊天相关页面，避免影响主项目上传）",
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "nodeModules": false,
+    "autoAudits": false,
+    "compileHotReLoad": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "minifyWXSS": true,
+    "minifyWXML": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.10.2",
+  "appid": "wx849e40856c0c2238",
+  "projectname": "MMBS商城-客服开发",
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  },
+  "simulatorPluginLibVersion": {}
+}

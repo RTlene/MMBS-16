@@ -144,6 +144,11 @@ const pageInitFunctions = {
         if (window.StoreManagement && window.StoreManagement.init) {
             window.StoreManagement.init();
         }
+    },
+    'chat-workbench': () => {
+        if (window.ChatWorkbench && window.ChatWorkbench.init) {
+            window.ChatWorkbench.init();
+        }
     }
 };
 

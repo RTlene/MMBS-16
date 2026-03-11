@@ -43,6 +43,8 @@ const miniappCouponRoutes = require('./routes/miniapp-coupon-routes');
 const miniappArticleRoutes = require('./routes/miniapp-article-routes');
 const miniappVerificationRoutes = require('./routes/miniapp-verification-routes');
 const miniappAfterSalesRoutes = require('./routes/miniapp-after-sales-routes');
+const miniappChatRoutes = require('./routes/miniapp-chat-routes');
+const staffChatRoutes = require('./routes/staff-chat-routes');
 const staffRoutes = require('./routes/staff-routes');
 const storeRoutes = require('./routes/store-routes');
 const miniappStoreRoutes = require('./routes/miniapp-store-routes');
@@ -154,6 +156,7 @@ app.use('/api/miniapp', miniappArticleRoutes);
 // 小程序核销码API
 app.use('/api/miniapp', miniappVerificationRoutes);
 app.use('/api/miniapp', miniappAfterSalesRoutes);
+app.use('/api/miniapp', miniappChatRoutes);
 app.use('/api/miniapp', miniappStoreRoutes);
 // 门店管理（后台）
 app.use('/api/stores', require('./middleware/auth').authenticateToken, storeRoutes);
@@ -162,6 +165,8 @@ const paymentRoutes = require('./routes/payment-routes');
 app.use('/api/payment', paymentRoutes);
 // 员工管理API（小程序端）
 app.use('/api', staffRoutes);
+// 后台客服工作台 API（/api/staff/chat/*）
+app.use('/api', staffChatRoutes);
 // 健康检查接口（用于云托管健康检查）
 app.get('/health', (req, res) => {
   res.json({
@@ -220,6 +225,7 @@ app.get("/", async (req, res) => {
 
 // 云托管默认探针检查 80 端口，未设置 PORT 时使用 80；本地开发可在 .env 中设置 PORT=3000
 const port = process.env.PORT || 80;
+const http = require('http');
 const fs = require('fs');
 const startupAt = Date.now();
 let dbReady = false;
@@ -310,8 +316,11 @@ async function bootstrap() {
       console.warn('[Startup] 从对象存储恢复证书失败:', e.message);
     }
   }
-  // 先启动 HTTP 服务（保证云托管存活/就绪探针通过），再在后台初始化数据库
-  app.listen(port, () => {
+  // 使用 HTTP Server 以便挂载 WebSocket（/ws/chat 实时客服）
+  const server = http.createServer(app);
+  const { initChatRealtime } = require('./services/chatRealtime');
+  initChatRealtime(server);
+  server.listen(port, () => {
     console.log(`[Startup] HTTP 已监听端口 ${port}，耗时 ${Date.now() - startupAt}ms`);
   });
   const dbStartAt = Date.now();

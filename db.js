@@ -2756,6 +2756,77 @@ const VerificationCode = sequelize.define('VerificationCode', {
     timestamps: true
 });
 
+// ==================== 实时客服/咨询 ====================
+const ChatConversation = sequelize.define('ChatConversation', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    memberId: { type: DataTypes.INTEGER, allowNull: false, comment: '发起会员ID' },
+    staffId: { type: DataTypes.INTEGER, allowNull: true, comment: '接待客服UserID' },
+    status: {
+        type: DataTypes.ENUM('waiting', 'active', 'closed'),
+        allowNull: false,
+        defaultValue: 'waiting',
+        comment: 'waiting-排队/待接入，active-进行中，closed-已结束'
+    },
+    source: {
+        type: DataTypes.ENUM('general', 'verification_consult'),
+        allowNull: false,
+        defaultValue: 'general',
+        comment: '会话来源'
+    },
+    verificationCodeId: { type: DataTypes.INTEGER, allowNull: true, comment: '关联核销码ID（咨询凭证）' },
+    lastMessageAt: { type: DataTypes.DATE, allowNull: true, comment: '最后消息时间' },
+    lastMessagePreview: { type: DataTypes.STRING(200), allowNull: true, comment: '最后消息摘要' },
+}, {
+    tableName: 'chat_conversations',
+    timestamps: true
+});
+
+const ChatParticipant = sequelize.define('ChatParticipant', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    conversationId: { type: DataTypes.INTEGER, allowNull: false, comment: '会话ID' },
+    participantType: { type: DataTypes.ENUM('member', 'staff'), allowNull: false, comment: '参与者类型' },
+    participantId: { type: DataTypes.INTEGER, allowNull: false, comment: '参与者ID（memberId 或 staff userId）' },
+    lastReadMessageId: { type: DataTypes.INTEGER, allowNull: true, comment: '最后已读消息ID' },
+}, {
+    tableName: 'chat_participants',
+    timestamps: true
+});
+
+const ChatMessage = sequelize.define('ChatMessage', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    conversationId: { type: DataTypes.INTEGER, allowNull: false, comment: '会话ID' },
+    senderType: { type: DataTypes.ENUM('member', 'staff'), allowNull: false, comment: '发送方类型' },
+    senderId: { type: DataTypes.INTEGER, allowNull: false, comment: '发送方ID（memberId 或 staff userId）' },
+    messageType: { type: DataTypes.ENUM('text', 'image'), allowNull: false, defaultValue: 'text', comment: '消息类型' },
+    contentText: { type: DataTypes.TEXT, allowNull: true, comment: '文本内容' },
+    contentUrl: { type: DataTypes.STRING(800), allowNull: true, comment: '图片URL' },
+    clientMsgId: { type: DataTypes.STRING(80), allowNull: true, comment: '客户端幂等ID' },
+}, {
+    tableName: 'chat_messages',
+    timestamps: true
+});
+
+const ChatQuickReply = sequelize.define('ChatQuickReply', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    staffId: { type: DataTypes.INTEGER, allowNull: true, comment: '所属客服UserID；为空表示全局话术' },
+    title: { type: DataTypes.STRING(100), allowNull: false, comment: '标题' },
+    content: { type: DataTypes.TEXT, allowNull: false, comment: '内容' },
+    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '是否启用' },
+}, {
+    tableName: 'chat_quick_replies',
+    timestamps: true
+});
+
+const ChatQueueItem = sequelize.define('ChatQueueItem', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    conversationId: { type: DataTypes.INTEGER, allowNull: false, comment: '会话ID' },
+    priority: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, comment: '优先级（越大越优先）' },
+    enqueuedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, comment: '入队时间' },
+}, {
+    tableName: 'chat_queue_items',
+    timestamps: true
+});
+
 // 佣金计算记录模型
 const CommissionCalculation = sequelize.define('CommissionCalculation', {
     id: {
@@ -3252,6 +3323,22 @@ VerificationCode.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
 VerificationCode.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
 VerificationCode.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 VerificationCode.belongsTo(ProductSKU, { foreignKey: 'skuId', as: 'sku' });
+
+// Chat 关联
+ChatConversation.belongsTo(Member, { foreignKey: 'memberId', as: 'member', onDelete: 'CASCADE' });
+Member.hasMany(ChatConversation, { foreignKey: 'memberId', as: 'chatConversations', onDelete: 'CASCADE' });
+ChatConversation.belongsTo(User, { foreignKey: 'staffId', as: 'staff', onDelete: 'SET NULL' });
+User.hasMany(ChatConversation, { foreignKey: 'staffId', as: 'assignedChatConversations', onDelete: 'SET NULL' });
+ChatConversation.belongsTo(VerificationCode, { foreignKey: 'verificationCodeId', as: 'verificationCode', onDelete: 'SET NULL' });
+VerificationCode.hasMany(ChatConversation, { foreignKey: 'verificationCodeId', as: 'chatConversations', onDelete: 'SET NULL' });
+ChatMessage.belongsTo(ChatConversation, { foreignKey: 'conversationId', as: 'conversation', onDelete: 'CASCADE' });
+ChatConversation.hasMany(ChatMessage, { foreignKey: 'conversationId', as: 'messages', onDelete: 'CASCADE' });
+ChatParticipant.belongsTo(ChatConversation, { foreignKey: 'conversationId', as: 'conversation', onDelete: 'CASCADE' });
+ChatConversation.hasMany(ChatParticipant, { foreignKey: 'conversationId', as: 'participants', onDelete: 'CASCADE' });
+ChatQueueItem.belongsTo(ChatConversation, { foreignKey: 'conversationId', as: 'conversation', onDelete: 'CASCADE' });
+ChatConversation.hasOne(ChatQueueItem, { foreignKey: 'conversationId', as: 'queueItem', onDelete: 'CASCADE' });
+ChatQuickReply.belongsTo(User, { foreignKey: 'staffId', as: 'staff', onDelete: 'CASCADE' });
+User.hasMany(ChatQuickReply, { foreignKey: 'staffId', as: 'chatQuickReplies', onDelete: 'CASCADE' });
 Member.hasMany(VerificationCode, { foreignKey: 'memberId', as: 'verificationCodes' });
 Product.hasMany(VerificationCode, { foreignKey: 'productId', as: 'verificationCodes' });
 
@@ -3385,6 +3472,11 @@ async function init() {
       ['Popups', Popup],
       ['Articles', Article],
       ['VerificationCodes', VerificationCode],
+      ['chat_conversations', ChatConversation],
+      ['chat_participants', ChatParticipant],
+      ['chat_messages', ChatMessage],
+      ['chat_quick_replies', ChatQuickReply],
+      ['chat_queue_items', ChatQueueItem],
       ['CommissionCalculations', CommissionCalculation],
       ['TeamIncentiveCalculations', TeamIncentiveCalculation],
       ['OrderItems', OrderItem],
@@ -3492,6 +3584,11 @@ module.exports = {
     Popup,
     Article,
     VerificationCode,
+    ChatConversation,
+    ChatParticipant,
+    ChatMessage,
+    ChatQuickReply,
+    ChatQueueItem,
     PointSettings,
     PointMultiplierConfig,
     PointSourceConfig,
