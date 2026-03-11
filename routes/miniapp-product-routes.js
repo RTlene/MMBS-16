@@ -4,8 +4,31 @@ const { Product, Category, ProductSKU, ProductAttribute, sequelize } = require('
 const { authenticateToken } = require('../middleware/auth');
 const { optionalAuthenticate } = require('../middleware/miniapp-auth');
 const PromotionService = require('../services/promotionService');
+const cosStorage = require('../services/cosStorage');
+const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
+
+async function resolveIconUrl(icon) {
+    const raw = (icon && String(icon).trim()) || '';
+    if (!raw) return null;
+    if (cosStorage.isConfigured()) {
+        const objectKey = cosStorage.parseObjectKeyFromUrl(raw);
+        if (objectKey) {
+            try {
+                const signed = await cosStorage.getSignedUrl(objectKey, 86400);
+                if (signed) return signed;
+            } catch (_) {}
+        }
+    }
+    if (wxCloudStorage.isConfigured() && raw.startsWith('cloud://')) {
+        try {
+            const temp = await wxCloudStorage.getTempDownloadUrl(raw, 86400);
+            if (temp) return temp;
+        } catch (_) {}
+    }
+    return raw;
+}
 
 // 获取商品列表（小程序端）
 router.get('/products', async (req, res) => {
@@ -781,9 +804,13 @@ router.get('/categories', async (req, res) => {
             attributes: ['id', 'name', 'description', 'parentId', 'sortOrder', 'icon', 'showOnHomepage'],
             order: [['sortOrder', 'ASC'], ['createdAt', 'ASC']]
         });
+        const normalized = await Promise.all((categories || []).map(async (c) => {
+            const json = c && c.toJSON ? c.toJSON() : c;
+            return { ...json, icon: await resolveIconUrl(json.icon) };
+        }));
 
         // 构建分类树结构（如果 categories 为空数组，buildCategoryTree 会返回空数组）
-        const categoryTree = buildCategoryTree(categories, parsedParentId);
+        const categoryTree = buildCategoryTree(normalized, parsedParentId);
 
         // 数据库为空时正常返回空数组，不是错误
         res.json({
