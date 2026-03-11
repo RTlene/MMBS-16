@@ -52,7 +52,7 @@ async function loadStores() {
             try {
                 const err = JSON.parse(text);
                 alert(err.message || '加载失败');
-            } else {
+            } catch (_) {
                 alert('加载门店列表失败：' + res.status);
             }
             return;
@@ -71,6 +71,15 @@ async function loadStores() {
         alert('加载门店列表失败');
     }
 }
+
+// 兼容 HTML 内联 onclick（避免函数不在全局作用域导致报错）
+window.searchStores = searchStores;
+window.showAddStoreModal = showAddStoreModal;
+window.closeStoreModal = closeStoreModal;
+window.saveStore = saveStore;
+window.editStore = editStore;
+window.deleteStore = deleteStore;
+window.goPage = goPage;
 
 function renderTable() {
     const tbody = document.getElementById('storeTableBody');
