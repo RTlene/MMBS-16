@@ -123,14 +123,14 @@ function renderBannersTable() {
         const row = document.createElement('tr');
         // 使用 title 或 name 字段，兼容不同的返回格式
         const bannerName = banner.title || banner.name || '未命名';
-        const bannerImageUrl = banner.imageUrl || '/images/placeholder.png';
+        const bannerImageUrl = banner.imageUrl || '/images/default-product.svg';
         
         row.innerHTML = `
             <td>${banner.id}</td>
             <td>${bannerName}</td>
             <td><span class="position-badge">${getPositionText(banner.position)}</span></td>
             <td><span class="status-badge status-${banner.status}">${banner.status === 'active' ? '有效' : '无效'}</span></td>
-            <td><img src="${bannerImageUrl}" class="banner-preview" alt="横幅预览" onerror="this.src='/images/placeholder.png'"></td>
+            <td><img src="${bannerImageUrl}" class="banner-preview" alt="横幅预览" onerror="this.src='/images/default-product.svg'"></td>
             <td>${banner.sort || 0}</td>
             <td>${banner.startTime ? formatDate(banner.startTime) : '-'}</td>
             <td>${banner.endTime ? formatDate(banner.endTime) : '-'}</td>

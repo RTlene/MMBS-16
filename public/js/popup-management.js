@@ -102,7 +102,7 @@ function renderPopupsTable() {
             <td>${popup.name}</td>
             <td><span class="type-badge">${getTypeText(popup.type)}</span></td>
             <td><span class="status-badge status-${popup.status}">${popup.status === 'active' ? '有效' : '无效'}</span></td>
-            <td><img src="${popup.imageUrl || '/images/placeholder.png'}" class="popup-preview" alt="弹窗预览"></td>
+            <td><img src="${popup.imageUrl || '/images/default-product.svg'}" class="popup-preview" alt="弹窗预览"></td>
             <td>${getFrequencyText(popup.frequency)}</td>
             <td>${popup.startTime ? formatDate(popup.startTime) : '-'}</td>
             <td>${popup.endTime ? formatDate(popup.endTime) : '-'}</td>
