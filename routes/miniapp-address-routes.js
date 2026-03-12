@@ -4,13 +4,36 @@ const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
 const router = express.Router();
 
+// 与 db MemberAddress 字段长度一致，写入前截断防呆
+const ADDRESS_FIELD_LIMITS = {
+  name: 50,
+  phone: 20,
+  region: 200,
+  detail: 200,
+  locationName: 200,
+};
+
+function truncate(str, maxLen) {
+  if (str == null || typeof str !== 'string') return '';
+  const s = str.trim();
+  if (maxLen <= 0) return s;
+  return s.length <= maxLen ? s : s.slice(0, maxLen);
+}
+
 function validatePayload(body = {}) {
-  const name = (body.name || '').trim();
-  const phone = (body.phone || '').replace(/\s+/g, '');
-  const region = (body.region || '').trim();
-  const detail = (body.detail || '').trim();
+  const rawName = (body.name || '').trim();
+  const name = truncate(rawName, ADDRESS_FIELD_LIMITS.name);
+  const rawPhone = (body.phone || '').replace(/\s+/g, '');
+  const phone = truncate(rawPhone, ADDRESS_FIELD_LIMITS.phone);
+  const rawRegion = (body.region || '').trim();
+  const region = truncate(rawRegion, ADDRESS_FIELD_LIMITS.region);
+  const rawDetail = (body.detail || '').trim();
+  const detail = truncate(rawDetail, ADDRESS_FIELD_LIMITS.detail);
+  const locationName = body.locationName != null ? truncate(String(body.locationName).trim(), ADDRESS_FIELD_LIMITS.locationName) : null;
+
   if (!name) return { error: '收货人不能为空' };
-  if (!/^1\d{10}$/.test(phone)) return { error: '手机号格式不正确' };
+  if (!phone) return { error: '手机号不能为空' };
+  if (!/^\d+$/.test(phone)) return { error: '手机号格式不正确' };
   if (!region) return { error: '省市区不能为空' };
   if (!detail) return { error: '详细地址不能为空' };
   return {
@@ -22,7 +45,7 @@ function validatePayload(body = {}) {
       detail,
       latitude: body.latitude || null,
       longitude: body.longitude || null,
-      locationName: body.locationName || null,
+      locationName: locationName || null,
       isDefault: !!body.isDefault,
     },
   };

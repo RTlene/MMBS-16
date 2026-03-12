@@ -6,6 +6,9 @@ const request = require('../../utils/request.js');
 const { API } = require('../../config/api.js');
 const { splitRegionDetail } = require('../../utils/address.js');
 
+// 与后端/地址字段长度一致
+const LIMITS = { receiverName: 50, receiverPhone: 20, shippingAddress: 200 };
+
 Page({
   data: {
     items: [],
@@ -19,6 +22,7 @@ Page({
     selectedAddressId: null,
     receiverName: '',
     receiverPhone: '',
+    receiverPhoneError: '',
     shippingAddress: '',
     shippingRegion: '',
     shippingDetail: '',
@@ -372,11 +376,13 @@ Page({
 
   applyAddress(addr) {
     if (!addr) return;
+    const phone = addr.phone || '';
     this.setData({
       selectedAddressId: addr.id,
-      receiverName: addr.name || '',
-      receiverPhone: addr.phone || '',
-      shippingAddress: `${addr.region || ''} ${addr.detail || ''}`.trim(),
+      receiverName: (addr.name || '').slice(0, LIMITS.receiverName),
+      receiverPhone: phone.replace(/\s+/g, '').slice(0, LIMITS.receiverPhone),
+      receiverPhoneError: this._receiverPhoneError(phone),
+      shippingAddress: `${addr.region || ''} ${addr.detail || ''}`.trim().slice(0, LIMITS.shippingAddress),
       shippingRegion: addr.region || '',
       shippingDetail: addr.detail || ''
     });
@@ -417,11 +423,37 @@ Page({
     });
   },
 
+  _receiverPhoneError(phone) {
+    const p = (phone || '').replace(/\s+/g, '');
+    if (!p) return '请输入手机号';
+    if (!/^\d+$/.test(p)) return '手机号格式不正确';
+    if (p.length > LIMITS.receiverPhone) return '手机号最多20位';
+    return '';
+  },
+
+  onReceiverPhoneBlur() {
+    const phone = this.data.receiverPhone || '';
+    this.setData({ receiverPhoneError: this._receiverPhoneError(phone) });
+  },
+
   onInputChange(e) {
     const { field } = e.currentTarget.dataset;
-    this.setData({
-      [field]: e.detail.value
-    });
+    let value = e.detail.value || '';
+    const maxLen = LIMITS[field];
+    let showOverTip = false;
+    if (maxLen && value.length > maxLen) {
+      value = value.slice(0, maxLen);
+      showOverTip = true;
+    }
+    const update = { [field]: value };
+    if (field === 'receiverPhone') {
+      update.receiverPhoneError = this._receiverPhoneError(value);
+    }
+    this.setData(update);
+    if (showOverTip) {
+      const tips = { receiverName: '收货人最多50字', shippingAddress: '收货地址最多200字' };
+      wx.showToast({ title: tips[field] || '已超出字数限制', icon: 'none' });
+    }
   },
 
   /**
@@ -738,16 +770,21 @@ Page({
         wx.showToast({ title: '请填写收货人', icon: 'none' });
         return;
       }
-      if (!receiverPhone.trim()) {
-        wx.showToast({ title: '请填写手机号', icon: 'none' });
+      const purePhone = (receiverPhone || '').replace(/\s+/g, '');
+      const phoneErr = this._receiverPhoneError(receiverPhone);
+      if (phoneErr) {
+        this.setData({ receiverPhoneError: phoneErr });
+        wx.showToast({ title: phoneErr, icon: 'none' });
         return;
       }
+      this.setData({ receiverPhoneError: '' });
       if (!shippingAddress.trim()) {
         wx.showToast({ title: '请填写收货地址', icon: 'none' });
         return;
       }
     }
 
+    const purePhone = (receiverPhone || '').replace(/\s+/g, '');
     const payload = {
       items: items.map(item => ({
         productId: item.productId,
@@ -756,9 +793,9 @@ Page({
       })),
       deliveryType: isPickup ? 'pickup' : 'delivery',
       storeId: isPickup ? selectedStore.id : null,
-      receiverName: isPickup ? '' : receiverName.trim(),
-      receiverPhone: isPickup ? '' : receiverPhone.trim(),
-      shippingAddress: isPickup ? '' : shippingAddress.trim(),
+      receiverName: isPickup ? '' : (receiverName || '').trim().slice(0, LIMITS.receiverName),
+      receiverPhone: isPickup ? '' : purePhone.slice(0, 20),
+      shippingAddress: isPickup ? '' : (shippingAddress || '').trim().slice(0, LIMITS.shippingAddress),
       remark: remark.trim(),
       appliedCoupons: this.data.selectedCoupon ? [{ id: this.data.selectedCoupon.id, code: this.data.selectedCoupon.code }] : [],
       commissionUsage: this.data.useCommission > 0 ? this.data.useCommission : null,
