@@ -16,6 +16,19 @@ App({
     console.log('[App] API 地址:', API_BASE_URL);
     console.log('[App] 环境信息:', ENV_INFO);
 
+    // 从分享/冷启动参数中尽早保存推荐人ID，供自动登录时注册为推荐人粉丝（必须在 autoLogin 前写入 storage）
+    if (options && options.query && options.query.referrerId) {
+      const rid = String(options.query.referrerId).trim();
+      if (rid) {
+        try {
+          wx.setStorageSync('referrerId', rid);
+          console.log('[App] 从启动参数保存推荐人ID:', rid);
+        } catch (e) {
+          console.warn('[App] 保存推荐人ID失败:', e);
+        }
+      }
+    }
+
     // 生产环境初始化云开发，供 wx.cloud.callContainer 使用（无需配置 request 合法域名）
     if (ENV_INFO.isProduction && wx.cloud) {
       wx.cloud.init({ env: CLOUD_ENV, traceUser: true });
@@ -32,11 +45,14 @@ App({
     
     // 初始化全局数据
     this.initGlobalData();
+    if (options && options.query && options.query.referrerId) {
+      this.globalData.referrerId = String(options.query.referrerId).trim() || null;
+    }
     
     // 检查小程序版本更新
     this.checkUpdate();
     
-    // 自动登录
+    // 自动登录（无 openid 时会调登录接口，后端会创建会员并绑定推荐人）
     this.autoLogin();
   },
 
@@ -47,12 +63,18 @@ App({
     console.log('[App] 小程序显示', options);
     
     // 记录启动场景
-    this.globalData.scene = options.scene;
+    this.globalData.scene = options && options.scene;
     
-    // 处理分享进入的场景
-    if (options.scene === 1007 || options.scene === 1008) {
-      console.log('[App] 从分享进入，分享人ID:', options.query.referrerId);
-      this.globalData.referrerId = options.query.referrerId;
+    // 从分享进入或带 query 的进入：把推荐人ID 写入 storage，确保后续登录时能绑定为推荐人粉丝
+    if (options && options.query && options.query.referrerId) {
+      const rid = String(options.query.referrerId).trim();
+      if (rid) {
+        try {
+          wx.setStorageSync('referrerId', rid);
+          this.globalData.referrerId = rid;
+          console.log('[App] 从展示参数保存推荐人ID:', rid);
+        } catch (e) {}
+      }
     }
   },
 
