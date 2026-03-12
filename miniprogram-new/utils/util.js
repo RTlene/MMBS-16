@@ -399,6 +399,88 @@ function buildOptimizedImageUrl(url, options = {}) {
 }
 
 /**
+ * 将图片 URL 解析为小程序可显示的地址（生产环境通过 callContainer 拉图写临时文件，避免配置下载合法域名）
+ * @param {string} imageUrl - 完整 URL 或相对路径（如 /uploads/banners/xxx.jpg）
+ * @returns {Promise<string>} 可填入 <image src=""> 的地址：本地临时路径或原 URL
+ */
+function resolveImageUrlForDisplay(imageUrl) {
+  if (!imageUrl) return Promise.resolve('');
+  if (/^data:image\//i.test(imageUrl)) return Promise.resolve(imageUrl);
+
+  let apiConfig;
+  try {
+    apiConfig = require('../config/api.js');
+  } catch (e) {
+    return Promise.resolve(buildAbsoluteUrl(imageUrl));
+  }
+  const { ENV_INFO, CLOUD_ENV, CLOUD_SERVICE_NAME, API_BASE_URL } = apiConfig;
+  if (ENV_INFO.isProduction && typeof wx !== 'undefined' && wx.cloud) {
+    // 防止 util 被先于 App.onLaunch 调用导致未 init
+    try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+  }
+  const useCallContainer = ENV_INFO.isProduction && typeof wx !== 'undefined' && wx.cloud && typeof wx.cloud.callContainer === 'function';
+
+  if (!useCallContainer) return Promise.resolve(buildAbsoluteUrl(imageUrl));
+
+  let path = '';
+  if (/^https?:\/\//i.test(imageUrl)) {
+    const base = (API_BASE_URL || '').replace(/\/$/, '');
+    if (!imageUrl.startsWith(base)) return Promise.resolve(buildAbsoluteUrl(imageUrl));
+    try {
+      const pathPart = imageUrl.slice(base.length) || '/';
+      path = pathPart.indexOf('/') === 0 ? pathPart : '/' + pathPart;
+    } catch (_) {
+      return Promise.resolve(buildAbsoluteUrl(imageUrl));
+    }
+  } else {
+    path = imageUrl.indexOf('/') === 0 ? imageUrl : '/' + imageUrl;
+  }
+  if (!path || !path.startsWith('/uploads/')) return Promise.resolve(buildAbsoluteUrl(imageUrl));
+
+  return new Promise((resolve) => {
+    console.log('[util] resolveImageUrlForDisplay callContainer GET:', path);
+    wx.cloud.callContainer({
+      config: { env: CLOUD_ENV },
+      path: path,
+      method: 'GET',
+      header: { 'X-WX-SERVICE': CLOUD_SERVICE_NAME },
+      responseType: 'arraybuffer',
+      success: (res) => {
+        if (res.statusCode !== 200 || !res.data) {
+          console.warn('[util] resolveImageUrlForDisplay 非200，回退URL:', res.statusCode, path);
+          resolve(buildAbsoluteUrl(imageUrl));
+          return;
+        }
+        const fs = wx.getFileSystemManager();
+        const dir = wx.env.USER_DATA_PATH + '/img_cache';
+        // 先确保目录存在
+        try { fs.mkdirSync(dir, true); } catch (_) {}
+
+        const safePath = path.replace(/\?.*$/, '').replace(/^\/+/, '');
+        const extMatch = safePath.match(/(\.[a-z0-9]+)$/i);
+        const ext = extMatch ? extMatch[1] : '.jpg';
+        const baseName = (safePath.replace(/\//g, '_').replace(/[^a-z0-9_\.-]/ig, '_').slice(-60) || 'img');
+        const name = baseName + '_' + Date.now() + ext;
+        const filePath = `${dir}/${name}`;
+        try {
+          // res.data 为 ArrayBuffer；写入时不要传 'binary' 编码
+          fs.writeFileSync(filePath, res.data);
+          console.log('[util] resolveImageUrlForDisplay 写入成功:', filePath);
+          resolve(filePath);
+        } catch (e) {
+          console.error('[util] resolveImageUrlForDisplay 写入失败，回退URL:', e);
+          resolve(buildAbsoluteUrl(imageUrl));
+        }
+      },
+      fail: (err) => {
+        console.warn('[util] resolveImageUrlForDisplay callContainer 失败，回退URL:', err);
+        resolve(buildAbsoluteUrl(imageUrl));
+      }
+    });
+  });
+}
+
+/**
  * 媒体（视频/图片）URL：若是私有桶 COS 直链则返回后端 cos-url 代理地址，否则返回原 URL
  * 小程序端用此加载 COS 视频或非图片优化场景的 COS 图，避免 403
  */
@@ -707,6 +789,7 @@ module.exports = {
   // URL
   buildAbsoluteUrl,
   buildOptimizedImageUrl,
+  resolveImageUrlForDisplay,
   buildCosProxyUrlIfNeeded,
   buildVideoPlayProxyUrl,
   parseUrlParams,

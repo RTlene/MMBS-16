@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { compressImage } = require('../utils/imageCompress');
+const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
 
@@ -321,12 +322,11 @@ router.post('/', authenticateToken, upload.single('image'), handleMulterError, a
             });
         }
 
-        // 处理图片上传和压缩
+        // 处理图片上传：先落盘压缩，再上传云存储（若已配置），数据库存 cloud:// 或本地路径
         let imageUrl = '';
         if (req.file) {
             const filePath = path.join(__dirname, '../public/uploads/banners', req.file.filename);
-            
-            // 压缩图片
+
             try {
                 const compressResult = await compressImage(filePath, null, {
                     quality: 85,
@@ -334,15 +334,27 @@ router.post('/', authenticateToken, upload.single('image'), handleMulterError, a
                     maxHeight: 1080,
                     keepOriginal: false
                 });
-                
                 if (compressResult.success && !compressResult.skipped) {
                     console.log(`[Banner] 图片压缩成功: ${req.file.filename}, 原始: ${(compressResult.originalSize / 1024).toFixed(2)}KB, 压缩后: ${(compressResult.compressedSize / 1024).toFixed(2)}KB, 节省: ${compressResult.savedPercent}%`);
                 }
             } catch (error) {
                 console.error(`[Banner] 图片压缩失败: ${req.file.filename}`, error);
             }
-            
-            imageUrl = `/uploads/banners/${req.file.filename}`;
+
+            if (wxCloudStorage.isConfigured()) {
+                try {
+                    const cloudPath = 'banners/' + req.file.filename;
+                    const fileId = await wxCloudStorage.uploadFromPath(filePath, cloudPath);
+                    imageUrl = fileId;
+                    console.log(`[Banner] 已上传至云托管存储: ${req.file.filename} -> ${fileId}`);
+                    try { fs.unlinkSync(filePath); } catch (_) {}
+                } catch (err) {
+                    console.error(`[Banner] 云托管存储上传失败，使用本地路径: ${req.file.filename}`, err.message);
+                    imageUrl = `/uploads/banners/${req.file.filename}`;
+                }
+            } else {
+                imageUrl = `/uploads/banners/${req.file.filename}`;
+            }
         }
 
         const PRIMARY_POSITIONS = {
@@ -396,17 +408,53 @@ router.put('/:id', authenticateToken, upload.single('image'), handleMulterError,
             });
         }
 
-        // 处理图片上传
+        // 处理图片上传：新图上传云存储或本地；旧图若为 cloud:// 则从云删除，若为 /uploads/ 则删本地
         let imageUrl = banner.imageUrl;
         if (req.file) {
-            // 删除旧图片
-            if (banner.imageUrl) {
-                const oldImagePath = path.join(__dirname, '../public', banner.imageUrl);
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
+            const oldUrl = banner.imageUrl;
+            if (oldUrl) {
+                if (typeof oldUrl === 'string' && oldUrl.trim().startsWith('cloud://') && wxCloudStorage.isConfigured()) {
+                    try {
+                        const { deleted } = await wxCloudStorage.deleteFiles([oldUrl.trim()]);
+                        if (deleted) console.log(`[Banner] 已从云存储删除旧图: ${oldUrl}`);
+                    } catch (e) {
+                        console.warn('[Banner] 云存储删除旧图失败:', e.message);
+                    }
+                } else {
+                    const oldImagePath = path.join(__dirname, '../public', oldUrl);
+                    if (fs.existsSync(oldImagePath)) {
+                        fs.unlinkSync(oldImagePath);
+                    }
                 }
             }
-            imageUrl = `/uploads/banners/${req.file.filename}`;
+            const filePath = path.join(__dirname, '../public/uploads/banners', req.file.filename);
+            try {
+                const compressResult = await compressImage(filePath, null, {
+                    quality: 85,
+                    maxWidth: 1920,
+                    maxHeight: 1080,
+                    keepOriginal: false
+                });
+                if (compressResult.success && !compressResult.skipped) {
+                    console.log(`[Banner] 更新图片压缩成功: ${req.file.filename}`);
+                }
+            } catch (error) {
+                console.error(`[Banner] 更新图片压缩失败: ${req.file.filename}`, error);
+            }
+            if (wxCloudStorage.isConfigured()) {
+                try {
+                    const cloudPath = 'banners/' + req.file.filename;
+                    const fileId = await wxCloudStorage.uploadFromPath(filePath, cloudPath);
+                    imageUrl = fileId;
+                    console.log(`[Banner] 已上传至云托管存储: ${req.file.filename} -> ${fileId}`);
+                    try { fs.unlinkSync(filePath); } catch (_) {}
+                } catch (err) {
+                    console.error(`[Banner] 云托管存储上传失败，使用本地路径: ${req.file.filename}`, err.message);
+                    imageUrl = `/uploads/banners/${req.file.filename}`;
+                }
+            } else {
+                imageUrl = `/uploads/banners/${req.file.filename}`;
+            }
         }
 
         const resolvedTitle = bannerData.title || bannerData.name || banner.title;
@@ -458,11 +506,21 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             });
         }
 
-        // 删除图片文件
+        // 删除图片：云存储 file_id 从云删，本地路径删本地文件
         if (banner.imageUrl) {
-            const imagePath = path.join(__dirname, '../public', banner.imageUrl);
-            if (fs.existsSync(imagePath)) {
-                fs.unlinkSync(imagePath);
+            const raw = (banner.imageUrl || '').trim();
+            if (raw.startsWith('cloud://') && wxCloudStorage.isConfigured()) {
+                try {
+                    const { deleted } = await wxCloudStorage.deleteFiles([raw]);
+                    if (deleted) console.log(`[Banner] 已从云存储删除: ${raw}`);
+                } catch (e) {
+                    console.warn('[Banner] 云存储删除失败:', e.message);
+                }
+            } else {
+                const imagePath = path.join(__dirname, '../public', raw);
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                }
             }
         }
 

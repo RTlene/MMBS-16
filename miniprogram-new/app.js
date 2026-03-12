@@ -4,7 +4,7 @@
  */
 
 const auth = require('./utils/auth.js');
-const { API_BASE_URL, ENV, ENV_INFO } = require('./config/api.js');
+const { API_BASE_URL, ENV, ENV_INFO, CLOUD_ENV } = require('./config/api.js');
 
 App({
   /**
@@ -15,6 +15,12 @@ App({
     console.log('[App] 运行环境:', ENV);
     console.log('[App] API 地址:', API_BASE_URL);
     console.log('[App] 环境信息:', ENV_INFO);
+
+    // 生产环境初始化云开发，供 wx.cloud.callContainer 使用（无需配置 request 合法域名）
+    if (ENV_INFO.isProduction && wx.cloud) {
+      wx.cloud.init({ env: CLOUD_ENV, traceUser: true });
+      console.log('[App] 云托管已初始化 env:', CLOUD_ENV);
+    }
     
     // 开发环境提示
     if (ENV_INFO.isDevelopment) {

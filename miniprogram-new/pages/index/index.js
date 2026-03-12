@@ -225,6 +225,7 @@ Page({
         }).filter(item => item !== null && item.imageUrl); // 过滤掉null和没有图片URL的横幅
         
         console.log('[Index] 处理后的轮播图数量:', banners.length, banners);
+        // imageUrl 已由 buildOptimizedImageUrl 处理：cloud:// -> temp-url，/uploads/ -> 带压缩参数完整 URL
         this.setData({ banners });
       } else if (result && result.code === 0 && (!result.data || result.data.length === 0)) {
         // API成功但数据为空（数据库中没有轮播图）
@@ -363,6 +364,7 @@ Page({
             title: item.title || ''
           };
         }).filter(Boolean);
+        // imageUrl 已由 buildOptimizedImageUrl 处理：cloud:// -> temp-url
         this.setData({ activityBanners: list });
       } else {
         this.setData({ activityBanners: [] });

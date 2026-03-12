@@ -578,31 +578,27 @@ router.get('/products/:id/sku-images', async (req, res) => {
 router.get('/products/:id/detail', optionalAuthenticate, async (req, res) => {
     const start = Date.now();
     const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    console.log(`[ProductDetail] [${requestId}] 收到请求: productId=${req.params.id}, memberId=${req.query.memberId}, skuId=${req.query.skuId || ''}, quantity=${req.query.quantity || 1}`);
+    console.log(`[ProductDetail] [${requestId}] 收到请求: productId=${req.params.id}, query.memberId=${req.query.memberId}, req.memberId(openid)=${req.memberId}, skuId=${req.query.skuId || ''}, quantity=${req.query.quantity || 1}`);
     console.log(`[ProductDetail] [${requestId}] 请求URL: ${req.originalUrl}, 请求方法: ${req.method}`);
     console.log(`[ProductDetail] [${requestId}] 请求头:`, JSON.stringify(req.headers));
     
     try {
         const { id } = req.params;
-        const { memberId, skuId, quantity = 1 } = req.query;
+        const { skuId, quantity = 1 } = req.query;
+        // 优先使用 openid 解析出的会员ID（req.memberId），避免前端传错或过期 memberId 导致「会员不存在或已被禁用」
+        const memberId = req.memberId != null && req.memberId !== ''
+            ? Number(req.memberId)
+            : (req.query.memberId ? parseInt(req.query.memberId, 10) : null);
 
-        console.log(`[ProductDetail] [${requestId}] 开始处理: id=${id}, memberId=${memberId}, skuId=${skuId || ''}, quantity=${quantity}`);
-
-        if (!memberId) {
-            console.log(`[ProductDetail] [${requestId}] 缺少会员ID，返回400`);
-            return res.status(400).json({
-                code: 1,
-                message: '缺少会员ID'
-            });
-        }
+        console.log(`[ProductDetail] [${requestId}] 开始处理: id=${id}, memberId=${memberId}(来自openid: ${req.memberId != null}), skuId=${skuId || ''}, quantity=${quantity}`);
 
         console.log(`[ProductDetail] [${requestId}] 调用 PromotionService.getProductWithPromotions`);
         const serviceStartTime = Date.now();
         const productDetail = await PromotionService.getProductWithPromotions(
             parseInt(id),
-            parseInt(memberId),
-            skuId ? parseInt(skuId) : null,
-            parseInt(quantity)
+            memberId,
+            skuId ? parseInt(skuId, 10) : null,
+            parseInt(quantity, 10) || 1
         );
         const serviceDuration = Date.now() - serviceStartTime;
         console.log(`[ProductDetail] [${requestId}] PromotionService 返回成功，耗时: ${serviceDuration}ms`);
@@ -665,7 +661,7 @@ router.get('/products/:id/detail', optionalAuthenticate, async (req, res) => {
         console.log(`[ProductDetail] [${requestId}] res.json() 已调用，等待响应发送完成`);
     } catch (error) {
         const duration = Date.now() - start;
-        console.error(`[ProductDetail] [${requestId}] 失败 duration=${duration}ms productId=${req.params.id} memberId=${req.query.memberId} skuId=${req.query.skuId || ''} quantity=${req.query.quantity || ''}`);
+        console.error(`[ProductDetail] [${requestId}] 失败 duration=${duration}ms productId=${req.params.id} memberId=${req.memberId ?? req.query.memberId} skuId=${req.query.skuId || ''} quantity=${req.query.quantity || ''}`);
         console.error(`[ProductDetail] [${requestId}] 错误详情:`, error);
         console.error(`[ProductDetail] [${requestId}] 错误堆栈:`, error.stack);
         res.status(500).json({

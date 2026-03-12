@@ -20,6 +20,10 @@ const DEV_BASE_URL = 'http://jp-2.frp.one:20262';
 // 开发工具联调云托管：ENV 改为 'production'，并在微信公众平台将本域名加入「request合法域名」
 const PROD_BASE_URL = 'https://express-1tth-223108-8-1373039464.sh.run.tcloudbase.com';
 
+// 云托管 callContainer 配置（生产环境使用，无需配置 request 合法域名）
+const CLOUD_ENV = 'prod-5g2tn5i526ae8ad5';           // 云开发/云托管环境 ID
+const CLOUD_SERVICE_NAME = 'express-1tth';            // 云托管服务名
+
 // ==================== 环境配置 ====================
 
 // 当前环境（手动设置）
@@ -203,6 +207,8 @@ module.exports = {
   replaceUrlParams,
   ENV: ENV || detectEnvironment(),
   ENV_INFO,
+  CLOUD_ENV,
+  CLOUD_SERVICE_NAME,
   // 便捷方法
   isDevelopment: () => ENV_INFO.isDevelopment,
   isProduction: () => ENV_INFO.isProduction,

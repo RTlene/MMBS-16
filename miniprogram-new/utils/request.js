@@ -3,7 +3,10 @@
  * 统一处理请求、响应、错误
  */
 
-const { API_BASE_URL, ENV_INFO } = require('../config/api.js');
+const { API_BASE_URL, ENV_INFO, CLOUD_ENV, CLOUD_SERVICE_NAME } = require('../config/api.js');
+
+// 生产环境降级到 wx.request 时只打一次提示
+let _productionFallbackWarned = false;
 
 // ==================== 请求配置 ====================
 
@@ -182,24 +185,63 @@ function handleError(error, config) {
   return Promise.reject(error);
 }
 
+// ==================== 云托管 callContainer（生产环境，无需配置 request 合法域名） ====================
+
+function requestWithCallContainer(url, config) {
+  let path = url.indexOf('/') === 0 ? url : '/' + url;
+  const method = (config.method || 'GET').toUpperCase();
+  const header = {
+    'X-WX-SERVICE': CLOUD_SERVICE_NAME,
+    ...(config.header || {})
+  };
+  const data = config.data || {};
+
+  // GET 请求将 data 转为 query 拼到 path（与 wx.request 行为一致）
+  if (method === 'GET' && data && Object.keys(data).length > 0) {
+    const query = Object.keys(data)
+      .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(data[k]))
+      .join('&');
+    path += (path.indexOf('?') === -1 ? '?' : '&') + query;
+  }
+
+  return new Promise((resolve, reject) => {
+    const requestStartTime = Date.now();
+    console.log(`[Request] callContainer: ${method} ${path}`);
+
+    wx.cloud.callContainer({
+      config: { env: CLOUD_ENV },
+      path: path,
+      method: method,
+      header: header,
+      data: method === 'GET' ? undefined : data,
+      success: (res) => {
+        const requestDuration = Date.now() - requestStartTime;
+        console.log(`[Request] callContainer 成功: ${path}, 耗时=${requestDuration}ms, statusCode=${res.statusCode}`);
+        // callContainer 返回格式与 wx.request 类似：{ statusCode, header, data }
+        afterResponse(res, config).then(resolve).catch(reject);
+      },
+      fail: (err) => {
+        const requestDuration = Date.now() - requestStartTime;
+        console.error(`[Request] callContainer 失败: ${path}, 耗时=${requestDuration}ms`, err);
+        if (config.showLoading) wx.hideLoading();
+        const msg = (err.errMsg || err.message || '网络请求失败').replace(/^request:fail\s*/i, '');
+        if (config.showError) wx.showToast({ title: msg, icon: 'none', duration: 2000 });
+        reject({ message: msg, error: err });
+      }
+    });
+  });
+}
+
 // ==================== 核心请求方法 ====================
 
 /**
  * 通用请求方法
- * @param {string} url - 请求地址
+ * @param {string} url - 请求地址（如 /api/miniapp/orders 或带 query 的路径）
  * @param {object} options - 请求选项
  * @returns {Promise} 请求结果
  */
 function request(url, options = {}) {
-  // 构建完整URL
   const fullUrl = API_BASE_URL + url;
-  
-  // 开发环境下的URL验证提示
-  if (ENV_INFO.isDevelopment && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-    console.warn('[Request] ⚠️ 开发环境URL格式可能不正确:', fullUrl);
-  }
-  
-  // 合并配置
   const config = {
     ...DEFAULT_CONFIG,
     ...options,
@@ -207,65 +249,58 @@ function request(url, options = {}) {
     method: options.method || 'GET',
     data: options.data || {},
   };
-  
-  // 请求前处理
   const processedConfig = beforeRequest(config);
-  
+
+  // 生产环境：优先用云托管 callContainer（无需配置 request 合法域名）
+  if (ENV_INFO.isProduction) {
+    if (typeof wx !== 'undefined' && wx.cloud) {
+      wx.cloud.init({ env: CLOUD_ENV, traceUser: true });
+    }
+    if (wx.cloud && typeof wx.cloud.callContainer === 'function') {
+      return requestWithCallContainer(url, processedConfig);
+    }
+    if (!_productionFallbackWarned) {
+      _productionFallbackWarned = true;
+      console.warn(
+        '[Request] 生产环境未使用云托管：当前环境无 wx.cloud.callContainer。',
+        '请确保：1) 在微信开发者工具中开通「云开发」并选择与云托管一致的环境（' + CLOUD_ENV + '）；',
+        '2) 或使用真机预览/正式版。否则 wx.request 可能因未配置合法域名而失败。'
+      );
+    }
+  }
+
+  // 开发环境或降级：使用 wx.request
+  if (ENV_INFO.isDevelopment && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+    console.warn('[Request] ⚠️ 开发环境URL格式可能不正确:', fullUrl);
+  }
+
   return new Promise((resolve, reject) => {
-    // 确保timeout参数正确传递
     const requestConfig = {
       ...processedConfig,
-      timeout: config.timeout || DEFAULT_CONFIG.timeout,  // 确保timeout被传递
+      timeout: config.timeout || DEFAULT_CONFIG.timeout,
     };
-    
     const requestStartTime = Date.now();
     console.log(`[Request] 开始请求: ${config.method} ${config.url}, timeout=${requestConfig.timeout}ms`);
-    
+
     wx.request({
       ...requestConfig,
       success: (response) => {
         const requestDuration = Date.now() - requestStartTime;
         console.log(`[Request] 请求成功: ${config.method} ${config.url}, 耗时=${requestDuration}ms`);
         console.log(`[Request] 响应状态码: ${response.statusCode}`);
-        console.log(`[Request] 响应头:`, response.header);
-        console.log(`[Request] 响应数据大小: ${response.data ? JSON.stringify(response.data).length : 0} 字符`);
-        
-        afterResponse(response, config)
-          .then(resolve)
-          .catch(reject);
+        afterResponse(response, config).then(resolve).catch(reject);
       },
       fail: (error) => {
         const requestDuration = Date.now() - requestStartTime;
-        console.error(`[Request] 请求失败: ${config.method} ${config.url}, 耗时=${requestDuration}ms`);
-        console.error('[Request] 请求失败详情:', {
-          url: config.url,
-          method: config.method,
-          timeout: requestConfig.timeout,
-          requestDuration: requestDuration,
-          error: error,
-          errMsg: error.errMsg || error.message || '未知错误',
-          errno: error.errno,
-          statusCode: error.statusCode
-        });
-        
-        // 根据错误类型提供更详细的错误信息
+        console.error(`[Request] 请求失败: ${config.method} ${config.url}, 耗时=${requestDuration}ms`, error);
         let errorMessage = '网络连接失败';
         if (error.errMsg) {
-          if (error.errMsg.includes('timeout')) {
-            errorMessage = '请求超时，请检查网络连接';
-          } else if (error.errMsg.includes('fail')) {
-            errorMessage = '网络请求失败，请检查服务器是否运行';
-          } else if (error.errMsg.includes('abort')) {
-            errorMessage = '请求被取消';
-          } else {
-            errorMessage = `网络错误: ${error.errMsg}`;
-          }
+          if (error.errMsg.includes('timeout')) errorMessage = '请求超时，请检查网络连接';
+          else if (error.errMsg.includes('fail')) errorMessage = '网络请求失败，请检查服务器是否运行';
+          else if (error.errMsg.includes('abort')) errorMessage = '请求被取消';
+          else errorMessage = `网络错误: ${error.errMsg}`;
         }
-        
-        handleError({
-          message: errorMessage,
-          error: error
-        }, config).catch(reject);
+        handleError({ message: errorMessage, error: error }, config).catch(reject);
       }
     });
   });
