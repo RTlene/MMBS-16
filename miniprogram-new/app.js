@@ -77,6 +77,10 @@ App({
         } catch (e) {}
       }
     }
+
+    // 关键：用户可能从任意页面/场景进入小程序（含从后台切回、扫码/分享直达）。
+    // 在 onShow 也触发一次自动登录（内部有去重/校验缓存逻辑），确保任意入口都能完成自动注册/登录。
+    this.autoLogin();
   },
 
   /**
@@ -190,6 +194,13 @@ App({
    */
   async autoLogin() {
     try {
+      // 去重：避免 onLaunch/onShow/多页面同时触发导致并发登录
+      const nowTs = Date.now();
+      if (this._autoLoginPromise) return await this._autoLoginPromise;
+      if (this._lastAutoLoginAt && nowTs - this._lastAutoLoginAt < 3000) return;
+      this._lastAutoLoginAt = nowTs;
+
+      this._autoLoginPromise = (async () => {
       // 检查是否已有缓存的登录信息
       const openid = wx.getStorageSync('openid');
       const memberId = wx.getStorageSync('memberId');
@@ -231,8 +242,12 @@ App({
           console.log('[App] 自动登录失败，将在用户操作时提示登录');
         }
       }
+      })();
+      await this._autoLoginPromise;
+      this._autoLoginPromise = null;
     } catch (error) {
       console.error('[App] 自动登录异常:', error);
+      this._autoLoginPromise = null;
     }
   },
 
