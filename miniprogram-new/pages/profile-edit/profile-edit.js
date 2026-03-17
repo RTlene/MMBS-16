@@ -1,13 +1,7 @@
 const request = require('../../utils/request');
 const auth = require('../../utils/auth');
 const { API, API_BASE_URL } = require('../../config/api');
-
-function buildAbsoluteUrl(url) {
-  if (!url) return '';
-  if (/^data:image\//i.test(url)) return url;
-  if (/^https?:\/\//i.test(url)) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
-}
+const { buildOptimizedImageUrl } = require('../../utils/util');
 
 Page({
   data: {
@@ -28,7 +22,7 @@ Page({
       const m = res && res.data && res.data.member ? res.data.member : null;
       if (!m) return;
       this.setData({
-        avatar: m.avatar ? buildAbsoluteUrl(m.avatar) : '',
+        avatar: m.avatar ? buildOptimizedImageUrl(m.avatar, { type: 'thumbnail' }) : '',
         nickname: m.nickname || '',
         phone: m.phone || ''
       });
@@ -74,9 +68,13 @@ Page({
       if (!data || data.code !== 0 || !data.data || !data.data.avatar) {
         throw new Error((data && data.message) || '上传失败');
       }
-      const avatar = buildAbsoluteUrl(data.data.avatar);
+      const avatar = buildOptimizedImageUrl(data.data.avatar, { type: 'thumbnail' });
       const memberInfo = wx.getStorageSync('memberInfo') || {};
       wx.setStorageSync('memberInfo', { ...memberInfo, avatar: data.data.avatar });
+      try {
+        const app = getApp();
+        if (app && app.globalData) app.globalData.memberInfo = { ...(app.globalData.memberInfo || {}), avatar: data.data.avatar };
+      } catch (_) {}
       this.setData({ avatar });
       wx.showToast({ title: '头像已更新', icon: 'success' });
     } catch (e) {
@@ -113,6 +111,10 @@ Page({
       if (res.code !== 0) throw new Error(res.message || '保存失败');
       const memberInfo = wx.getStorageSync('memberInfo') || {};
       wx.setStorageSync('memberInfo', { ...memberInfo, nickname });
+      try {
+        const app = getApp();
+        if (app && app.globalData) app.globalData.memberInfo = { ...(app.globalData.memberInfo || {}), nickname };
+      } catch (_) {}
       wx.showToast({ title: '已保存', icon: 'success' });
       setTimeout(() => wx.navigateBack({ delta: 1 }), 400);
     } catch (e) {

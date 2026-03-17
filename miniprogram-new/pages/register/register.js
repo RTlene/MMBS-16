@@ -1,6 +1,23 @@
 const request = require('../../utils/request');
 const auth = require('../../utils/auth');
 const { API } = require('../../config/api');
+const { buildOptimizedImageUrl } = require('../../utils/util');
+
+async function refreshMemberCache() {
+  try {
+    const res = await request.get(API.MEMBER.PROFILE, {}, { needAuth: true, showLoading: false, showError: false });
+    const member = res && res.data && res.data.member ? res.data.member : null;
+    if (!member) return null;
+    wx.setStorageSync('memberInfo', member);
+    try {
+      const app = getApp();
+      if (app && app.globalData) app.globalData.memberInfo = member;
+    } catch (_) {}
+    return member;
+  } catch (_) {
+    return null;
+  }
+}
 
 Page({
   data: {
@@ -17,8 +34,7 @@ Page({
 
       const res = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname, avatar }, { needAuth: true, showLoading: true });
       if (res.code === 0) {
-        const memberInfo = wx.getStorageSync('memberInfo') || {};
-        wx.setStorageSync('memberInfo', { ...memberInfo, nickname, avatar });
+        await refreshMemberCache();
         this.setData({ profileStatus: '已更新头像昵称' });
       } else {
         throw new Error(res.message || '更新失败');
@@ -34,8 +50,7 @@ Page({
       if (!phoneNumber) throw new Error('未获取到手机号');
       const res = await request.put(API.MEMBER.UPDATE_PROFILE, { phone: phoneNumber }, { needAuth: true, showLoading: true });
       if (res.code === 0) {
-        const memberInfo = wx.getStorageSync('memberInfo') || {};
-        wx.setStorageSync('memberInfo', { ...memberInfo, phone: phoneNumber });
+        await refreshMemberCache();
         this.setData({ phoneStatus: '已绑定手机号' });
       } else {
         throw new Error(res.message || '更新失败');

@@ -3,18 +3,9 @@
  */
 
 const request = require('../../utils/request.js');
-const { API, API_BASE_URL } = require('../../config/api.js');
+const { API } = require('../../config/api.js');
 const auth = require('../../utils/auth.js');
-
-/**
- * 构建绝对URL
- */
-function buildAbsoluteUrl(url) {
-  if (!url) return '';
-  if (/^data:image\//i.test(url)) return url;
-  if (/^https?:\/\//i.test(url)) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
-}
+const { buildOptimizedImageUrl } = require('../../utils/util.js');
 
 /**
  * 获取默认头像（使用 base64 占位图）
@@ -90,9 +81,9 @@ Page({
       
       if (result.data && result.data.member) {
         const member = result.data.member;
-        // 处理头像URL，转换为绝对路径
+        // 处理头像URL：兼容 cloud://（换 temp-url）与 COS 私有桶（换签名链接）
         if (member.avatar) {
-          member.avatar = buildAbsoluteUrl(member.avatar);
+          member.avatar = buildOptimizedImageUrl(member.avatar, { type: 'thumbnail' });
         }
         // 确保有 levelName 字段
         if (!member.levelName && member.memberLevel) {
