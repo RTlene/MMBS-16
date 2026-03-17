@@ -4,6 +4,7 @@
     <view class="desc">为了更好地提供服务，建议完善头像、昵称和手机号。若拒绝授权，将使用随机昵称作为默认资料。</view>
 
     <view class="section">
+      <button class="btn btn-primary" bindtap="onGetProfile">一键授权获取头像昵称</button>
       <button class="btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">选择头像</button>
       <input class="input" value="{{nickname}}" placeholder="请输入昵称（必填）" bindinput="onNicknameInput" maxlength="20" />
       <button class="btn" bindtap="onSaveProfile">保存头像昵称</button>

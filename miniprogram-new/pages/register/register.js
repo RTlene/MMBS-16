@@ -39,6 +39,54 @@ Page({
     this.setData({ avatarTempPath: p, profileStatus: '已选择头像' });
   },
 
+  async onGetProfile() {
+    try {
+      // 必须用户主动点击触发，微信才允许获取头像昵称
+      const userInfo = await auth.getUserProfile();
+      const nickname = userInfo && userInfo.nickName ? String(userInfo.nickName).trim() : '';
+      const avatarUrl = userInfo && userInfo.avatarUrl ? String(userInfo.avatarUrl).trim() : '';
+      if (!nickname) throw new Error('未获取到昵称');
+
+      // 1) 先填充昵称并保存
+      this.setData({ nickname });
+      const res1 = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname }, { needAuth: true, showLoading: true });
+      if (res1.code !== 0) throw new Error(res1.message || '保存昵称失败');
+
+      // 2) 将微信头像URL下载为临时文件，再上传到对象存储（避免只保存远端URL）
+      if (avatarUrl) {
+        const dl = await new Promise((resolve, reject) => {
+          wx.downloadFile({
+            url: avatarUrl,
+            success: resolve,
+            fail: reject
+          });
+        });
+        const tempFilePath = dl && dl.tempFilePath ? dl.tempFilePath : '';
+        if (tempFilePath) {
+          const openid = wx.getStorageSync('openid');
+          if (!openid) throw new Error('未登录');
+          const uploadRes = await new Promise((resolve, reject) => {
+            wx.uploadFile({
+              url: API_BASE_URL + '/api/miniapp/members/avatar-upload',
+              filePath: tempFilePath,
+              name: 'image',
+              header: { openid },
+              success: resolve,
+              fail: reject
+            });
+          });
+          const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
+          if (!data || data.code !== 0) throw new Error((data && data.message) || '头像上传失败');
+        }
+      }
+
+      await refreshMemberCache();
+      this.setData({ profileStatus: '已更新头像昵称' });
+    } catch (e) {
+      this.setData({ profileStatus: '用户拒绝授权或获取失败，可改用“选择头像”+手动输入昵称' });
+    }
+  },
+
   async onSaveProfile() {
     try {
       const nickname = (this.data.nickname || '').trim();
