@@ -18,6 +18,7 @@
     "pages/return-request/return-request",
     "pages/refund-request/refund-request",
     "pages/register/register",
+    "pages/profile-edit/profile-edit",
     "pages/customer-service/customer-service",
     "pages/logistics/logistics",
     "pages/articles/articles",

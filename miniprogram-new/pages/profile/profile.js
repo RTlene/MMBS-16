@@ -70,6 +70,14 @@ Page({
     }
   },
 
+  onEditProfile() {
+    if (!auth.isLogin()) {
+      this.onLogin();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/profile-edit/profile-edit' });
+  },
+
   /**
    * 加载会员信息
    */

@@ -3345,6 +3345,17 @@ async function init() {
       // 表不存在或无权查询时忽略
     }
 
+    // 若 members 表缺少 idCard 列（历史库未迁移），从 Member 模型移除，避免查询/更新时报错
+    try {
+      const memberDesc = await sequelize.getQueryInterface().describeTable('members');
+      if (memberDesc && !memberDesc.idCard) {
+        if (Member.rawAttributes.idCard) Member.removeAttribute('idCard');
+        console.log('[DB] members 表无 idCard，已从 Member 模型移除');
+      }
+    } catch (e) {
+      // 表不存在或无权查询时忽略
+    }
+
     // 默认不在启动时做 alter 同步（云托管缩容后冷启动会非常慢）
     // 需要同步时显式设置：DB_SYNC=true（可选：DB_SYNC_ALTER=true 走 alter）
     const shouldSync = process.env.DB_SYNC === 'true';

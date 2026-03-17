@@ -1,0 +1,99 @@
+.page {
+  min-height: 100vh;
+  background: #f5f7fa;
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.06);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.row:last-child { border-bottom: none; }
+
+.label {
+  width: 140rpx;
+  font-size: 28rpx;
+  color: #374151;
+}
+
+.value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.avatar-wrap {
+  gap: 16rpx;
+  justify-content: flex-start;
+}
+
+.avatar {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 56rpx;
+  background: #fff;
+  border: 1rpx solid rgba(59, 130, 246, 0.15);
+}
+
+.tip {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
+.input {
+  flex: 1;
+  font-size: 28rpx;
+  color: #111827;
+}
+
+.phone-wrap {
+  gap: 16rpx;
+  justify-content: flex-start;
+}
+.phone {
+  font-size: 28rpx;
+  color: #111827;
+}
+
+.actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+
+.btn {
+  flex: 1;
+  background: #fff;
+  border: 1rpx solid #e5e7eb;
+  color: #111827;
+  border-radius: 12rpx;
+  padding: 20rpx 18rpx;
+  font-size: 28rpx;
+}
+
+.btn.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.btn.small {
+  flex: 0 0 auto;
+  padding: 14rpx 16rpx;
+  font-size: 24rpx;
+  border-radius: 10rpx;
+}
+
+.btn::after { border: none; }
+

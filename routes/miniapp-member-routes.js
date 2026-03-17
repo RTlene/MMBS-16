@@ -4,7 +4,32 @@ const { Member, MemberLevel, DistributorLevel, TeamExpansionLevel, CommissionCal
 const bcrypt = require('bcryptjs');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 const LevelUpgradeService = require('../services/levelUpgradeService');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const cosStorage = require('../services/cosStorage');
+const wxCloudStorage = require('../services/wxCloudStorage');
 const router = express.Router();
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+        return cb(new Error('只允许上传图片'));
+    }
+});
+
+const LOCAL_AVATAR_DIR = path.join(__dirname, '../public/uploads/avatars');
+if (!fs.existsSync(LOCAL_AVATAR_DIR)) {
+    fs.mkdirSync(LOCAL_AVATAR_DIR, { recursive: true });
+}
+
+function safeExtFromName(originalName) {
+    const ext = path.extname(originalName || '') || '.jpg';
+    const safeExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext.toLowerCase()) ? ext : '.jpg';
+    return safeExt;
+}
 
 
 // 创建会员（小程序端注册）
@@ -504,8 +529,8 @@ router.put('/members/profile', authenticateMiniappUser, async (req, res) => {
             }
         }
 
-        // 检查身份证号是否已被其他用户使用
-        if (updateData.idCard && updateData.idCard !== member.idCard) {
+        // 检查身份证号是否已被其他用户使用（历史库可能没有 idCard 列，需兼容）
+        if (Member.rawAttributes.idCard && updateData.idCard && updateData.idCard !== member.idCard) {
             const existingMember = await Member.findOne({
                 where: {
                     idCard: updateData.idCard,
@@ -524,16 +549,16 @@ router.put('/members/profile', authenticateMiniappUser, async (req, res) => {
         // 更新会员信息
         await member.update(updateData);
 
-        // 返回更新后的会员信息
-        const updatedMember = await Member.findByPk(member.id, {
-            attributes: [
-                'id', 'openid', 'nickname', 'avatar', 'phone', 'realName',
-                'idCard', 'gender', 'birthday', 'address', 'memberCode',
-                'status', 'totalCommission', 'availableCommission',
-                'totalSales', 'directSales', 'indirectSales', 'distributorSales', 'lastActiveAt',
-                'createdAt', 'updatedAt'
-            ]
-        });
+        // 返回更新后的会员信息（按实际列兼容）
+        const attrs = [
+            'id', 'openid', 'nickname', 'avatar', 'phone', 'realName',
+            'gender', 'birthday', 'address', 'memberCode',
+            'status', 'totalCommission', 'availableCommission',
+            'totalSales', 'directSales', 'indirectSales', 'distributorSales', 'lastActiveAt',
+            'createdAt', 'updatedAt'
+        ];
+        if (Member.rawAttributes.idCard) attrs.splice(6, 0, 'idCard');
+        const updatedMember = await Member.findByPk(member.id, { attributes: attrs });
 
         res.json({
             code: 0,
@@ -547,6 +572,56 @@ router.put('/members/profile', authenticateMiniappUser, async (req, res) => {
             message: '更新会员信息失败',
             error: error.message
         });
+    }
+});
+
+// 上传头像（小程序端）：优先云托管存储，其次 COS，其次本地
+router.post('/members/avatar-upload', authenticateMiniappUser, (req, res, next) => {
+    upload.single('image')(req, res, (err) => {
+        if (!err) return next();
+        if (err.message === '只允许上传图片') return res.status(400).json({ code: 1, message: '只允许上传图片' });
+        if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ code: 1, message: '图片不能超过 5MB' });
+        return res.status(400).json({ code: 1, message: err.message || '上传失败' });
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ code: 1, message: '未上传文件' });
+        }
+        const memberId = req.member.id;
+        const safeExt = safeExtFromName(req.file.originalname);
+        const filename = `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+
+        // 云托管存储优先
+        if (wxCloudStorage && wxCloudStorage.isConfigured && wxCloudStorage.isConfigured()) {
+            const tmpPath = path.join(LOCAL_AVATAR_DIR, `${memberId}-${filename}`);
+            fs.writeFileSync(tmpPath, req.file.buffer);
+            try {
+                const cloudPath = `avatars/${memberId}/${filename}`;
+                const fileId = await wxCloudStorage.uploadFromPath(tmpPath, cloudPath);
+                await req.member.update({ avatar: fileId });
+                return res.json({ code: 0, message: '上传成功', data: { avatar: fileId } });
+            } finally {
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
+            }
+        }
+
+        if (cosStorage && cosStorage.isConfigured && cosStorage.isConfigured()) {
+            const objectKey = `avatars/${memberId}/${filename}`;
+            await cosStorage.putObjectBuffer(objectKey, req.file.buffer);
+            const url = cosStorage.getPublicUrl(objectKey);
+            await req.member.update({ avatar: url });
+            return res.json({ code: 0, message: '上传成功', data: { avatar: url } });
+        }
+
+        const localPath = path.join(LOCAL_AVATAR_DIR, filename);
+        fs.writeFileSync(localPath, req.file.buffer);
+        const url = `/uploads/avatars/${filename}`;
+        await req.member.update({ avatar: url });
+        return res.json({ code: 0, message: '上传成功', data: { avatar: url } });
+    } catch (e) {
+        console.error('上传头像失败:', e);
+        return res.status(500).json({ code: 1, message: e.message || '上传失败' });
     }
 });
 

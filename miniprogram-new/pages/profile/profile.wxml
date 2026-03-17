@@ -4,7 +4,7 @@
   <!-- 用户信息区 -->
   <view class="user-section">
     <view class="user-info" wx:if="{{isLogin && memberInfo}}">
-      <image class="user-avatar" src="{{memberInfo.avatar || defaultAvatar}}" mode="aspectFill" />
+      <image class="user-avatar" src="{{memberInfo.avatar || defaultAvatar}}" mode="aspectFill" bindtap="onEditProfile" />
       <view class="user-details">
         <text class="user-name">{{memberInfo.nickname || '会员'}}</text>
         <text class="user-level">{{memberInfo.levelName || '普通会员'}}</text>
