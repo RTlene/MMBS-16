@@ -1,7 +1,6 @@
 const request = require('../../utils/request');
 const auth = require('../../utils/auth');
-const { API } = require('../../config/api');
-const { buildOptimizedImageUrl } = require('../../utils/util');
+const { API, API_BASE_URL } = require('../../config/api');
 
 async function refreshMemberCache() {
   try {
@@ -22,25 +21,59 @@ async function refreshMemberCache() {
 Page({
   data: {
     profileStatus: '',
-    phoneStatus: ''
+    phoneStatus: '',
+    nickname: '',
+    avatarTempPath: ''
   },
 
-  async onGetProfile() {
-    try {
-      const userInfo = await auth.getUserProfile();
-      const nickname = userInfo && userInfo.nickName ? String(userInfo.nickName).trim() : '';
-      const avatar = userInfo && userInfo.avatarUrl ? String(userInfo.avatarUrl).trim() : '';
-      if (!nickname) throw new Error('未获取到昵称');
+  onNicknameInput(e) {
+    this.setData({ nickname: (e.detail && e.detail.value) || '' });
+  },
 
-      const res = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname, avatar }, { needAuth: true, showLoading: true });
-      if (res.code === 0) {
-        await refreshMemberCache();
-        this.setData({ profileStatus: '已更新头像昵称' });
-      } else {
-        throw new Error(res.message || '更新失败');
+  onChooseAvatar(e) {
+    const p = e && e.detail && e.detail.avatarUrl ? String(e.detail.avatarUrl) : '';
+    if (!p) {
+      this.setData({ profileStatus: '未选择头像' });
+      return;
+    }
+    this.setData({ avatarTempPath: p, profileStatus: '已选择头像' });
+  },
+
+  async onSaveProfile() {
+    try {
+      const nickname = (this.data.nickname || '').trim();
+      if (!nickname) {
+        this.setData({ profileStatus: '请先填写昵称' });
+        return;
       }
+
+      // 1) 先保存昵称
+      const res1 = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname }, { needAuth: true, showLoading: true });
+      if (res1.code !== 0) throw new Error(res1.message || '保存昵称失败');
+
+      // 2) 若有选择头像，则上传到对象存储（云托管/COS/本地回退），避免只保存微信临时 URL
+      const avatarTempPath = this.data.avatarTempPath;
+      if (avatarTempPath) {
+        const openid = wx.getStorageSync('openid');
+        if (!openid) throw new Error('未登录');
+        const uploadRes = await new Promise((resolve, reject) => {
+          wx.uploadFile({
+            url: API_BASE_URL + '/api/miniapp/members/avatar-upload',
+            filePath: avatarTempPath,
+            name: 'image',
+            header: { openid },
+            success: resolve,
+            fail: reject
+          });
+        });
+        const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
+        if (!data || data.code !== 0) throw new Error((data && data.message) || '头像上传失败');
+      }
+
+      await refreshMemberCache();
+      this.setData({ profileStatus: '已更新头像昵称' });
     } catch (e) {
-      this.setData({ profileStatus: '未授权或更新失败，将使用默认昵称' });
+      this.setData({ profileStatus: e.message || '更新失败，将使用默认昵称' });
     }
   },
 

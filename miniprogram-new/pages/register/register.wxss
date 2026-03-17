@@ -32,6 +32,16 @@
   border-top: 1rpx solid #f0f0f0;
 }
 
+.input {
+  margin-top: 12rpx;
+  padding: 18rpx 16rpx;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: #111827;
+  background: #fff;
+}
+
 .hint {
   margin-top: 10rpx;
   font-size: 24rpx;
