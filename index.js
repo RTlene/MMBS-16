@@ -31,7 +31,7 @@ const pointSettingsRoutes = require('./routes/point-settings-routes');
 const compressRoutes = require('./routes/compress-routes');
 const dashboardRoutes = require('./routes/dashboard-routes');
 // 引入小程序认证中间件
-const { miniappLogin, authenticateMiniappUser, optionalAuthenticate } = require('./middleware/miniapp-auth');
+const { miniappLogin, miniappGetPhoneNumber, authenticateMiniappUser, optionalAuthenticate } = require('./middleware/miniapp-auth');
 // 引入小程序路由
 const miniappProductRoutes = require('./routes/miniapp-product-routes');
 const miniappOrderRoutes = require('./routes/miniapp-order-routes');
@@ -135,6 +135,8 @@ app.use('/api/settings', require('./middleware/auth').authenticateToken, setting
 // ==================== 小程序相关路由 ====================
 // 小程序登录接口（无需认证）
 app.post('/api/auth/miniapp-login', miniappLogin);
+// 小程序获取手机号（需 openid 认证）
+app.post('/api/auth/get-phone-number', authenticateMiniappUser, miniappGetPhoneNumber);
 // 小程序商品API（无需认证）
 app.use('/api/miniapp', miniappProductRoutes);
 // 小程序订单API（需要小程序用户认证）

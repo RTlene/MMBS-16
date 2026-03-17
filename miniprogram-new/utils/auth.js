@@ -31,16 +31,9 @@ async function login() {
     
     console.log('[Auth] 获取到 code:', loginRes.code);
     
-    // 2. 准备用户信息（如果已经授权过头像昵称，带给后台）
-    let userInfo = wx.getStorageSync('userProfile') || null;
-    
-    if (!userInfo) {
-      try {
-        userInfo = await getUserProfile();
-      } catch (error) {
-        console.warn('[Auth] 用户未授权头像昵称或授权失败，使用默认昵称', error);
-      }
-    }
+    // 2. 准备用户信息（如果之前授权过头像昵称，则带给后台；不在自动登录阶段弹授权）
+    // 说明：wx.getUserProfile 需要用户主动触发（点击按钮），否则体验较差且可能被平台限制。
+    const userInfo = wx.getStorageSync('userProfile') || null;
 
     // 从本地存储读取推荐人ID（如果有）
     let referrerId = null;
@@ -82,13 +75,25 @@ async function login() {
     console.log('[Auth] 登录成功:', result);
     
     // 3. 缓存登录信息
-    const { openid, memberId, member } = result;
+    const { openid, memberId, member, isNew, needsProfile, needsPhone } = result;
     
     wx.setStorageSync('openid', openid);
     wx.setStorageSync('memberId', memberId);
     
     if (member) {
       wx.setStorageSync('memberInfo', member);
+    }
+
+    // 新用户首次进入：引导在“注册完善资料”页尝试获取头像/昵称/手机号；拒绝则后端默认随机昵称兜底
+    if (isNew || needsProfile || needsPhone) {
+      try {
+        const pages = getCurrentPages ? getCurrentPages() : [];
+        const cur = pages && pages.length ? pages[pages.length - 1] : null;
+        const curRoute = cur && (cur.route || cur.__route__) ? (cur.route || cur.__route__) : '';
+        if (curRoute !== 'pages/register/register') {
+          wx.navigateTo({ url: '/pages/register/register' });
+        }
+      } catch (_) {}
     }
     
     // 登录成功后清除推荐人ID（避免重复使用）

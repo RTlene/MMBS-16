@@ -10,6 +10,31 @@ const { Member, MemberLevel } = require('../db');
 // 云托管等环境出网可能经代理/SSL 拦截，会收到自签名证书，需跳过证书校验才能访问微信 API
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
+// ==================== 微信 access_token（用于手机号解密等） ====================
+let _wxAccessTokenCache = { token: null, expiresAt: 0 };
+async function getWxAccessToken() {
+  const appid = process.env.WX_APPID;
+  const secret = process.env.WX_APPSECRET;
+  if (!appid || !secret) {
+    throw new Error('未配置微信小程序 AppID 或 AppSecret（WX_APPID/WX_APPSECRET）');
+  }
+  const now = Date.now();
+  if (_wxAccessTokenCache.token && _wxAccessTokenCache.expiresAt - now > 60 * 1000) {
+    return _wxAccessTokenCache.token;
+  }
+  const resp = await axios.get('https://api.weixin.qq.com/cgi-bin/token', {
+    params: { grant_type: 'client_credential', appid, secret },
+    timeout: 10000,
+    httpsAgent
+  });
+  const data = resp && resp.data ? resp.data : {};
+  if (data.errcode) throw new Error(data.errmsg || '获取微信 access_token 失败');
+  if (!data.access_token) throw new Error('获取微信 access_token 失败：缺少 access_token');
+  const expiresIn = Number(data.expires_in || 7200);
+  _wxAccessTokenCache = { token: data.access_token, expiresAt: Date.now() + expiresIn * 1000 };
+  return data.access_token;
+}
+
 // ==================== 微信登录相关 ====================
 
 /**
@@ -79,7 +104,8 @@ async function miniappLogin(req, res) {
 
     const nicknameFromBody = (userInfo.nickName || bodyNickname || '').trim();
     const avatarFromBody = userInfo.avatarUrl || bodyAvatar || null;
-    const safeNickname = nicknameFromBody || `微信用户${openid ? openid.slice(-6) : ''}`;
+    // 若未授权头像昵称，则使用随机昵称兜底（避免过多“微信用户xxxx”）
+    const safeNickname = nicknameFromBody || `用户${Math.random().toString(10).slice(2, 8)}`;
 
     // 2. 查询或创建会员
     let member = await Member.findOne({ 
@@ -90,8 +116,10 @@ async function miniappLogin(req, res) {
       }]
     });
 
+    let isNew = false;
     if (!member) {
       console.log('[MiniappAuth] 新用户，创建会员记录');
+      isNew = true;
       
       // 查找默认会员等级
       let defaultLevel = await MemberLevel.findOne({ 
@@ -178,9 +206,14 @@ async function miniappLogin(req, res) {
     }
 
     // 3. 返回登录结果
+    const needsProfile = !member.avatar || !member.nickname || String(member.nickname || '').startsWith('用户');
+    const needsPhone = !member.phone;
     res.json({
       success: true,
       message: '登录成功',
+      isNew,
+      needsProfile,
+      needsPhone,
       openid: openid,
       memberId: member.id,
       member: {
@@ -203,6 +236,39 @@ async function miniappLogin(req, res) {
       success: false, 
       message: '登录失败：' + error.message 
     });
+  }
+}
+
+/**
+ * 获取手机号（小程序 getPhoneNumber 返回的 code 换取手机号）
+ * 需要已登录（header 带 openid），用于绑定到当前会员
+ * POST /api/auth/get-phone-number
+ * body: { code }
+ */
+async function miniappGetPhoneNumber(req, res) {
+  try {
+    const member = req.member;
+    const phoneCode = req.body && req.body.code ? String(req.body.code).trim() : '';
+    if (!phoneCode) return res.status(400).json({ success: false, message: '缺少手机号 code' });
+
+    const accessToken = await getWxAccessToken();
+    const resp = await axios.post(
+      `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(accessToken)}`,
+      { code: phoneCode },
+      { timeout: 10000, httpsAgent, headers: { 'Content-Type': 'application/json' } }
+    );
+    const data = resp && resp.data ? resp.data : {};
+    if (data.errcode && data.errcode !== 0) {
+      return res.status(400).json({ success: false, message: data.errmsg || '获取手机号失败' });
+    }
+    const phoneNumber = data.phone_info && data.phone_info.phoneNumber ? data.phone_info.phoneNumber : null;
+    if (!phoneNumber) return res.status(400).json({ success: false, message: '获取手机号失败：缺少 phoneNumber' });
+
+    await member.update({ phone: phoneNumber });
+    return res.json({ success: true, phoneNumber });
+  } catch (e) {
+    console.error('[MiniappAuth] get phone number failed:', e.message || e);
+    return res.status(500).json({ success: false, message: '获取手机号失败：' + (e.message || '服务器错误') });
   }
 }
 
@@ -313,5 +379,6 @@ module.exports = {
   code2Session,
   miniappLogin,
   authenticateMiniappUser,
-  optionalAuthenticate
+  optionalAuthenticate,
+  miniappGetPhoneNumber
 };
