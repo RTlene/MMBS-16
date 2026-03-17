@@ -4,7 +4,8 @@
  */
 
 const auth = require('./utils/auth.js');
-const { API_BASE_URL, ENV, ENV_INFO, CLOUD_ENV } = require('./config/api.js');
+const request = require('./utils/request.js');
+const { API_BASE_URL, ENV, ENV_INFO, CLOUD_ENV, API } = require('./config/api.js');
 
 App({
   /**
@@ -194,15 +195,32 @@ App({
       const memberId = wx.getStorageSync('memberId');
       
       if (openid && memberId) {
-        console.log('[App] 使用缓存的登录信息');
-        this.globalData.openid = openid;
-        this.globalData.memberId = memberId;
-        this.globalData.isLogin = true;
-        
-        // 加载会员信息
-        const memberInfo = wx.getStorageSync('memberInfo');
-        if (memberInfo) {
-          this.globalData.memberInfo = memberInfo;
+        console.log('[App] 使用缓存的登录信息，开始校验是否仍有效');
+        // 关键：缓存 openid 可能对应的会员已被清库/迁移丢失，需先校验，避免个人页一直 401
+        let valid = true;
+        try {
+          const r = await request.get(API.MEMBER.PROFILE, {}, { needAuth: true, showLoading: false, showError: false });
+          if (r && r.data && r.data.member) {
+            this.globalData.memberInfo = r.data.member;
+          }
+        } catch (e) {
+          valid = false;
+        }
+
+        if (valid) {
+          this.globalData.openid = openid;
+          this.globalData.memberId = memberId;
+          this.globalData.isLogin = true;
+          console.log('[App] 缓存登录信息有效');
+        } else {
+          console.warn('[App] 缓存登录信息失效，重新自动登录');
+          try {
+            wx.removeStorageSync('openid');
+            wx.removeStorageSync('memberId');
+            wx.removeStorageSync('memberInfo');
+          } catch (_) {}
+          const result = await auth.login();
+          if (result.success) console.log('[App] 自动登录成功（重试）');
         }
       } else {
         console.log('[App] 开始自动登录...');
