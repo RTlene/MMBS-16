@@ -55,28 +55,49 @@ Page({
       const openid = wx.getStorageSync('openid');
       if (!openid) throw new Error('未登录');
 
+      // 优先走云开发上传（真机无需配置 uploadFile 合法域名），失败再回退到后端 avatar-upload
+      let avatarValue = '';
       wx.showLoading({ title: '上传中...', mask: true });
-      const uploadRes = await new Promise((resolve, reject) => {
-        wx.uploadFile({
-          url: API_BASE_URL + '/api/miniapp/members/avatar-upload',
-          filePath,
-          name: 'image',
-          header: { openid },
-          success: resolve,
-          fail: reject
-        });
-      });
-      wx.hideLoading();
-      const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
-      if (!data || data.code !== 0 || !data.data || !data.data.avatar) {
-        throw new Error((data && data.message) || '上传失败');
+      try {
+        if (wx.cloud && typeof wx.cloud.uploadFile === 'function') {
+          const memberId = wx.getStorageSync('memberId') || ((wx.getStorageSync('memberInfo') || {}).id);
+          const cloudPath = `avatars/${memberId || 'unknown'}/avatar-${Date.now()}.jpg`;
+          const up = await wx.cloud.uploadFile({ cloudPath, filePath });
+          if (up && up.fileID) {
+            avatarValue = up.fileID;
+            const res = await request.put(API.MEMBER.UPDATE_PROFILE, { avatar: avatarValue }, { needAuth: true, showLoading: false });
+            if (!res || res.code !== 0) throw new Error((res && res.message) || '保存头像失败');
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('[ProfileEdit] wx.cloud.uploadFile failed, fallback to backend uploadFile:', cloudErr && cloudErr.message ? cloudErr.message : cloudErr);
       }
-      const avatar = buildOptimizedImageUrl(data.data.avatar, { type: 'thumbnail' });
+
+      if (!avatarValue) {
+        const uploadRes = await new Promise((resolve, reject) => {
+          wx.uploadFile({
+            url: API_BASE_URL + '/api/miniapp/members/avatar-upload',
+            filePath,
+            name: 'image',
+            header: { openid },
+            success: resolve,
+            fail: reject
+          });
+        });
+        const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
+        if (!data || data.code !== 0 || !data.data || !data.data.avatar) {
+          throw new Error((data && data.message) || '上传失败');
+        }
+        avatarValue = data.data.avatar;
+      }
+
+      wx.hideLoading();
+      const avatar = avatarValue ? buildOptimizedImageUrl(avatarValue, { type: 'thumbnail' }) : '';
       const memberInfo = wx.getStorageSync('memberInfo') || {};
-      wx.setStorageSync('memberInfo', { ...memberInfo, avatar: data.data.avatar });
+      wx.setStorageSync('memberInfo', { ...memberInfo, avatar: avatarValue });
       try {
         const app = getApp();
-        if (app && app.globalData) app.globalData.memberInfo = { ...(app.globalData.memberInfo || {}), avatar: data.data.avatar };
+        if (app && app.globalData) app.globalData.memberInfo = { ...(app.globalData.memberInfo || {}), avatar: avatarValue };
       } catch (_) {}
       this.setData({ avatar });
       wx.showToast({ title: '头像已更新', icon: 'success' });
