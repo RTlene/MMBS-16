@@ -745,6 +745,17 @@ Page({
       });
       return;
     }
+
+    // 库存校验：避免库存为0仍可加入购物车
+    const stock = Number(sku.stock) || 0;
+    if (stock <= 0) {
+      wx.showToast({ title: '库存不足', icon: 'none' });
+      return;
+    }
+    if (this.data.quantity > stock) {
+      wx.showToast({ title: `库存不足，仅剩${stock}`, icon: 'none' });
+      return;
+    }
     
     // 添加到购物车
     app.addToCart({

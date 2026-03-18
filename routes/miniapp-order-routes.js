@@ -143,6 +143,22 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 });
             }
 
+            // 库存校验：实物商品必须有足够库存
+            //（服务商品不校验库存，库存字段可为空）
+            if (product.productType !== 'service') {
+                const stock = parseInt(sku.stock || 0, 10) || 0;
+                const needQty = parseInt(quantity || 0, 10) || 0;
+                if (needQty <= 0) {
+                    return res.status(400).json({ code: 1, message: '购买数量不正确' });
+                }
+                if (stock <= 0) {
+                    return res.status(400).json({ code: 1, message: '库存不足' });
+                }
+                if (stock < needQty) {
+                    return res.status(400).json({ code: 1, message: `库存不足，仅剩 ${stock}` });
+                }
+            }
+
             // 计算价格：优先会员价（会员价不参与任何优惠）
             let unitPrice = parseFloat(sku.price || 0);
             let itemTotal = unitPrice * quantity;
