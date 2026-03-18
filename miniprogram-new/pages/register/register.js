@@ -177,6 +177,7 @@ Page({
 
       await refreshMemberCache();
       this.setData({ profileStatus: '' });
+      wx.navigateBack({ delta: 1 });
     } catch (e) {
       this.setData({ profileStatus: '' });
     }
