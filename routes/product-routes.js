@@ -1,5 +1,5 @@
 const express = require('express');
-const { Product, ProductSKU, ProductAttribute, Category, ProductMemberPrice, MemberLevel } = require('../db');
+const { Product, ProductSKU, ProductAttribute, Category, ProductMemberPrice, MemberLevel, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const { deleteProductFiles } = require('./product-files-routes');
 const { authenticateToken } = require('../middleware/auth');
@@ -350,16 +350,27 @@ router.post('/:id/member-prices/batch', async (req, res) => {
     if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
     const skuIds = (product.skus || []).map(s => s.id);
     const list = Array.isArray(memberPrices) ? memberPrices : [];
+
+    // 规范化并过滤非法数据
+    const rows = [];
     for (const item of list) {
-      const levelId = safeInt(item.memberLevelId);
-      const skuId = item.skuId != null && item.skuId !== '' ? safeInt(item.skuId) : 0;
-      const priceNum = parseFloat(item.price);
+      const levelId = safeInt(item && item.memberLevelId);
+      const skuId = item && item.skuId != null && item.skuId !== '' ? safeInt(item.skuId) : 0;
+      const priceNum = parseFloat(item && item.price);
       if (!levelId || !Number.isFinite(priceNum) || priceNum < 0) continue;
       if (skuId > 0 && !skuIds.includes(skuId)) continue;
-      await ProductMemberPrice.upsert(
-        { productId, memberLevelId: levelId, skuId, price: priceNum },
-        { conflictFields: ['productId', 'memberLevelId', 'skuId'] }
-      );
+      rows.push({ productId, memberLevelId: levelId, skuId: skuId || 0, price: priceNum });
+    }
+
+    // 批量写入：使用事务 + bulkCreate(updateOnDuplicate) 避免部分保存/只落最后一条的异常情况
+    // MySQL / MariaDB：updateOnDuplicate 生效；其他方言会忽略但仍可插入
+    if (rows.length > 0) {
+      await sequelize.transaction(async (t) => {
+        await ProductMemberPrice.bulkCreate(rows, {
+          transaction: t,
+          updateOnDuplicate: ['price', 'updatedAt']
+        });
+      });
     }
     const updated = await ProductMemberPrice.findAll({
       where: { productId },
