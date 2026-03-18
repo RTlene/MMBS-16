@@ -37,9 +37,22 @@ function formatDateTime(str) {
 function initArticleManagement() {
   loadArticles();
   document.getElementById('articleForm').addEventListener('submit', onSubmit);
+  const typeEl = document.getElementById('articleType');
+  if (typeEl) typeEl.addEventListener('change', updateArticleTypeUI);
   document.getElementById('searchInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); searchArticles(); }
   });
+}
+
+function updateArticleTypeUI() {
+  const type = (document.getElementById('articleType') || {}).value || 'content';
+  const contentEl = document.getElementById('articleContent');
+  const externalEl = document.getElementById('articleExternalUrl');
+  if (!contentEl || !externalEl) return;
+  const isExternal = type === 'external';
+  contentEl.disabled = isExternal;
+  contentEl.placeholder = isExternal ? '外链模式无需填写正文' : '';
+  externalEl.required = isExternal;
 }
 
 async function loadArticles() {
@@ -119,6 +132,7 @@ function showAddModal() {
   document.getElementById('articleTitle').value = '';
   document.getElementById('articleSummary').value = '';
   document.getElementById('articleContent').value = '';
+  document.getElementById('articleType').value = 'content';
   document.getElementById('articleAuthor').value = 'MMBS商城';
   document.getElementById('articlePublishTime').value = '';
   document.getElementById('articleStatus').value = 'draft';
@@ -126,6 +140,7 @@ function showAddModal() {
   document.getElementById('articleExternalUrl').value = '';
   document.getElementById('articleCover').value = '';
   document.getElementById('articleModal').classList.add('show');
+  updateArticleTypeUI();
 }
 
 async function editArticle(id) {
@@ -139,6 +154,7 @@ async function editArticle(id) {
     document.getElementById('articleTitle').value = a.title || '';
     document.getElementById('articleSummary').value = a.summary || '';
     document.getElementById('articleContent').value = a.content || '';
+    document.getElementById('articleType').value = (a.externalUrl && (!a.content || String(a.content).trim() === '')) ? 'external' : 'content';
     document.getElementById('articleAuthor').value = a.author || 'MMBS商城';
     document.getElementById('articlePublishTime').value = a.publishTime ? new Date(a.publishTime).toISOString().slice(0, 16) : '';
     document.getElementById('articleStatus').value = a.status || 'draft';
@@ -146,6 +162,7 @@ async function editArticle(id) {
     document.getElementById('articleExternalUrl').value = a.externalUrl || '';
     document.getElementById('articleCover').value = '';
     document.getElementById('articleModal').classList.add('show');
+    updateArticleTypeUI();
   } catch (err) {
     alert('加载失败: ' + (err.message || ''));
   }
@@ -158,15 +175,25 @@ function closeModal() {
 async function onSubmit(e) {
   e.preventDefault();
   const id = document.getElementById('articleId').value;
+  const type = (document.getElementById('articleType') || {}).value || 'content';
   const formData = new FormData();
   formData.append('title', document.getElementById('articleTitle').value.trim());
   formData.append('summary', document.getElementById('articleSummary').value.trim());
-  formData.append('content', document.getElementById('articleContent').value);
+  const externalUrl = document.getElementById('articleExternalUrl').value.trim();
+  if (type === 'external') {
+    if (!externalUrl) {
+      alert('请填写公众号外链（https:// 开头）');
+      return;
+    }
+    formData.append('content', '');
+  } else {
+    formData.append('content', document.getElementById('articleContent').value);
+  }
   formData.append('author', document.getElementById('articleAuthor').value.trim());
   formData.append('publishTime', document.getElementById('articlePublishTime').value || '');
   formData.append('status', document.getElementById('articleStatus').value);
   formData.append('sortOrder', document.getElementById('articleSortOrder').value);
-  formData.append('externalUrl', document.getElementById('articleExternalUrl').value.trim());
+  formData.append('externalUrl', externalUrl);
   const coverFile = document.getElementById('articleCover').files[0];
   if (coverFile) formData.append('coverImage', coverFile);
 

@@ -89,15 +89,21 @@ router.post('/', authenticateToken, uploadMiddleware.single('coverImage'), async
     let coverImage = body.coverImage || '';
     if (req.file) coverImage = '/uploads/articles/' + req.file.filename;
 
+    const status = body.status || 'draft';
+    const rawPublishTime = body.publishTime ? String(body.publishTime).trim() : '';
+    const publishTime = status === 'published'
+      ? (rawPublishTime ? new Date(rawPublishTime) : new Date())
+      : (rawPublishTime ? new Date(rawPublishTime) : null);
+
     const article = await Article.create({
       title: body.title || '未命名',
       summary: body.summary || null,
       content: body.content || null,
       coverImage: coverImage || null,
       author: body.author || 'MMBS商城',
-      publishTime: body.publishTime ? new Date(body.publishTime) : null,
+      publishTime,
       externalUrl: body.externalUrl || null,
-      status: body.status || 'draft',
+      status,
       sortOrder: parseInt(body.sortOrder, 10) || 0
     });
 
@@ -118,13 +124,21 @@ router.put('/:id', authenticateToken, uploadMiddleware.single('coverImage'), asy
     let coverImage = body.coverImage !== undefined ? body.coverImage : article.coverImage;
     if (req.file) coverImage = '/uploads/articles/' + req.file.filename;
 
+    const nextStatus = body.status !== undefined ? body.status : article.status;
+    const rawPublishTime = body.publishTime !== undefined ? String(body.publishTime || '').trim() : undefined;
+    const nextPublishTime = rawPublishTime !== undefined
+      ? (nextStatus === 'published'
+        ? (rawPublishTime ? new Date(rawPublishTime) : new Date())
+        : (rawPublishTime ? new Date(rawPublishTime) : null))
+      : article.publishTime;
+
     await article.update({
       title: body.title !== undefined ? body.title : article.title,
       summary: body.summary !== undefined ? body.summary : article.summary,
       content: body.content !== undefined ? body.content : article.content,
       coverImage: coverImage,
       author: body.author !== undefined ? body.author : article.author,
-      publishTime: body.publishTime !== undefined ? (body.publishTime ? new Date(body.publishTime) : null) : article.publishTime,
+      publishTime: nextPublishTime,
       externalUrl: body.externalUrl !== undefined ? body.externalUrl : article.externalUrl,
       status: body.status !== undefined ? body.status : article.status,
       sortOrder: body.sortOrder !== undefined ? parseInt(body.sortOrder, 10) : article.sortOrder

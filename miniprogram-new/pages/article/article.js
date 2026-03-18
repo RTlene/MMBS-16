@@ -40,7 +40,7 @@ Page({
       // 调用后端API获取文章详情
       const url = replaceUrlParams(API.ARTICLE.DETAIL, { id: this.data.articleId });
       const result = await request.get(url, {
-        data: {}
+        // 无需额外参数
       }, {
         needAuth: false,
         showLoading: false

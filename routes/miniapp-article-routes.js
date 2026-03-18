@@ -11,13 +11,19 @@ router.get('/articles', optionalAuthenticate, async (req, res) => {
         const offset = (page - 1) * limit;
         const now = new Date();
 
-        const where = {
+        let where = {
             status: status === 'all' ? { [Op.in]: ['published', 'draft'] } : status
         };
 
-        // 只显示已发布的文章
+        // 只显示已发布的文章：兼容 publishTime 为空（旧数据/后台未填写发布时间）
         if (status === 'published') {
-            where.publishTime = { [Op.lte]: now };
+            where = {
+                status: 'published',
+                [Op.or]: [
+                    { publishTime: null },
+                    { publishTime: { [Op.lte]: now } }
+                ]
+            };
         }
 
         const { count, rows } = await Article.findAndCountAll({
@@ -84,7 +90,10 @@ router.get('/articles/:id', optionalAuthenticate, async (req, res) => {
             where: {
                 id: parseInt(id),
                 status: 'published',
-                publishTime: { [Op.lte]: now }
+                [Op.or]: [
+                    { publishTime: null },
+                    { publishTime: { [Op.lte]: now } }
+                ]
             }
         });
 

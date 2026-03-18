@@ -71,11 +71,9 @@ Page({
 
       // 调用后端API获取文章列表
       const result = await request.get(API.ARTICLE.LIST, {
-        data: {
-          page,
-          limit,
-          status: 'published'
-        }
+        page,
+        limit,
+        status: 'published'
       }, {
         needAuth: false,
         showLoading: false
