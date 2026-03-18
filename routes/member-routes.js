@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const {
@@ -17,6 +19,8 @@ const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 const LevelUpgradeService = require('../services/levelUpgradeService');
+const cosStorage = require('../services/cosStorage');
+const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -680,6 +684,10 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
             });
         }
 
+        const membersToDelete = await Member.findAll({
+            where: { id: { [Op.in]: ids } },
+            attributes: ['id', 'avatar']
+        });
         const t = await Member.sequelize.transaction();
         try {
             await deleteMemberRelatedRecords(ids, t);
@@ -689,6 +697,8 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
             await t.rollback();
             throw err;
         }
+
+        await deleteMemberAvatarFromObjectStorage(membersToDelete);
         res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
         console.error('批量删除会员失败:', error);
@@ -1129,6 +1139,46 @@ async function deleteMemberRelatedRecords(memberIds, transaction) {
     }
 }
 
+async function deleteMemberAvatarFromObjectStorage(members) {
+    const list = Array.isArray(members) ? members : [];
+    for (const m of list) {
+        const memberId = m && (m.id || m.memberId);
+        const avatar = m && m.avatar;
+        if (!avatar || typeof avatar !== 'string') continue;
+
+        try {
+            // 1) 云托管（cloud://...）
+            if (wxCloudStorage.isConfigured && wxCloudStorage.isConfigured() && avatar.startsWith('cloud://')) {
+                await wxCloudStorage.deleteFiles([avatar]);
+                continue;
+            }
+
+            // 2) COS（公网 url => parseObjectKeyFromUrl）
+            if (cosStorage.isConfigured && cosStorage.isConfigured()) {
+                const key = cosStorage.parseObjectKeyFromUrl(avatar);
+                if (key) {
+                    await cosStorage.deleteObject(key);
+                    continue;
+                }
+            }
+
+            // 3) 本地回退（/uploads/avatars/...）
+            if (avatar.startsWith('/uploads/avatars/')) {
+                const rel = avatar.replace(/^\/+/, '');
+                const abs = path.join(__dirname, '../public', rel);
+                if (fs.existsSync(abs)) fs.unlinkSync(abs);
+            }
+        } catch (e) {
+            // 删除失败不影响“删除会员”主流程
+            console.error(
+                `[MemberRoutes] 删除会员头像存储失败: memberId=${memberId}`,
+                avatar,
+                e && e.message ? e.message : e
+            );
+        }
+    }
+}
+
 // 删除会员
 router.delete('/:id', authenticateToken, async (req, res) => {
     try {
@@ -1159,6 +1209,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             });
         }
 
+        const membersToDelete = [{ id: member.id, avatar: member.avatar }];
         const t = await Member.sequelize.transaction();
         try {
             await deleteMemberRelatedRecords(id, t);
@@ -1168,6 +1219,9 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             await t.rollback();
             throw err;
         }
+
+        // 事务提交后再删对象存储，避免回滚时出现“误删”
+        await deleteMemberAvatarFromObjectStorage(membersToDelete);
         res.json({ code: 0, message: '会员删除成功' });
     } catch (error) {
         console.error('删除会员失败:', error);
@@ -1208,6 +1262,10 @@ router.delete('/', authenticateToken, async (req, res) => {
             });
         }
 
+        const membersToDelete = await Member.findAll({
+            where: { id: { [Op.in]: ids } },
+            attributes: ['id', 'avatar']
+        });
         const t = await Member.sequelize.transaction();
         try {
             await deleteMemberRelatedRecords(ids, t);
@@ -1217,6 +1275,8 @@ router.delete('/', authenticateToken, async (req, res) => {
             await t.rollback();
             throw err;
         }
+
+        await deleteMemberAvatarFromObjectStorage(membersToDelete);
         res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
         console.error('批量删除会员失败:', error);
