@@ -167,9 +167,14 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             let itemAppliedPromotions = [];
 
             const memberLevelId = freshMember.memberLevelId ? parseInt(freshMember.memberLevelId, 10) : null;
-            const memberPriceRow = memberLevelId
-                ? await ProductMemberPrice.findOne({ where: { productId, memberLevelId } })
-                : null;
+            // 会员价：先按 SKU 查，再按整品(skuId=0)查，避免多SKU时取错价
+            let memberPriceRow = null;
+            if (memberLevelId) {
+                memberPriceRow = await ProductMemberPrice.findOne({ where: { productId, memberLevelId, skuId } });
+                if (!memberPriceRow) {
+                    memberPriceRow = await ProductMemberPrice.findOne({ where: { productId, memberLevelId, skuId: 0 } });
+                }
+            }
 
             if (memberPriceRow) {
                 unitPrice = parseFloat(memberPriceRow.price || 0);
