@@ -373,15 +373,17 @@ router.post('/:id/member-prices/batch', async (req, res) => {
     const orderedSkuIds = orderedSkus.map(s => s.id);
     const list = Array.isArray(memberPrices) ? memberPrices : [];
 
-    // 规范化并过滤非法数据
-    const rows = [];
+    const debugEnabled = String(req.query.debug || '').trim() === '1';
+    // 规范化并过滤非法数据（并去重，避免同一 levelId+skuId 被后续值覆盖导致“看起来偏移”）
+    const rowsByKey = new Map();
     const debug = {
       productId,
       incomingCount: list.length,
       skuIdsCount: skuIds.length,
       orderedSkuIdsCount: orderedSkuIds.length,
       invalidSkuIdCount: 0,
-      mappedByIndexCount: 0
+      mappedByIndexCount: 0,
+      duplicateKeyCount: 0
     };
     for (const item of list) {
       const levelId = safeInt(item && item.memberLevelId);
@@ -399,8 +401,11 @@ router.post('/:id/member-prices/batch', async (req, res) => {
           continue;
         }
       }
-      rows.push({ productId, memberLevelId: levelId, skuId: finalSkuId, price: priceNum });
+      const key = `${levelId}:${finalSkuId}`;
+      if (rowsByKey.has(key)) debug.duplicateKeyCount += 1;
+      rowsByKey.set(key, { productId, memberLevelId: levelId, skuId: finalSkuId, price: priceNum });
     }
+    const rows = Array.from(rowsByKey.values());
 
     // 打印关键诊断信息，便于定位“偏移”是否由 skuId/序号混用导致
     try {
@@ -408,6 +413,9 @@ router.post('/:id/member-prices/batch', async (req, res) => {
       console.log('[MemberPricesBatch] productId=', productId, 'debug=', debug);
       console.log('[MemberPricesBatch] skuIds=', skuIds.slice(0, 50), 'orderedSkuIds=', orderedSkuIds.slice(0, 50));
       console.log('[MemberPricesBatch] incomingSkuIds(sample)=', incomingSkuIds.slice(0, 50));
+      if (debugEnabled) {
+        console.log('[MemberPricesBatch] normalizedRows(sample)=', rows.slice(0, 50).map(r => ({ memberLevelId: r.memberLevelId, skuId: r.skuId, price: r.price })));
+      }
     } catch (_) {}
 
     // 批量写入：使用事务 + bulkCreate(updateOnDuplicate) 避免部分保存/只落最后一条的异常情况
@@ -428,7 +436,12 @@ router.post('/:id/member-prices/batch', async (req, res) => {
       ],
       order: [['memberLevelId', 'ASC'], ['skuId', 'ASC']]
     });
-    res.json({ code: 0, message: '保存成功', data: updated });
+    res.json({
+      code: 0,
+      message: '保存成功',
+      data: updated,
+      ...(debugEnabled ? { debug } : {})
+    });
   } catch (err) {
     console.error('批量保存会员价失败:', err);
     res.status(500).json({ code: 1, message: err.message || '服务器错误' });

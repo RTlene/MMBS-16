@@ -413,7 +413,9 @@ function renderMemberPriceMatrix() {
     for (var i = 0; i < skus.length; i++) {
         var s = skus[i];
         var key = editingId && s.id ? s.id : (i + 1);
-        var label = (s.name || s.sku || ('SKU' + (i + 1))).slice(0, 12);
+        var baseLabel = (s.name || s.sku || ('SKU' + (i + 1))).slice(0, 12);
+        // 诊断：显示 skuId，确认每一列对应的真实 SKU
+        var label = (key && key !== (i + 1)) ? (baseLabel + ' (#' + key + ')') : baseLabel;
         cols.push({ key: key, label: label });
     }
     if (headerRow) {
@@ -471,7 +473,10 @@ async function saveMemberPricesBatch(productId, memberPrices, createdSkus) {
             skuIdsSample: resolved.slice(0, 20).map(function (x) { return x.skuId; })
         });
     } catch (e) {}
-    var res = await fetch('/api/products/' + productId + '/member-prices/batch', {
+    var debugFlag = false;
+    try { debugFlag = (localStorage.getItem('debugMemberPrice') === '1'); } catch (e) {}
+    var url = '/api/products/' + productId + '/member-prices/batch' + (debugFlag ? '?debug=1' : '');
+    var res = await fetch(url, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ memberPrices: resolved })
@@ -479,6 +484,38 @@ async function saveMemberPricesBatch(productId, memberPrices, createdSkus) {
     var result = await res.json();
     if (result.code !== 0) {
         console.warn('会员价批量保存失败:', result.message);
+        return;
+    }
+    if (debugFlag && result && result.debug) {
+        console.log('[MemberPricesBatch] backendDebug', result.debug);
+    }
+    // 保存后立即回读对比：如果“写入就错”，这里能直接抓到具体是哪一对 levelId+skuId 不一致
+    try {
+        const rereadRes = await fetch('/api/products/' + productId + '/member-prices', { headers: getAuthHeaders() });
+        const reread = await rereadRes.json();
+        if (reread && reread.code === 0 && Array.isArray(reread.data)) {
+            const dbMap = new Map();
+            reread.data.forEach(function (p) {
+                const k = String(p.memberLevelId) + ':' + String(p.skuId != null ? p.skuId : 0);
+                dbMap.set(k, Number(p.price));
+            });
+            const mismatches = [];
+            resolved.forEach(function (p) {
+                const k = String(p.memberLevelId) + ':' + String(p.skuId != null ? p.skuId : 0);
+                const expected = Number(p.price);
+                const actual = dbMap.get(k);
+                if (!Number.isFinite(actual) || Math.abs(actual - expected) > 1e-9) {
+                    mismatches.push({ key: k, expected: expected, actual: actual });
+                }
+            });
+            if (mismatches.length > 0) {
+                console.error('[MemberPricesBatch] 保存后回读不一致(疑似写入/覆盖问题):', mismatches.slice(0, 50));
+            } else if (debugFlag) {
+                console.log('[MemberPricesBatch] 保存后回读一致');
+            }
+        }
+    } catch (e) {
+        console.warn('[MemberPricesBatch] 保存后回读对比失败:', e && e.message ? e.message : e);
     }
 }
 
