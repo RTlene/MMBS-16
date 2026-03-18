@@ -392,6 +392,18 @@ async function loadMemberLevelsForSelect() {
 function renderMemberPriceMatrix() {
     var levels = window.productManagementData.memberLevels || [];
     var skus = window.productManagementData.skus || [];
+    // 关键：稳定 SKU 顺序，避免接口返回顺序漂移导致会员价矩阵“看起来偏移”
+    skus = (skus || []).slice().sort(function (a, b) {
+        var sa = (a && a.sortOrder != null) ? Number(a.sortOrder) : 0;
+        var sb = (b && b.sortOrder != null) ? Number(b.sortOrder) : 0;
+        if (sa !== sb) return sa - sb;
+        var ca = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        var cb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (ca !== cb) return ca - cb;
+        var ia = (a && a.id != null) ? Number(a.id) : 0;
+        var ib = (b && b.id != null) ? Number(b.id) : 0;
+        return ia - ib;
+    });
     var matrix = window.productManagementData.memberPriceMatrix || {};
     var editingId = window.productManagementData.editingProductId;
     var headerRow = document.getElementById('memberPriceMatrixHeaderRow');
@@ -661,7 +673,18 @@ async function editProduct(id) {
             renderAttributes();
             
             // 填充SKU
-            window.productManagementData.skus = product.skus || [];
+            // 关键：稳定 SKU 顺序，避免会员价矩阵列顺序漂移
+            window.productManagementData.skus = (product.skus || []).slice().sort(function (a, b) {
+                var sa = (a && a.sortOrder != null) ? Number(a.sortOrder) : 0;
+                var sb = (b && b.sortOrder != null) ? Number(b.sortOrder) : 0;
+                if (sa !== sb) return sa - sb;
+                var ca = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                var cb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                if (ca !== cb) return ca - cb;
+                var ia = (a && a.id != null) ? Number(a.id) : 0;
+                var ib = (b && b.id != null) ? Number(b.id) : 0;
+                return ia - ib;
+            });
             renderSKUs();
             
             // 填充媒体数据
