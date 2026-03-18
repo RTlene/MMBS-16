@@ -1,6 +1,12 @@
 const request = require('../../utils/request');
 const auth = require('../../utils/auth');
 const { API, API_BASE_URL } = require('../../config/api');
+const { buildOptimizedImageUrl } = require('../../utils/util');
+
+function getDefaultAvatar() {
+  // 1x1 透明 PNG，占位头像
+  return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+}
 
 async function refreshMemberCache() {
   try {
@@ -23,7 +29,28 @@ Page({
     profileStatus: '',
     phoneStatus: '',
     nickname: '',
-    avatarTempPath: ''
+    avatarTempPath: '',
+    defaultAvatar: getDefaultAvatar(),
+    avatarDisplayUrl: '',
+    phone: ''
+  },
+
+  onShow() {
+    if (!auth.isLogin()) return;
+    this.loadMemberInfo();
+  },
+
+  async loadMemberInfo() {
+    try {
+      const member = await refreshMemberCache();
+      if (!member) return;
+      const avatarDisplayUrl = member.avatar ? buildOptimizedImageUrl(member.avatar, { type: 'thumbnail' }) : '';
+      this.setData({
+        nickname: member.nickname || '',
+        phone: member.phone || '',
+        avatarDisplayUrl
+      });
+    } catch (_) {}
   },
 
   onNicknameInput(e) {
@@ -39,6 +66,11 @@ Page({
     this.setData({ avatarTempPath: p, profileStatus: '' });
   },
 
+  // 资料完善页：用户点击昵称后，触发微信“获取头像昵称”的授权弹窗
+  onTapNickname() {
+    return this.onGetProfile();
+  },
+
   async onGetProfile() {
     try {
       // 必须用户主动点击触发，微信才允许获取头像昵称
@@ -48,10 +80,16 @@ Page({
       if (!nickname) throw new Error('未获取到昵称');
 
       // 微信可能返回默认头像占位图（通常不是真实用户头像文件）
-      // 此时只弹出一次头像选择；但昵称不清空，避免用户必须重新输入。
       const looksLikeDefaultAvatar = !avatarUrl || /\/0(\?|$)/.test(avatarUrl);
+
+      // 1) 先填充昵称并保存到后端（无论头像是否默认，都要保证昵称一定落库）
+      this.setData({ nickname, avatarTempPath: '', profileStatus: '' });
+      const res1 = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname }, { needAuth: true, showLoading: true });
+      if (res1.code !== 0) throw new Error(res1.message || '保存昵称失败');
+
+      // 2) 再处理头像：如果是默认占位图，则让用户选一张；否则直接下载上传。
+      let tempFilePath = '';
       if (looksLikeDefaultAvatar) {
-        this.setData({ nickname, avatarTempPath: '', profileStatus: '' });
         const choose = await new Promise((resolve) => {
           wx.chooseMedia({
             count: 1,
@@ -62,18 +100,8 @@ Page({
             fail: resolve // 用户取消也走 resolve
           });
         });
-        const filePath = choose && choose.tempFiles && choose.tempFiles[0] ? choose.tempFiles[0].tempFilePath : '';
-        if (filePath) this.setData({ avatarTempPath: filePath });
-        return;
-      }
-
-      // 1) 先填充昵称并保存
-      this.setData({ nickname, avatarTempPath: avatarTempPath || '' });
-      const res1 = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname }, { needAuth: true, showLoading: true });
-      if (res1.code !== 0) throw new Error(res1.message || '保存昵称失败');
-
-      // 2) 将微信头像URL下载为临时文件，再上传到对象存储（避免只保存远端URL）
-      if (avatarUrl) {
+        tempFilePath = choose && choose.tempFiles && choose.tempFiles[0] ? choose.tempFiles[0].tempFilePath : '';
+      } else if (avatarUrl) {
         const dl = await new Promise((resolve, reject) => {
           wx.downloadFile({
             url: avatarUrl,
@@ -81,29 +109,37 @@ Page({
             fail: reject
           });
         });
-        const tempFilePath = dl && dl.tempFilePath ? dl.tempFilePath : '';
-        if (tempFilePath) {
-          const openid = wx.getStorageSync('openid');
-          if (!openid) throw new Error('未登录');
-          const uploadRes = await new Promise((resolve, reject) => {
-            wx.uploadFile({
-              url: API_BASE_URL + '/api/miniapp/members/avatar-upload',
-              filePath: tempFilePath,
-              name: 'image',
-              header: { openid },
-              success: resolve,
-              fail: reject
-            });
+        tempFilePath = dl && dl.tempFilePath ? dl.tempFilePath : '';
+      }
+
+      if (tempFilePath) {
+        const openid = wx.getStorageSync('openid');
+        if (!openid) throw new Error('未登录');
+        const uploadRes = await new Promise((resolve, reject) => {
+          wx.uploadFile({
+            url: API_BASE_URL + '/api/miniapp/members/avatar-upload',
+            filePath: tempFilePath,
+            name: 'image',
+            header: { openid },
+            success: resolve,
+            fail: reject
           });
-          const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
-          if (!data || data.code !== 0) throw new Error((data && data.message) || '头像上传失败');
-        }
+        });
+        const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
+        if (!data || data.code !== 0) throw new Error((data && data.message) || '头像上传失败');
       }
 
       await refreshMemberCache();
-      this.setData({ profileStatus: '已更新头像昵称' });
+      const member = wx.getStorageSync('memberInfo') || {};
+      const avatarDisplayUrl = member.avatar ? buildOptimizedImageUrl(member.avatar, { type: 'thumbnail' }) : '';
+      this.setData({
+        avatarDisplayUrl,
+        phone: member.phone || '',
+        nickname: member.nickname || nickname
+      });
     } catch (e) {
-      this.setData({ profileStatus: '用户拒绝授权或获取失败，可改用“选择头像”+手动输入昵称' });
+      // 最小化页面：不额外展示复杂提示
+      this.setData({ profileStatus: '' });
     }
   },
 
@@ -152,7 +188,11 @@ Page({
       const res = await request.put(API.MEMBER.UPDATE_PROFILE, { phone: phoneNumber }, { needAuth: true, showLoading: true });
       if (res.code === 0) {
         await refreshMemberCache();
-        this.setData({ phoneStatus: '' });
+        const member = wx.getStorageSync('memberInfo') || {};
+        this.setData({
+          phone: member.phone || '',
+          phoneStatus: ''
+        });
       } else {
         throw new Error(res.message || '更新失败');
       }
