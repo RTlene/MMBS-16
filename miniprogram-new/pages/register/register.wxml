@@ -1,11 +1,19 @@
 <view class="page">
   <view class="card">
     <view class="title">完善会员资料</view>
-    <image class="avatar" src="{{avatarDisplayUrl || defaultAvatar}}" mode="aspectFill" />
+    <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+      <image class="avatar" src="{{avatarDisplayUrl || defaultAvatar}}" mode="aspectFill" />
+    </button>
 
-    <view class="row" bindtap="onTapNickname">
+    <view class="row">
       <text class="label">昵称</text>
-      <text class="value">{{nickname || '点击获取微信用户名'}}</text>
+      <input
+        class="nickname-input"
+        type="nickname"
+        value="{{nickname}}"
+        placeholder="点击获取微信用户名"
+        bindinput="onNicknameInput"
+      />
     </view>
 
     <view class="row phone-row">

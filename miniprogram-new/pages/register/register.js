@@ -63,7 +63,8 @@ Page({
       this.setData({ profileStatus: '未选择头像' });
       return;
     }
-    this.setData({ avatarTempPath: p, profileStatus: '' });
+    // chooseAvatar 返回的是临时路径/可直接用于 <image src> 的地址
+    this.setData({ avatarTempPath: p, avatarDisplayUrl: p, profileStatus: '' });
   },
 
   // 资料完善页：用户点击昵称后，触发微信“获取头像昵称”的授权弹窗

@@ -28,6 +28,16 @@
   background: #f3f4f6;
 }
 
+.avatar-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -46,6 +56,17 @@
   color: #111827;
   max-width: 60%;
   text-align: right;
+}
+
+.nickname-input {
+  width: 60%;
+  font-size: 28rpx;
+  color: #111827;
+  text-align: right;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
 }
 
 .phone-row {
