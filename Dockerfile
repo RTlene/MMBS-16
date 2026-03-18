@@ -22,31 +22,14 @@ COPY package.json /app/
 ENV NPM_CONFIG_REGISTRY=https://mirrors.cloud.tencent.com/npm/
 RUN npm config set registry https://mirrors.cloud.tencent.com/npm/
 
-# npm 安装依赖（先安装所有依赖，然后卸载 sharp，稍后在启动脚本中重新安装）
-RUN npm install && \
-    npm uninstall sharp || true
+# npm 安装依赖（容器构建环境即 linux，直接安装即可）
+RUN npm install
 
 # 将当前目录（dockerfile所在目录）下所有文件都拷贝到工作目录下（.dockerignore中文件除外）
 COPY . /app
 
-# 创建启动脚本，在启动时安装正确的 sharp 版本
-RUN echo '#!/bin/sh' > /app/docker-entrypoint.sh && \
-    echo 'set -e' >> /app/docker-entrypoint.sh && \
-    echo 'echo "=== Docker Entrypoint Script Starting ==="' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Installing sharp for linux platform..."' >> /app/docker-entrypoint.sh && \
-    echo 'cd /app' >> /app/docker-entrypoint.sh && \
-    echo 'npm config set registry ${NPM_CONFIG_REGISTRY:-https://mirrors.cloud.tencent.com/npm/}' >> /app/docker-entrypoint.sh && \
-    echo 'npm install sharp@0.33.0 --platform=linux --arch=x64 --no-save' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Verifying sharp installation..."' >> /app/docker-entrypoint.sh && \
-    echo 'ls -la /app/node_modules/@img/ 2>/dev/null | grep -v musl || echo "No @img directory"' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Removing any musl versions if present..."' >> /app/docker-entrypoint.sh && \
-    echo 'rm -rf /app/node_modules/@img/sharp-linuxmusl-x64 /app/node_modules/@img/sharp-libvips-linuxmusl-x64 2>/dev/null || true' >> /app/docker-entrypoint.sh && \
-    echo 'export SHARP_IGNORE_GLOBAL_LIBVIPS=1' >> /app/docker-entrypoint.sh && \
-    echo 'export npm_config_platform=linux' >> /app/docker-entrypoint.sh && \
-    echo 'export npm_config_arch=x64' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Starting application..."' >> /app/docker-entrypoint.sh && \
-    echo 'exec npm start' >> /app/docker-entrypoint.sh && \
-    chmod +x /app/docker-entrypoint.sh
+# 使用仓库内置启动脚本（避免运行时安装依赖导致探针失败）
+RUN chmod +x /app/docker-entrypoint.sh
 
 # 执行启动命令
 # 写多行独立的CMD命令是错误写法！只有最后一行CMD命令会被执行，之前的都会被忽略，导致业务报错。
