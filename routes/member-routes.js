@@ -1147,9 +1147,11 @@ async function deleteMemberAvatarFromObjectStorage(members) {
         if (!avatar || typeof avatar !== 'string') continue;
 
         try {
+            console.log('[MemberRoutes] deleteMemberAvatarFromObjectStorage memberId=%s avatar=%s', memberId, avatar);
             // 1) 云托管（cloud://...）
             if (wxCloudStorage.isConfigured && wxCloudStorage.isConfigured() && avatar.startsWith('cloud://')) {
-                await wxCloudStorage.deleteFiles([avatar]);
+                const r = await wxCloudStorage.deleteFiles([avatar]);
+                console.log('[MemberRoutes] wxCloudStorage deleteFiles result:', r);
                 continue;
             }
 
@@ -1157,9 +1159,22 @@ async function deleteMemberAvatarFromObjectStorage(members) {
             if (cosStorage.isConfigured && cosStorage.isConfigured()) {
                 const key = cosStorage.parseObjectKeyFromUrl(avatar);
                 if (key) {
+                    console.log('[MemberRoutes] cos delete objectKey=', key);
                     await cosStorage.deleteObject(key);
                     continue;
                 }
+
+                // fallback: 从 URL pathname 中直接取对象键（仅当命中 /avatars/{memberId}/ 时）
+                try {
+                    const u = new URL(avatar);
+                    const pathname = (u.pathname || '').replace(/^\/+/, '');
+                    const marker = `avatars/${memberId}/`;
+                    if (pathname && pathname.includes(marker)) {
+                        console.log('[MemberRoutes] cos fallback delete pathnameAsKey=', pathname);
+                        await cosStorage.deleteObject(pathname);
+                        continue;
+                    }
+                } catch (_) {}
             }
 
             // 3) 本地回退（/uploads/avatars/...）
