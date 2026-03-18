@@ -9,20 +9,17 @@ router.get('/articles', optionalAuthenticate, async (req, res) => {
     try {
         const { page = 1, limit = 20, status = 'published' } = req.query;
         const offset = (page - 1) * limit;
-        const now = new Date();
 
         let where = {
             status: status === 'all' ? { [Op.in]: ['published', 'draft'] } : status
         };
 
-        // 只显示已发布的文章：兼容 publishTime 为空（旧数据/后台未填写发布时间）
+        // 只显示已发布的文章：
+        // 说明：publishTime 在历史数据/不同时区解析下可能出现偏差导致“已发布却被过滤”，
+        // 因此小程序端以 status=published 为准，不再强依赖 publishTime <= now。
         if (status === 'published') {
             where = {
-                status: 'published',
-                [Op.or]: [
-                    { publishTime: null },
-                    { publishTime: { [Op.lte]: now } }
-                ]
+                status: 'published'
             };
         }
 
@@ -84,16 +81,12 @@ router.get('/articles', optionalAuthenticate, async (req, res) => {
 router.get('/articles/:id', optionalAuthenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const now = new Date();
 
         const article = await Article.findOne({
             where: {
                 id: parseInt(id),
                 status: 'published',
-                [Op.or]: [
-                    { publishTime: null },
-                    { publishTime: { [Op.lte]: now } }
-                ]
+                // 同列表逻辑：以 status=published 为准
             }
         });
 

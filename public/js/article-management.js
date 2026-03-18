@@ -34,6 +34,16 @@ function formatDateTime(str) {
   return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+function toDatetimeLocalValue(date) {
+  if (!date) return '';
+  const d = (date instanceof Date) ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  // 转本地时间的 datetime-local（避免 toISOString 的 UTC 偏移）
+  const tzOffsetMs = d.getTimezoneOffset() * 60000;
+  const local = new Date(d.getTime() - tzOffsetMs);
+  return local.toISOString().slice(0, 16);
+}
+
 function initArticleManagement() {
   loadArticles();
   document.getElementById('articleForm').addEventListener('submit', onSubmit);
@@ -156,7 +166,7 @@ async function editArticle(id) {
     document.getElementById('articleContent').value = a.content || '';
     document.getElementById('articleType').value = (a.externalUrl && (!a.content || String(a.content).trim() === '')) ? 'external' : 'content';
     document.getElementById('articleAuthor').value = a.author || 'MMBS商城';
-    document.getElementById('articlePublishTime').value = a.publishTime ? new Date(a.publishTime).toISOString().slice(0, 16) : '';
+    document.getElementById('articlePublishTime').value = toDatetimeLocalValue(a.publishTime);
     document.getElementById('articleStatus').value = a.status || 'draft';
     document.getElementById('articleSortOrder').value = a.sortOrder ?? 0;
     document.getElementById('articleExternalUrl').value = a.externalUrl || '';

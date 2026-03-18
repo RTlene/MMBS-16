@@ -32,6 +32,16 @@ const uploadMiddleware = multer({
   }
 });
 
+function parseDatetimeLocalShanghai(raw) {
+  const s = raw != null ? String(raw).trim() : '';
+  if (!s) return null;
+  // datetime-local: YYYY-MM-DDTHH:mm（无时区），后台按中国时区(+08:00)解释
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+    return new Date(s + ':00+08:00');
+  }
+  return new Date(s);
+}
+
 // 列表（分页、搜索、状态筛选）
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -92,8 +102,8 @@ router.post('/', authenticateToken, uploadMiddleware.single('coverImage'), async
     const status = body.status || 'draft';
     const rawPublishTime = body.publishTime ? String(body.publishTime).trim() : '';
     const publishTime = status === 'published'
-      ? (rawPublishTime ? new Date(rawPublishTime) : new Date())
-      : (rawPublishTime ? new Date(rawPublishTime) : null);
+      ? (rawPublishTime ? parseDatetimeLocalShanghai(rawPublishTime) : new Date())
+      : (rawPublishTime ? parseDatetimeLocalShanghai(rawPublishTime) : null);
 
     const article = await Article.create({
       title: body.title || '未命名',
@@ -128,8 +138,8 @@ router.put('/:id', authenticateToken, uploadMiddleware.single('coverImage'), asy
     const rawPublishTime = body.publishTime !== undefined ? String(body.publishTime || '').trim() : undefined;
     const nextPublishTime = rawPublishTime !== undefined
       ? (nextStatus === 'published'
-        ? (rawPublishTime ? new Date(rawPublishTime) : new Date())
-        : (rawPublishTime ? new Date(rawPublishTime) : null))
+        ? (rawPublishTime ? parseDatetimeLocalShanghai(rawPublishTime) : new Date())
+        : (rawPublishTime ? parseDatetimeLocalShanghai(rawPublishTime) : null))
       : article.publishTime;
 
     await article.update({
