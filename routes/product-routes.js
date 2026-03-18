@@ -349,18 +349,51 @@ router.post('/:id/member-prices/batch', async (req, res) => {
     const product = await Product.findByPk(productId, { include: [{ model: ProductSKU, as: 'skus', attributes: ['id'] }] });
     if (!product) return res.status(404).json({ code: 1, message: '商品不存在' });
     const skuIds = (product.skus || []).map(s => s.id);
+    // 用于序号映射：按 sortOrder/createdAt/id 稳定排序
+    const orderedSkus = await ProductSKU.findAll({
+      where: { productId },
+      attributes: ['id', 'sortOrder', 'createdAt'],
+      order: [['sortOrder', 'ASC'], ['createdAt', 'ASC'], ['id', 'ASC']]
+    });
+    const orderedSkuIds = orderedSkus.map(s => s.id);
     const list = Array.isArray(memberPrices) ? memberPrices : [];
 
     // 规范化并过滤非法数据
     const rows = [];
+    const debug = {
+      productId,
+      incomingCount: list.length,
+      skuIdsCount: skuIds.length,
+      orderedSkuIdsCount: orderedSkuIds.length,
+      invalidSkuIdCount: 0,
+      mappedByIndexCount: 0
+    };
     for (const item of list) {
       const levelId = safeInt(item && item.memberLevelId);
       const skuId = item && item.skuId != null && item.skuId !== '' ? safeInt(item.skuId) : 0;
       const priceNum = parseFloat(item && item.price);
       if (!levelId || !Number.isFinite(priceNum) || priceNum < 0) continue;
-      if (skuId > 0 && !skuIds.includes(skuId)) continue;
-      rows.push({ productId, memberLevelId: levelId, skuId: skuId || 0, price: priceNum });
+      let finalSkuId = skuId || 0;
+      if (finalSkuId > 0 && !skuIds.includes(finalSkuId)) {
+        // 兼容：前端偶发传入 1..n 序号而不是 skuId，按当前 SKU 顺序映射
+        if (finalSkuId <= orderedSkuIds.length) {
+          finalSkuId = orderedSkuIds[finalSkuId - 1] || 0;
+          debug.mappedByIndexCount += 1;
+        } else {
+          debug.invalidSkuIdCount += 1;
+          continue;
+        }
+      }
+      rows.push({ productId, memberLevelId: levelId, skuId: finalSkuId, price: priceNum });
     }
+
+    // 打印关键诊断信息，便于定位“偏移”是否由 skuId/序号混用导致
+    try {
+      const incomingSkuIds = (list || []).map(x => x && x.skuId).filter(x => x != null);
+      console.log('[MemberPricesBatch] productId=', productId, 'debug=', debug);
+      console.log('[MemberPricesBatch] skuIds=', skuIds.slice(0, 50), 'orderedSkuIds=', orderedSkuIds.slice(0, 50));
+      console.log('[MemberPricesBatch] incomingSkuIds(sample)=', incomingSkuIds.slice(0, 50));
+    } catch (_) {}
 
     // 批量写入：使用事务 + bulkCreate(updateOnDuplicate) 避免部分保存/只落最后一条的异常情况
     // MySQL / MariaDB：updateOnDuplicate 生效；其他方言会忽略但仍可插入

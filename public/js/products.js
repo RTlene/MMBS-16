@@ -450,6 +450,15 @@ async function saveMemberPricesBatch(productId, memberPrices, createdSkus) {
         }
         return { memberLevelId: p.memberLevelId, skuId: skuId, price: p.price };
     });
+    try {
+        console.log('[MemberPricesBatch] submit', {
+            productId: productId,
+            editingProductId: window.productManagementData.editingProductId,
+            memberPricesCount: memberPrices.length,
+            resolvedCount: resolved.length,
+            skuIdsSample: resolved.slice(0, 20).map(function (x) { return x.skuId; })
+        });
+    } catch (e) {}
     var res = await fetch('/api/products/' + productId + '/member-prices/batch', {
         method: 'POST',
         headers: getAuthHeaders(),
