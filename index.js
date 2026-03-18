@@ -46,6 +46,7 @@ const miniappAfterSalesRoutes = require('./routes/miniapp-after-sales-routes');
 const staffRoutes = require('./routes/staff-routes');
 const storeRoutes = require('./routes/store-routes');
 const miniappStoreRoutes = require('./routes/miniapp-store-routes');
+const miniappConfigRoutes = require('./routes/miniapp-config-routes');
 
 const logger = morgan("tiny");
 
@@ -137,6 +138,8 @@ app.use('/api/settings', require('./middleware/auth').authenticateToken, setting
 app.post('/api/auth/miniapp-login', miniappLogin);
 // 小程序获取手机号（需 openid 认证）
 app.post('/api/auth/get-phone-number', authenticateMiniappUser, miniappGetPhoneNumber);
+// 小程序公开配置（无需认证）
+app.use('/api/miniapp', miniappConfigRoutes);
 // 小程序商品API（无需认证）
 app.use('/api/miniapp', miniappProductRoutes);
 // 小程序订单API（需要小程序用户认证）

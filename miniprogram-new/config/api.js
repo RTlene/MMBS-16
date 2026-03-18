@@ -70,6 +70,11 @@ const API = {
   BANNER: {
     PUBLIC: '/api/banners/public/:position',    // 指定位置的横幅
   },
+
+  // 小程序公开配置
+  CONFIG: {
+    PUBLIC: '/api/miniapp/config'
+  },
   
   // 分类相关
   CATEGORY: {

@@ -10,6 +10,7 @@ const { buildAbsoluteUrl, buildOptimizedImageUrl, formatMoney } = require('../..
 
 Page({
   data: {
+    mallName: 'MMBS商城',
     // 首图轮播
     banners: [],
     currentBannerIndex: 0,
@@ -51,6 +52,9 @@ Page({
       }).catch(function () {});
     }
     
+    // 加载商城名称（用于首页标题/分享标题）
+    this.loadMallName();
+
     // 加载页面数据
     this.loadPageData();
   },
@@ -112,13 +116,24 @@ Page({
     const memberId = app.globalData.memberId;
     
     return {
-      title: 'MMBS商城 - 精选好物',
+      title: `${this.data.mallName || 'MMBS商城'} - 精选好物`,
       path: `/pages/index/index?referrerId=${memberId}`,
       imageUrl: this.data.banners[0]?.imageUrl || ''
     };
   },
 
   // ==================== 数据加载 ====================
+
+  async loadMallName() {
+    try {
+      const res = await request.get(API.CONFIG.PUBLIC, {}, { showLoading: false, showError: false });
+      const name = res && res.code === 0 && res.data && res.data.mallName ? String(res.data.mallName).trim() : '';
+      if (name) {
+        this.setData({ mallName: name });
+        wx.setNavigationBarTitle({ title: name });
+      }
+    } catch (_) {}
+  },
 
   /**
    * 加载页面数据
