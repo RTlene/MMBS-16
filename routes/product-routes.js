@@ -618,43 +618,55 @@ router.put('/:id', async (req, res) => {
       }
     }
     
-    // 更新商品基本信息
-    await product.update({
-      ...productData,
-      isHot: productData.isHot ?? product.isHot
+    await sequelize.transaction(async (t) => {
+      // 更新商品基本信息
+      await product.update({
+        ...productData,
+        isHot: productData.isHot ?? product.isHot
+      }, { transaction: t });
+      
+      // 更新属性（仍采用全量替换）
+      if (attributes !== undefined) {
+        await ProductAttribute.destroy({ where: { productId: id }, transaction: t });
+        if (Array.isArray(attributes) && attributes.length > 0) {
+          for (const attr of attributes) {
+            await ProductAttribute.create({ productId: id, ...attr }, { transaction: t });
+          }
+        }
+      }
+      
+      // 更新SKU：保留原 id，避免会员价按 skuId 绑定后“偏移”
+      if (skus !== undefined) {
+        const incoming = Array.isArray(skus) ? skus : [];
+        const existing = await ProductSKU.findAll({ where: { productId: id }, attributes: ['id'], transaction: t });
+        const existingIds = new Set(existing.map(s => s.id));
+
+        const keepIds = new Set();
+        for (const raw of incoming) {
+          const skuId = safeInt(raw && raw.id);
+          const payload = { ...raw };
+          delete payload.id;
+          payload.productId = id;
+          // 默认补齐 status，避免空值
+          if (!payload.status) payload.status = 'active';
+
+          if (skuId && existingIds.has(skuId)) {
+            keepIds.add(skuId);
+            await ProductSKU.update(payload, { where: { id: skuId, productId: id }, transaction: t });
+          } else {
+            const created = await ProductSKU.create(payload, { transaction: t });
+            keepIds.add(created.id);
+          }
+        }
+
+        // 删除不再存在的 SKU，并同步清理该 SKU 的会员价，避免脏数据
+        const toDelete = Array.from(existingIds).filter(x => !keepIds.has(x));
+        if (toDelete.length > 0) {
+          await ProductMemberPrice.destroy({ where: { productId: id, skuId: { [Op.in]: toDelete } }, transaction: t });
+          await ProductSKU.destroy({ where: { productId: id, id: { [Op.in]: toDelete } }, transaction: t });
+        }
+      }
     });
-    
-    // 更新属性
-    if (attributes !== undefined) {
-      // 删除现有属性
-      await ProductAttribute.destroy({ where: { productId: id } });
-      
-      // 创建新属性
-      if (attributes.length > 0) {
-        for (const attr of attributes) {
-          await ProductAttribute.create({
-            productId: id,
-            ...attr
-          });
-        }
-      }
-    }
-    
-    // 更新SKU
-    if (skus !== undefined) {
-      // 删除现有SKU
-      await ProductSKU.destroy({ where: { productId: id } });
-      
-      // 创建新SKU
-      if (skus.length > 0) {
-        for (const sku of skus) {
-          await ProductSKU.create({
-            productId: id,
-            ...sku
-          });
-        }
-      }
-    }
     
     // 返回完整的商品信息
     const fullProduct = await Product.findByPk(id, {
