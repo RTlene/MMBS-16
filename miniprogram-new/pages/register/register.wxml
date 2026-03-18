@@ -10,10 +10,8 @@
       <input
         class="nickname-input"
         type="nickname"
-        value="{{nickname}}"
         placeholder="点击获取微信用户名"
         bindinput="onNicknameInput"
-        bindchange="onNicknameInput"
       />
     </view>
 
