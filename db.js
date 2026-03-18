@@ -3334,55 +3334,67 @@ async function init() {
     console.log('[DB] 连接成功');
 
     // ===== 自动迁移：product_member_prices 增加 skuId 并修正唯一索引 =====
-    // 说明：历史库如果只存在 (productId, memberLevelId) 唯一键，会导致多 SKU 会员价互相覆盖。
+    // 说明：历史库如果还存在 (productId, memberLevelId) 的旧唯一键，会导致多 SKU 会员价互相覆盖：
+    // 例如保存 skuId=21 与 skuId=22 两条，后者会覆盖前者，回读就会出现 21=22 的价格、22=undefined。
     // 云托管通常无法手动执行脚本，因此在启动时做一次轻量自检迁移。
     try {
       const qi = sequelize.getQueryInterface();
       const table = 'product_member_prices';
+      const dialect = sequelize.getDialect();
       const desc = await qi.describeTable(table).catch(() => ({}));
-      if (desc && Object.keys(desc).length > 0 && !desc.skuId) {
-        console.log('[DB] product_member_prices 表缺少 skuId，开始自动迁移...');
-        await qi.addColumn(table, 'skuId', {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: 'SKU ID，0 表示该等级整品默认会员价'
-        });
-        await sequelize.query(`UPDATE \`${table}\` SET skuId = 0`);
+      const tableExists = desc && Object.keys(desc).length > 0;
+      if (tableExists) {
+        let changed = false;
+        if (!desc.skuId) {
+          console.log('[DB] product_member_prices 表缺少 skuId，开始自动迁移(加列)...');
+          await qi.addColumn(table, 'skuId', {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 0,
+            comment: 'SKU ID，0 表示该等级整品默认会员价'
+          });
+          await sequelize.query(`UPDATE \`${table}\` SET skuId = 0`);
+          changed = true;
+        }
 
-        const dialect = sequelize.getDialect();
+        // 无论 skuId 是否已存在，都要确保旧两列唯一索引被移除，并补上三列唯一索引
         if (dialect === 'mysql') {
           const [rows] = await sequelize.query(`SHOW INDEX FROM \`${table}\` WHERE Non_unique = 0 AND Key_name != 'PRIMARY'`);
-          // 删除旧的 (productId, memberLevelId) 唯一索引（不含 skuId）
-          const indexGroups = {};
+          const groups = {};
           for (const r of rows || []) {
             if (!r || !r.Key_name) continue;
-            if (!indexGroups[r.Key_name]) indexGroups[r.Key_name] = [];
-            indexGroups[r.Key_name].push(String(r.Column_name || '').toLowerCase());
+            if (!groups[r.Key_name]) groups[r.Key_name] = [];
+            groups[r.Key_name].push(String(r.Column_name || '').toLowerCase());
           }
-          for (const [name, cols] of Object.entries(indexGroups)) {
-            const s = cols.join(',');
-            const hasProduct = cols.includes('productid') || cols.includes('product_id') || s.includes('productid') || s.includes('product_id');
-            const hasLevel = cols.includes('memberlevelid') || cols.includes('member_level_id') || s.includes('memberlevelid') || s.includes('member_level_id');
-            const hasSku = cols.includes('skuid') || cols.includes('sku_id') || s.includes('skuid') || s.includes('sku_id');
-            if (hasProduct && hasLevel && !hasSku) {
+
+          // 目标：删除“仅包含 productId + memberLevelId（且不含 skuId）”的唯一索引（名字不固定）
+          for (const [name, colsRaw] of Object.entries(groups)) {
+            const cols = (colsRaw || []).slice();
+            const hasSku = cols.includes('skuid') || cols.includes('sku_id');
+            const hasProduct = cols.includes('productid') || cols.includes('product_id');
+            const hasLevel = cols.includes('memberlevelid') || cols.includes('member_level_id');
+            const isOldTwoCols = !hasSku && hasProduct && hasLevel && cols.length === 2;
+            if (isOldTwoCols) {
               await sequelize.query(`ALTER TABLE \`${table}\` DROP INDEX \`${name}\``);
-              console.log('[DB] 已删除旧唯一索引:', name);
-              break;
+              console.log('[DB] 已删除旧两列唯一索引:', name, 'cols=', cols.join(','));
+              changed = true;
             }
           }
         }
 
         try {
           await qi.addIndex(table, ['productId', 'memberLevelId', 'skuId'], { unique: true });
-          console.log('[DB] 已添加新唯一索引 (productId, memberLevelId, skuId)');
+          console.log('[DB] 已确保新唯一索引 (productId, memberLevelId, skuId)');
         } catch (e) {
           const msg = e && e.message ? e.message : String(e || '');
           if (!msg.includes('already exists')) {
-            console.warn('[DB] 添加新唯一索引失败:', msg);
+            console.warn('[DB] 添加/确保新唯一索引失败:', msg);
           }
         }
-        console.log('[DB] product_member_prices 自动迁移完成');
+
+        if (changed) {
+          console.log('[DB] product_member_prices 自动迁移完成(已修改结构)');
+        }
       }
     } catch (e) {
       // 不阻塞启动：无权 ALTER / 表不存在等情况只记录日志
