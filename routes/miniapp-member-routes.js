@@ -15,7 +15,14 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+        // 兼容：部分真机 wx.uploadFile 可能把 mimetype 传为 application/octet-stream
+        // 此时根据文件扩展名兜底判断是否为图片
+        const mime = (file.mimetype || '').toLowerCase();
+        if (mime.startsWith('image/')) return cb(null, true);
+        if (mime === 'application/octet-stream' || !mime) {
+            const ext = safeExtFromName(file.originalname || '').toLowerCase();
+            if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) return cb(null, true);
+        }
         return cb(new Error('只允许上传图片'));
     }
 });
