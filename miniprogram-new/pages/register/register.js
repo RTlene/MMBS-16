@@ -56,8 +56,8 @@ Page({
   onNicknameInput(e) {
     const v = e && e.detail ? e.detail.value : undefined;
     // 只在事件确实带有 value 时更新，避免某些事件回传空值导致 nickname 被误清空
-    if (typeof v === 'string') {
-      this.setData({ nickname: v });
+    if (typeof v === 'string' && String(v).trim()) {
+      this.setData({ nickname: String(v).trim() });
     }
   },
 
