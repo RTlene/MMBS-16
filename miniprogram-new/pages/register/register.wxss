@@ -19,33 +19,41 @@
   margin-bottom: 12rpx;
 }
 
-.desc {
-  font-size: 26rpx;
-  color: #6b7280;
-  line-height: 1.6;
-  margin-bottom: 24rpx;
+.avatar {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  display: block;
+  margin: 28rpx auto 18rpx;
+  background: #f3f4f6;
 }
 
-.section {
-  margin-top: 18rpx;
-  padding: 18rpx 0;
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 0;
   border-top: 1rpx solid #f0f0f0;
 }
 
-.input {
-  margin-top: 12rpx;
-  padding: 18rpx 16rpx;
-  border: 1rpx solid #e5e7eb;
-  border-radius: 12rpx;
+.label {
   font-size: 28rpx;
-  color: #111827;
-  background: #fff;
+  color: #6b7280;
 }
 
-.hint {
-  margin-top: 10rpx;
-  font-size: 24rpx;
-  color: #6b7280;
+.value {
+  font-size: 28rpx;
+  color: #111827;
+  max-width: 60%;
+  text-align: right;
+}
+
+.phone-row {
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.phone-action {
+  margin-top: 18rpx;
 }
 
 .actions {
@@ -68,6 +76,11 @@
   background: #2563eb;
   border-color: #2563eb;
   color: #fff;
+}
+
+.btn-full {
+  flex: 1;
+  width: 100%;
 }
 
 .btn-ghost {
