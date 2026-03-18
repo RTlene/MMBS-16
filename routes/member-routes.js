@@ -698,6 +698,7 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
             throw err;
         }
 
+        console.log('[MemberRoutes] router.delete (multi) will delete avatars in object storage:', { ids, membersToDelete });
         await deleteMemberAvatarFromObjectStorage(membersToDelete);
         res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
@@ -1242,6 +1243,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         }
 
         // 事务提交后再删对象存储，避免回滚时出现“误删”
+        console.log('[MemberRoutes] router.delete /:id will delete avatars in object storage:', membersToDelete);
         await deleteMemberAvatarFromObjectStorage(membersToDelete);
         res.json({ code: 0, message: '会员删除成功' });
     } catch (error) {
@@ -1297,6 +1299,7 @@ router.delete('/', authenticateToken, async (req, res) => {
             throw err;
         }
 
+        console.log('[MemberRoutes] router.post /batch-delete will delete avatars in object storage:', { ids, membersToDelete });
         await deleteMemberAvatarFromObjectStorage(membersToDelete);
         res.json({ code: 0, message: `成功删除 ${ids.length} 个会员` });
     } catch (error) {
