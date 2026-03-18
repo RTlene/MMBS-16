@@ -152,6 +152,7 @@ Page({
     try {
       let nickname = (this.data.nickname || '').trim();
       let avatarTempPath = this.data.avatarTempPath || '';
+      console.log('[Register] 完成: nickname=', nickname, 'avatarTempPath=', !!avatarTempPath);
 
       // 容错：如果 nickname 没被 input 事件成功写入（例如某些机型/基础库行为差异）
       // 则在“点击完成”这个用户动作里再弹一次 wx.getUserProfile，确保昵称/头像一定能落库
@@ -166,6 +167,7 @@ Page({
         }
 
         nickname = userNickname;
+        console.log('[Register] 完成兜底getUserProfile: nickname=', nickname, 'userAvatarUrlDefaultOrEmpty=', !userAvatarUrl || /\/0(\?|$)/.test(userAvatarUrl));
 
         // 若之前没通过 chooseAvatar 选到头像，则尝试从 getUserProfile 返回头像继续走上传
         const looksLikeDefaultAvatar = !userAvatarUrl || /\/0(\?|$)/.test(userAvatarUrl);
@@ -187,6 +189,7 @@ Page({
 
       // 2) 若有选择头像，则上传到对象存储（云托管/COS/本地回退），避免只保存微信临时 URL
       if (avatarTempPath) {
+        console.log('[Register] 开始上传头像，filePath存在=', !!avatarTempPath);
         const openid = wx.getStorageSync('openid');
         if (!openid) throw new Error('未登录');
         const uploadRes = await new Promise((resolve, reject) => {
