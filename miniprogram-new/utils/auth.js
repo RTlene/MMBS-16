@@ -84,17 +84,8 @@ async function login() {
       wx.setStorageSync('memberInfo', member);
     }
 
-    // 新用户首次进入：引导在“注册完善资料”页尝试获取头像/昵称/手机号；拒绝则后端默认随机昵称兜底
-    if (isNew || needsProfile || needsPhone) {
-      try {
-        const pages = getCurrentPages ? getCurrentPages() : [];
-        const cur = pages && pages.length ? pages[pages.length - 1] : null;
-        const curRoute = cur && (cur.route || cur.__route__) ? (cur.route || cur.__route__) : '';
-        if (curRoute !== 'pages/register/register') {
-          wx.navigateTo({ url: '/pages/register/register' });
-        }
-      } catch (_) {}
-    }
+    // 政策原因：不在首次登录/自动登录阶段强制引导用户授权头像昵称手机号。
+    // 新用户默认使用后端随机昵称/临时头像（或空头像），用户可在「个人页-修改资料」主动完善。
     
     // 登录成功后清除推荐人ID（避免重复使用）
     if (referrerId) {

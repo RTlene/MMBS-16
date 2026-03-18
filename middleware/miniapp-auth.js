@@ -102,6 +102,8 @@ async function miniappLogin(req, res) {
 
     console.log('[MiniappAuth] 获取到 openid:', openid);
 
+    // 政策原因：首次登录不强制要求/引导用户提供头像昵称。
+    // 只有用户在“个人页-修改资料”主动授权/上传后，才会持久化头像/昵称。
     const nicknameFromBody = (userInfo.nickName || bodyNickname || '').trim();
     const avatarFromBody = userInfo.avatarUrl || bodyAvatar || null;
     // 若未授权头像昵称，则使用随机昵称兜底（避免过多“微信用户xxxx”）
@@ -167,7 +169,8 @@ async function miniappLogin(req, res) {
         openid: openid,
         unionid: unionid,
         sessionKey: session_key,
-        avatar: avatarFromBody,
+        // 不在首次登录阶段强制写入头像（避免把默认/匿名头像持久化）
+        avatar: null,
         memberLevelId: memberLevelId,
         referrerId: referrerId_parsed,
         memberCode: memberCode,
@@ -201,7 +204,7 @@ async function miniappLogin(req, res) {
         sessionKey: session_key,
         unionid: unionid || member.unionid,
         nickname: member.nickname || safeNickname,
-        avatar: member.avatar || avatarFromBody
+        avatar: member.avatar || null
       });
     }
 
