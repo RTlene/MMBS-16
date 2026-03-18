@@ -62,6 +62,8 @@ Page({
   },
 
   onChooseAvatar(e) {
+    // chooseAvatar 回传字段在不同基础库/机型下可能略有差异，先把 detail 打出来便于定位
+    console.log('[Register] onChooseAvatar detail =', e && e.detail ? e.detail : e);
     const p = e && e.detail && e.detail.avatarUrl ? String(e.detail.avatarUrl) : '';
     if (!p) {
       this.setData({ profileStatus: '未选择头像' });
@@ -151,8 +153,13 @@ Page({
   async onSaveProfile() {
     try {
       let nickname = (this.data.nickname || '').trim();
+      // 优先使用 avatarTempPath；如果为空但 avatarDisplayUrl 看起来是 wxfile:// 临时路径，则也尝试用它
       let avatarTempPath = this.data.avatarTempPath || '';
-      console.log('[Register] 完成: nickname=', nickname, 'avatarTempPath=', !!avatarTempPath);
+      const displayUrl = this.data.avatarDisplayUrl || '';
+      if (!avatarTempPath && typeof displayUrl === 'string' && displayUrl.startsWith('wxfile://')) {
+        avatarTempPath = displayUrl;
+      }
+      console.log('[Register] 完成: nickname=', nickname, 'avatarTempPathExists=', !!avatarTempPath, 'avatarDisplayUrl=', displayUrl);
 
       // 容错：如果 nickname 没被 input 事件成功写入（例如某些机型/基础库行为差异）
       // 则在“点击完成”这个用户动作里再弹一次 wx.getUserProfile，确保昵称/头像一定能落库
@@ -204,12 +211,15 @@ Page({
         });
         const data = uploadRes && uploadRes.data ? JSON.parse(uploadRes.data) : null;
         if (!data || data.code !== 0) throw new Error((data && data.message) || '头像上传失败');
+      } else {
+        console.log('[Register] 跳过上传头像：avatarTempPath 为空');
       }
 
       await refreshMemberCache();
       this.setData({ profileStatus: '' });
       wx.navigateBack({ delta: 1 });
     } catch (e) {
+      console.error('[Register] 保存失败:', e);
       this.setData({ profileStatus: '' });
     }
   },
