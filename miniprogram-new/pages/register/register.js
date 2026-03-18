@@ -61,7 +61,7 @@ Page({
     }
   },
 
-  onChooseAvatar(e) {
+  async onChooseAvatar(e) {
     // chooseAvatar 回传字段在不同基础库/机型下可能略有差异，先把 detail 打出来便于定位
     console.log('[Register] onChooseAvatar detail =', e && e.detail ? e.detail : e);
     const p = e && e.detail && e.detail.avatarUrl ? String(e.detail.avatarUrl) : '';
@@ -69,8 +69,48 @@ Page({
       this.setData({ profileStatus: '未选择头像' });
       return;
     }
-    // chooseAvatar 返回的是临时路径/可直接用于 <image src> 的地址
-    this.setData({ avatarTempPath: p, avatarDisplayUrl: p, profileStatus: '' });
+
+    // 默认先使用 chooseAvatar 返回的临时文件
+    let avatarTempPath = p;
+    let avatarDisplayUrl = p;
+
+    try {
+      // 如果用户的微信头像本身就是“默认占位图”，则即使选择了头像也可能仍然是默认图；
+      // 这时强制再走一次 chooseMedia（相册/拍照），确保上传的是用户自选图片。
+      let userInfo = wx.getStorageSync('userProfile') || null;
+      if (!userInfo) {
+        userInfo = await auth.getUserProfile();
+      }
+
+      const avatarUrl = userInfo && userInfo.avatarUrl ? String(userInfo.avatarUrl).trim() : '';
+      const looksLikeDefaultAvatar = !avatarUrl || /\/0(\?|$)/.test(avatarUrl);
+      if (looksLikeDefaultAvatar) {
+        const choose = await new Promise((resolve) => {
+          wx.chooseMedia({
+            count: 1,
+            mediaType: ['image'],
+            sourceType: ['album', 'camera'],
+            sizeType: ['compressed'],
+            success: resolve,
+            fail: resolve
+          });
+        });
+        const fp = choose && choose.tempFiles && choose.tempFiles[0] ? choose.tempFiles[0].tempFilePath : '';
+        if (fp) {
+          avatarTempPath = fp;
+          avatarDisplayUrl = fp;
+        }
+      }
+
+      const nicknameFromProfile = userInfo && userInfo.nickName ? String(userInfo.nickName).trim() : '';
+      if (nicknameFromProfile) {
+        this.setData({ nickname: nicknameFromProfile });
+      }
+    } catch (err) {
+      console.warn('[Register] onChooseAvatar default-avatar 检测失败，继续使用 chooseAvatar 返回值:', err && err.message ? err.message : err);
+    }
+
+    this.setData({ avatarTempPath, avatarDisplayUrl, profileStatus: '' });
   },
 
   // 资料完善页：用户点击昵称后，触发微信“获取头像昵称”的授权弹窗
