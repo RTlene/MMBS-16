@@ -36,7 +36,7 @@ Page({
       this.setData({ profileStatus: '未选择头像' });
       return;
     }
-    this.setData({ avatarTempPath: p, profileStatus: '已选择头像' });
+    this.setData({ avatarTempPath: p, profileStatus: '' });
   },
 
   async onGetProfile() {
@@ -47,15 +47,11 @@ Page({
       const avatarUrl = userInfo && userInfo.avatarUrl ? String(userInfo.avatarUrl).trim() : '';
       if (!nickname) throw new Error('未获取到昵称');
 
-      // 微信在部分情况下会返回“默认资料”（例如昵称=微信用户、头像为默认占位图）
-      // 这类数据没有真实用户头像文件，体验会比较差；此时引导用户走 chooseAvatar + 手动昵称。
-      const DEFAULT_NICKNAME = '微信用户';
+      // 微信可能返回默认头像占位图（通常不是真实用户头像文件）
+      // 此时只弹出一次头像选择；但昵称不清空，避免用户必须重新输入。
       const looksLikeDefaultAvatar = !avatarUrl || /\/0(\?|$)/.test(avatarUrl);
-      const isDefaultNickname = !nickname || nickname === DEFAULT_NICKNAME || nickname.startsWith(DEFAULT_NICKNAME);
-      if (isDefaultNickname || looksLikeDefaultAvatar) {
-        // 不做任何“文案提示”，只保证出现一个可供用户选择的弹框：
-        // 自动打开头像选择器；用户再手动填写昵称并点击保存。
-        this.setData({ nickname: '', avatarTempPath: '', profileStatus: '' });
+      if (looksLikeDefaultAvatar) {
+        this.setData({ nickname, avatarTempPath: '', profileStatus: '' });
         const choose = await new Promise((resolve) => {
           wx.chooseMedia({
             count: 1,
@@ -72,7 +68,7 @@ Page({
       }
 
       // 1) 先填充昵称并保存
-      this.setData({ nickname });
+      this.setData({ nickname, avatarTempPath: avatarTempPath || '' });
       const res1 = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname }, { needAuth: true, showLoading: true });
       if (res1.code !== 0) throw new Error(res1.message || '保存昵称失败');
 
@@ -143,9 +139,9 @@ Page({
       }
 
       await refreshMemberCache();
-      this.setData({ profileStatus: '已更新头像昵称' });
+      this.setData({ profileStatus: '' });
     } catch (e) {
-      this.setData({ profileStatus: e.message || '更新失败，将使用默认昵称' });
+      this.setData({ profileStatus: '' });
     }
   },
 
@@ -156,12 +152,12 @@ Page({
       const res = await request.put(API.MEMBER.UPDATE_PROFILE, { phone: phoneNumber }, { needAuth: true, showLoading: true });
       if (res.code === 0) {
         await refreshMemberCache();
-        this.setData({ phoneStatus: '已绑定手机号' });
+        this.setData({ phoneStatus: '' });
       } else {
         throw new Error(res.message || '更新失败');
       }
     } catch (e2) {
-      this.setData({ phoneStatus: '未授权或获取失败，可稍后在个人资料中完善' });
+      this.setData({ phoneStatus: '' });
     }
   },
 
