@@ -18,6 +18,7 @@ const DEFAULT_SYSTEM = {
     activeMemberCheckDays: 30,
     activeMemberCondition: 'lastActiveAt',
     activeMemberCheckIntervalHours: 24,
+    mallName: '',
     returnAddress: '',
     afterSalesImageRetentionDays: 90  // 售后凭证图保留天数，超期后清除转为轻量化存储
 };
@@ -47,6 +48,7 @@ router.put('/system', authenticateToken, async (req, res) => {
             activeMemberCheckDays: body.activeMemberCheckDays !== undefined ? Math.max(1, parseInt(body.activeMemberCheckDays, 10) || 30) : current.activeMemberCheckDays,
             activeMemberCondition: (body.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt'),
             activeMemberCheckIntervalHours: body.activeMemberCheckIntervalHours !== undefined ? Math.max(1, Math.min(720, parseInt(body.activeMemberCheckIntervalHours, 10) || 24)) : (current.activeMemberCheckIntervalHours ?? 24),
+            mallName: body.mallName !== undefined ? String(body.mallName || '').trim().slice(0, 50) : (current.mallName ?? ''),
             returnAddress: body.returnAddress !== undefined ? String(body.returnAddress || '').trim() : (current.returnAddress ?? ''),
             afterSalesImageRetentionDays: body.afterSalesImageRetentionDays !== undefined ? Math.max(1, Math.min(3650, parseInt(body.afterSalesImageRetentionDays, 10) || 90)) : (current.afterSalesImageRetentionDays ?? 90)
         };

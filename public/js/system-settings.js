@@ -18,6 +18,7 @@
             const conditionEl = document.getElementById('activeMemberCondition');
             const intervalEl = document.getElementById('activeMemberCheckIntervalHours');
             const modeEl = document.getElementById('activeMemberCheckMode');
+            const mallNameEl = document.getElementById('mallName');
             const returnAddressEl = document.getElementById('returnAddress');
             const afterSalesDaysEl = document.getElementById('afterSalesImageRetentionDays');
             if (afterSalesDaysEl) afterSalesDaysEl.value = d.afterSalesImageRetentionDays != null ? d.afterSalesImageRetentionDays : 90;
@@ -25,6 +26,7 @@
                 modeEl.value = (d.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled');
                 updateActiveMemberModeUI();
             }
+            if (mallNameEl) mallNameEl.value = d.mallName != null ? d.mallName : '';
             if (enabledEl) enabledEl.checked = !!d.activeMemberCheckEnabled;
             if (daysEl) daysEl.value = d.activeMemberCheckDays != null ? d.activeMemberCheckDays : 30;
             if (conditionEl) conditionEl.value = d.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt';
@@ -41,6 +43,7 @@
         const conditionEl = document.getElementById('activeMemberCondition');
         const intervalEl = document.getElementById('activeMemberCheckIntervalHours');
         const modeEl = document.getElementById('activeMemberCheckMode');
+        const mallNameEl = document.getElementById('mallName');
         const returnAddressEl = document.getElementById('returnAddress');
         const afterSalesDaysEl = document.getElementById('afterSalesImageRetentionDays');
         const body = {
@@ -49,6 +52,7 @@
             activeMemberCheckDays: daysEl ? Math.max(1, parseInt(daysEl.value, 10) || 30) : 30,
             activeMemberCondition: conditionEl && conditionEl.value === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt',
             activeMemberCheckIntervalHours: intervalEl ? Math.max(1, Math.min(720, parseInt(intervalEl.value, 10) || 24)) : 24,
+            mallName: mallNameEl ? String(mallNameEl.value || '').trim().slice(0, 50) : '',
             returnAddress: returnAddressEl ? String(returnAddressEl.value || '').trim() : '',
             afterSalesImageRetentionDays: afterSalesDaysEl ? Math.max(1, Math.min(3650, parseInt(afterSalesDaysEl.value, 10) || 90)) : 90
         };

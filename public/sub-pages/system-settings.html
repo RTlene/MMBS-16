@@ -35,6 +35,11 @@
             <div class="card-header">活跃会员自动检测</div>
             <div class="card-body">
                 <div class="form-group">
+                    <label class="form-label">商城名称</label>
+                    <input type="text" id="mallName" name="mallName" class="form-input" maxlength="50" placeholder="用于小程序/网页端展示（可选）">
+                    <p class="form-hint">仅用于展示名称，不影响支付与订单逻辑</p>
+                </div>
+                <div class="form-group">
                     <label class="form-label">检测模式</label>
                     <select id="activeMemberCheckMode" name="activeMemberCheckMode" class="form-input" style="max-width:320px;">
                         <option value="simple">简单模式（有订单即活跃，不跑定时检测）</option>

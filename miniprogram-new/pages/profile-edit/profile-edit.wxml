@@ -2,15 +2,15 @@
   <view class="card">
     <view class="row">
       <view class="label">头像</view>
-      <view class="value avatar-wrap" bindtap="onChooseAvatar">
+      <button class="value avatar-wrap" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
         <image class="avatar" src="{{avatar || defaultAvatar}}" mode="aspectFill" />
         <text class="tip">点击更换</text>
-      </view>
+      </button>
     </view>
 
     <view class="row">
       <view class="label">昵称</view>
-      <input class="input" value="{{nickname}}" placeholder="请输入昵称" bindinput="onNicknameInput" maxlength="20" />
+      <input class="input" type="nickname" value="{{nickname}}" placeholder="点击获取微信用户名" bindinput="onNicknameInput" maxlength="20" />
     </view>
 
     <view class="row">

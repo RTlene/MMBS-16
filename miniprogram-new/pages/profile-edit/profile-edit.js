@@ -33,20 +33,23 @@ Page({
     this.setData({ nickname: (e.detail && e.detail.value) || '' });
   },
 
-  async onChooseAvatar() {
+  async onChooseAvatar(e) {
     if (!auth.isLogin()) return;
     try {
-      const choose = await new Promise((resolve, reject) => {
-        wx.chooseMedia({
-          count: 1,
-          mediaType: ['image'],
-          sourceType: ['album', 'camera'],
-          sizeType: ['compressed'],
-          success: resolve,
-          fail: reject
+      let filePath = e && e.detail && e.detail.avatarUrl ? String(e.detail.avatarUrl) : '';
+      if (!filePath) {
+        const choose = await new Promise((resolve, reject) => {
+          wx.chooseMedia({
+            count: 1,
+            mediaType: ['image'],
+            sourceType: ['album', 'camera'],
+            sizeType: ['compressed'],
+            success: resolve,
+            fail: reject
+          });
         });
-      });
-      const filePath = choose && choose.tempFiles && choose.tempFiles[0] ? choose.tempFiles[0].tempFilePath : '';
+        filePath = choose && choose.tempFiles && choose.tempFiles[0] ? choose.tempFiles[0].tempFilePath : '';
+      }
       if (!filePath) return;
 
       const openid = wx.getStorageSync('openid');
