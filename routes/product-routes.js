@@ -53,6 +53,21 @@ function safeBool(v) {
   return null;
 }
 
+function sortSkus(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice().sort((a, b) => {
+    const sa = (a && a.sortOrder != null) ? Number(a.sortOrder) : 0;
+    const sb = (b && b.sortOrder != null) ? Number(b.sortOrder) : 0;
+    if (sa !== sb) return sa - sb;
+    const ca = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const cb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (ca !== cb) return ca - cb;
+    const ia = (a && a.id != null) ? Number(a.id) : 0;
+    const ib = (b && b.id != null) ? Number(b.id) : 0;
+    return ia - ib;
+  });
+}
+
 // 获取商品列表
 router.get('/', async (req, res) => {
   try {
@@ -502,10 +517,14 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    const out = product.toJSON();
+    // include 内的 order 在部分 Sequelize 版本不会生效，响应前再手动排序兜底
+    if (out && out.skus) out.skus = sortSkus(out.skus);
+
     res.json({
       code: 0,
       message: '获取成功',
-      data: product
+      data: out
     });
   } catch (err) {
     console.error('获取商品失败:', err);
@@ -587,11 +606,13 @@ router.post('/', async (req, res) => {
         { model: ProductAttribute, as: 'attributes' }
       ]
     });
-    
+    const out = fullProduct ? fullProduct.toJSON() : null;
+    if (out && out.skus) out.skus = sortSkus(out.skus);
+
     res.json({
       code: 0,
       message: '商品创建成功',
-      data: fullProduct
+      data: out
     });
   } catch (error) {
     console.error('创建商品失败:', error);
@@ -709,11 +730,13 @@ router.put('/:id', async (req, res) => {
         { model: ProductAttribute, as: 'attributes' }
       ]
     });
-    
+    const out = fullProduct ? fullProduct.toJSON() : null;
+    if (out && out.skus) out.skus = sortSkus(out.skus);
+
     res.json({
       code: 0,
       message: '商品更新成功',
-      data: fullProduct
+      data: out
     });
   } catch (error) {
     console.error('更新商品失败:', error);
