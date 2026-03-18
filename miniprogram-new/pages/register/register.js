@@ -47,6 +47,20 @@ Page({
       const avatarUrl = userInfo && userInfo.avatarUrl ? String(userInfo.avatarUrl).trim() : '';
       if (!nickname) throw new Error('未获取到昵称');
 
+      // 微信在部分情况下会返回“默认资料”（例如昵称=微信用户、头像为默认占位图）
+      // 这类数据没有真实用户头像文件，体验会比较差；此时引导用户走 chooseAvatar + 手动昵称。
+      const DEFAULT_NICKNAME = '微信用户';
+      const looksLikeDefaultAvatar = !avatarUrl || /\/0(\?|$)/.test(avatarUrl);
+      const isDefaultNickname = !nickname || nickname === DEFAULT_NICKNAME || nickname.startsWith(DEFAULT_NICKNAME);
+      if (isDefaultNickname || looksLikeDefaultAvatar) {
+        this.setData({
+          nickname: '',
+          avatarTempPath: '',
+          profileStatus: '获取到默认头像/昵称，请使用「选择头像」并填写昵称后再保存'
+        });
+        return;
+      }
+
       // 1) 先填充昵称并保存
       this.setData({ nickname });
       const res1 = await request.put(API.MEMBER.UPDATE_PROFILE, { nickname }, { needAuth: true, showLoading: true });
