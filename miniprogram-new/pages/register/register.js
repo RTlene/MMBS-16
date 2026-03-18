@@ -54,7 +54,11 @@ Page({
   },
 
   onNicknameInput(e) {
-    this.setData({ nickname: (e.detail && e.detail.value) || '' });
+    const v = e && e.detail ? e.detail.value : undefined;
+    // 只在事件确实带有 value 时更新，避免某些事件回传空值导致 nickname 被误清空
+    if (typeof v === 'string') {
+      this.setData({ nickname: v });
+    }
   },
 
   onChooseAvatar(e) {
@@ -146,10 +150,35 @@ Page({
 
   async onSaveProfile() {
     try {
-      const nickname = (this.data.nickname || '').trim();
+      let nickname = (this.data.nickname || '').trim();
+      let avatarTempPath = this.data.avatarTempPath || '';
+
+      // 容错：如果 nickname 没被 input 事件成功写入（例如某些机型/基础库行为差异）
+      // 则在“点击完成”这个用户动作里再弹一次 wx.getUserProfile，确保昵称/头像一定能落库
       if (!nickname) {
-        this.setData({ profileStatus: '请先填写昵称' });
-        return;
+        const userInfo = await auth.getUserProfile();
+        const userNickname = userInfo && userInfo.nickName ? String(userInfo.nickName).trim() : '';
+        const userAvatarUrl = userInfo && userInfo.avatarUrl ? String(userInfo.avatarUrl).trim() : '';
+
+        if (!userNickname) {
+          this.setData({ profileStatus: '请先填写昵称' });
+          return;
+        }
+
+        nickname = userNickname;
+
+        // 若之前没通过 chooseAvatar 选到头像，则尝试从 getUserProfile 返回头像继续走上传
+        const looksLikeDefaultAvatar = !userAvatarUrl || /\/0(\?|$)/.test(userAvatarUrl);
+        if (!avatarTempPath && userAvatarUrl && !looksLikeDefaultAvatar) {
+          const dl = await new Promise((resolve, reject) => {
+            wx.downloadFile({
+              url: userAvatarUrl,
+              success: resolve,
+              fail: reject
+            });
+          });
+          avatarTempPath = dl && dl.tempFilePath ? dl.tempFilePath : '';
+        }
       }
 
       // 1) 先保存昵称
@@ -157,7 +186,6 @@ Page({
       if (res1.code !== 0) throw new Error(res1.message || '保存昵称失败');
 
       // 2) 若有选择头像，则上传到对象存储（云托管/COS/本地回退），避免只保存微信临时 URL
-      const avatarTempPath = this.data.avatarTempPath;
       if (avatarTempPath) {
         const openid = wx.getStorageSync('openid');
         if (!openid) throw new Error('未登录');
