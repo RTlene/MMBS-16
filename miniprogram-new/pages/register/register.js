@@ -53,11 +53,21 @@ Page({
       const looksLikeDefaultAvatar = !avatarUrl || /\/0(\?|$)/.test(avatarUrl);
       const isDefaultNickname = !nickname || nickname === DEFAULT_NICKNAME || nickname.startsWith(DEFAULT_NICKNAME);
       if (isDefaultNickname || looksLikeDefaultAvatar) {
-        this.setData({
-          nickname: '',
-          avatarTempPath: '',
-          profileStatus: '获取到默认头像/昵称，请使用「选择头像」并填写昵称后再保存'
+        // 不做任何“文案提示”，只保证出现一个可供用户选择的弹框：
+        // 自动打开头像选择器；用户再手动填写昵称并点击保存。
+        this.setData({ nickname: '', avatarTempPath: '', profileStatus: '' });
+        const choose = await new Promise((resolve) => {
+          wx.chooseMedia({
+            count: 1,
+            mediaType: ['image'],
+            sourceType: ['album', 'camera'],
+            sizeType: ['compressed'],
+            success: resolve,
+            fail: resolve // 用户取消也走 resolve
+          });
         });
+        const filePath = choose && choose.tempFiles && choose.tempFiles[0] ? choose.tempFiles[0].tempFilePath : '';
+        if (filePath) this.setData({ avatarTempPath: filePath });
         return;
       }
 
