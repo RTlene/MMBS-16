@@ -1152,6 +1152,12 @@ async function deleteMemberAvatarFromObjectStorage(members) {
             if (wxCloudStorage.isConfigured && wxCloudStorage.isConfigured() && avatar.startsWith('cloud://')) {
                 const r = await wxCloudStorage.deleteFiles([avatar]);
                 console.log('[MemberRoutes] wxCloudStorage deleteFiles result:', r);
+                if (r && typeof r.deleted === 'number' && r.deleted === 0) {
+                    throw new Error('[MemberRoutes] 云托管删除返回 deleted=0: ' + JSON.stringify(r));
+                }
+                if (r && Array.isArray(r.failed) && r.failed.length) {
+                    throw new Error('[MemberRoutes] 云托管删除返回 failed: ' + JSON.stringify(r.failed));
+                }
                 continue;
             }
 

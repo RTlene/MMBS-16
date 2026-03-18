@@ -143,7 +143,21 @@ async function deleteFiles(fileIds) {
     if (payload && payload.errcode != null && payload.errcode !== 0) {
         throw new Error(payload.errmsg || 'tcb/batchdeletefile 失败: ' + JSON.stringify(payload));
     }
-    const deleteList = payload && Array.isArray(payload.delete_list) ? payload.delete_list : [];
+    const deleteListRaw = payload && payload.delete_list;
+    const deleteList = Array.isArray(deleteListRaw) ? deleteListRaw : [];
+
+    // 如果接口返回结构不对/权限不够，delete_list 可能为空但 errcode=0，
+    // 此时直接返回 {deleted:0} 会让上层误以为删除成功。
+    if (deleteList.length === 0 && list.length > 0) {
+        console.warn(
+            '[wxCloudStorage] tcb/batchdeletefile 返回 delete_list 为空，可能是权限/返回结构异常',
+            'env=', env,
+            'fileid_list=', list,
+            'payload=', typeof payload === 'string' ? payload : JSON.stringify(payload).slice(0, 2000)
+        );
+        throw new Error('tcb/batchdeletefile 返回 delete_list 为空');
+    }
+
     let deleted = 0;
     const failed = [];
     for (let i = 0; i < deleteList.length; i++) {
@@ -154,9 +168,7 @@ async function deleteFiles(fileIds) {
         if (typeof item === 'string' || status === 0) deleted++;
         else failed.push({ fileId: fileId || list[i], errMsg: errMsg || '删除失败' });
     }
-    if (deleteList.length === 0 && list.length > 0) {
-        console.warn('[wxCloudStorage] tcb/batchdeletefile 返回无 delete_list，可能需在控制台配置 tcb/batchdeletefile 权限');
-    }
+
     return { deleted, failed };
 }
 
