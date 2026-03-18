@@ -31,6 +31,12 @@ async function ensureProductMemberPricesTable() {
       allowNull: false,
       comment: '会员等级ID'
     },
+    skuId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      comment: 'SKU ID，0 表示该等级整品默认会员价'
+    },
     price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
@@ -48,7 +54,7 @@ async function ensureProductMemberPricesTable() {
     }
   });
 
-  await qi.addIndex(TABLE, ['productId', 'memberLevelId'], { unique: true });
+  await qi.addIndex(TABLE, ['productId', 'memberLevelId', 'skuId'], { unique: true });
   console.log('[SUCCESS] Table and unique index created.');
 }
 
