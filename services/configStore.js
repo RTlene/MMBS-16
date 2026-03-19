@@ -10,7 +10,11 @@ const path = require('path');
 const cosStorage = require('./cosStorage');
 
 const CONFIG_OBJECT_KEY = 'config/app-config.enc';
+// system 分区单独持久化（明文），避免主配置因加密密钥/读取失败导致通用设置丢失
+// 注意：仅用于“非敏感”的通用设置（如商城名称）。支付等敏感配置仍只写入加密文件。
+const SYSTEM_OBJECT_KEY = 'config/system.json';
 const LOCAL_CONFIG_PATH = path.join(__dirname, '../config/app-config.json');
+const LOCAL_SYSTEM_PATH = path.join(__dirname, '../config/system.json');
 const CONFIG_DIR = path.dirname(LOCAL_CONFIG_PATH);
 
 const ALGORITHM = 'aes-256-gcm';
@@ -60,13 +64,14 @@ function decrypt(cipherBuffer) {
  * @returns {Promise<object>}
  */
 async function read() {
+    const result = {};
     if (cosStorage.isConfigured()) {
         try {
             const buf = await cosStorage.getObjectBuffer(CONFIG_OBJECT_KEY);
             const plain = decrypt(buf);
             const data = JSON.parse(plain);
             console.log('[ConfigStore] 已从对象存储加载加密配置');
-            return data;
+            Object.assign(result, data);
         } catch (e) {
             if (e.statusCode === 404 || (e.message && e.message === 'NOT_FOUND')) {
                 console.log('[ConfigStore] 对象存储中暂无配置，尝试本地文件');
@@ -79,12 +84,38 @@ async function read() {
         if (fs.existsSync(LOCAL_CONFIG_PATH)) {
             const data = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
             console.log('[ConfigStore] 已从本地文件加载配置');
-            return data;
+            Object.assign(result, data);
         }
     } catch (e) {
         console.warn('[ConfigStore] 读取本地配置失败:', e.message);
     }
-    return {};
+
+    // 兜底读取 system 分区（即使主配置为空/解密失败，也尽量恢复 mallName 等通用设置）
+    try {
+        let system = null;
+        if (cosStorage.isConfigured()) {
+            try {
+                const buf = await cosStorage.getObjectBuffer(SYSTEM_OBJECT_KEY);
+                system = JSON.parse(buf.toString('utf8'));
+                console.log('[ConfigStore] 已从对象存储加载 system 配置');
+            } catch (e) {
+                if (!(e && (e.statusCode === 404 || e.message === 'NOT_FOUND'))) {
+                    console.warn('[ConfigStore] 从对象存储读取 system 失败:', e.message);
+                }
+            }
+        }
+        if (!system && fs.existsSync(LOCAL_SYSTEM_PATH)) {
+            system = JSON.parse(fs.readFileSync(LOCAL_SYSTEM_PATH, 'utf8'));
+            console.log('[ConfigStore] 已从本地文件加载 system 配置');
+        }
+        if (system && typeof system === 'object') {
+            result.system = { ...(result.system || {}), ...system };
+        }
+    } catch (e) {
+        console.warn('[ConfigStore] 读取 system 兜底配置失败:', e.message);
+    }
+
+    return result;
 }
 
 /**
@@ -108,6 +139,24 @@ async function write(data) {
 }
 
 /**
+ * 仅写入 system 分区（明文），作为通用设置持久化兜底
+ * @param {object} systemData
+ */
+async function writeSystem(systemData) {
+    try {
+        ensureConfigDir();
+        const jsonStr = JSON.stringify(systemData || {}, null, 2);
+        fs.writeFileSync(LOCAL_SYSTEM_PATH, jsonStr, 'utf8');
+        if (cosStorage.isConfigured()) {
+            await cosStorage.putObjectBuffer(SYSTEM_OBJECT_KEY, Buffer.from(jsonStr, 'utf8'));
+            console.log('[ConfigStore] 已写入对象存储（system 明文兜底）');
+        }
+    } catch (e) {
+        console.warn('[ConfigStore] 写入 system 兜底配置失败:', e.message);
+    }
+}
+
+/**
  * 获取某一分区配置
  * @param {string} section - 如 'payment' | 'withdrawal'
  * @returns {object}
@@ -127,12 +176,16 @@ async function setSection(section, sectionData) {
     full[section] = sectionData;
     configStore._cache = full;
     await write(full);
+    if (section === 'system') {
+        await writeSystem(sectionData);
+    }
 }
 
 const configStore = {
     _cache: null,
     read,
     write,
+    writeSystem,
     getSection,
     setSection,
     getEncryptionKey: () => getEncryptionKey().length
