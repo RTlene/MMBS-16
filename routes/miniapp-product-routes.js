@@ -203,7 +203,8 @@ router.get('/products', async (req, res) => {
 // 获取推荐商品（小程序端）- 必须在 /products/:id 之前定义
 router.get('/products/recommended', async (req, res) => {
     try {
-        const { limit = 10, type = 'featured' } = req.query;
+        const { limit = 10, type = 'featured', lite = '' } = req.query;
+        const isLite = String(lite) === '1' || type === 'hot'; // 首页热门默认走轻量
 
         let where = { status: 'active' };
         
@@ -221,13 +222,13 @@ router.get('/products/recommended', async (req, res) => {
                     as: 'category', 
                     attributes: ['id', 'name']
                 },
-                {
+                ...(!isLite ? [{
                     model: ProductSKU,
                     as: 'skus',
                     attributes: ['id', 'price', 'images', 'stock', 'status'],
                     where: { status: 'active' },
                     required: false
-                }
+                }] : [])
             ],
             limit: parseInt(limit),
             order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']]
@@ -240,10 +241,12 @@ router.get('/products/recommended', async (req, res) => {
             const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
             const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
             const primarySku = getSkuWithMostStock(activeSkus);
+            const productImages = Array.isArray(product.images) ? product.images : [];
             return {
                 id: product.id,
                 name: product.name,
-                images: product.images || [],
+                // 轻量模式只返回首图，显著降低首页包体
+                images: isLite ? (productImages.length > 0 ? [productImages[0]] : []) : productImages,
                 price: priceMin,
                 priceMin,
                 priceMax,
@@ -252,7 +255,7 @@ router.get('/products/recommended', async (req, res) => {
                     id: product.category.id,
                     name: product.category.name
                 } : null,
-                sku: primarySku ? {
+                sku: (!isLite && primarySku) ? {
                     id: primarySku.id,
                     price: primarySku.price,
                     images: primarySku.images || []

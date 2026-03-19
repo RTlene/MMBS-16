@@ -15,6 +15,7 @@ const axios = require('axios');
 const WX_COS_AUTH_URL = 'http://api.weixin.qq.com/_/cos/getauth';
 
 let cosClient = null;
+let cachedTempCredential = null;
 
 function _pick(obj, keys) {
     if (!obj || typeof obj !== 'object') return undefined;
@@ -32,7 +33,11 @@ function _pick(obj, keys) {
  * - { data: { ...上述任一结构... } }
  */
 function normalizeGetAuthPayload(raw) {
-    const root = raw && typeof raw === 'object' ? raw : {};
+    let parsed = raw;
+    if (typeof parsed === 'string') {
+        try { parsed = JSON.parse(parsed); } catch (_) {}
+    }
+    const root = parsed && typeof parsed === 'object' ? parsed : {};
     const data = (root.data && typeof root.data === 'object') ? root.data : root;
     const creds = (data.credentials && typeof data.credentials === 'object')
         ? data.credentials
@@ -47,6 +52,13 @@ function normalizeGetAuthPayload(raw) {
 
     if (!TmpSecretId || !TmpSecretKey) return null;
     return { TmpSecretId, TmpSecretKey, SecurityToken, ExpiredTime };
+}
+
+function isCredentialUsable(c) {
+    if (!c || !c.TmpSecretId || !c.TmpSecretKey) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const exp = Number(c.ExpiredTime) || 0;
+    return exp > now + 60;
 }
 
 /**
@@ -82,18 +94,56 @@ function getClient() {
             const COS = require('cos-nodejs-sdk-v5');
             cosClient = new COS({
                 getAuthorization: function (options, callback) {
-                    axios.get(WX_COS_AUTH_URL, { timeout: 10000, validateStatus: () => true })
-                        .then(res => {
-                            const payload = normalizeGetAuthPayload(res.data);
-                            if (payload) {
-                                callback(payload);
-                            } else {
+                    const doFetch = (attempt = 1) => {
+                        axios.get(WX_COS_AUTH_URL, { timeout: 10000, validateStatus: () => true })
+                            .then(res => {
+                                const payload = normalizeGetAuthPayload(res.data);
+                                if (payload) {
+                                    cachedTempCredential = payload;
+                                    callback(payload);
+                                    return;
+                                }
+
+                                if (attempt < 3) {
+                                    setTimeout(() => doFetch(attempt + 1), 120 * attempt);
+                                    return;
+                                }
+
                                 const body = JSON.stringify(res.data || {});
-                                console.warn('[COS] getauth 返回结构不匹配:', body.slice(0, 500));
-                                callback(new Error('getauth 返回无效: 缺少临时密钥字段'));
-                            }
-                        })
-                        .catch(err => callback(err));
+                                console.warn('[COS] getauth 返回结构不匹配(已重试):', body.slice(0, 500));
+                                if (isCredentialUsable(cachedTempCredential)) {
+                                    console.warn('[COS] 使用缓存临时密钥兜底');
+                                    callback(cachedTempCredential);
+                                    return;
+                                }
+                                // 注意：不能 callback(error)，否则 SDK 会报“missing TmpSecretId”
+                                callback({
+                                    TmpSecretId: '__invalid__',
+                                    TmpSecretKey: '__invalid__',
+                                    SecurityToken: '',
+                                    ExpiredTime: Math.floor(Date.now() / 1000) + 60
+                                });
+                            })
+                            .catch(err => {
+                                if (attempt < 3) {
+                                    setTimeout(() => doFetch(attempt + 1), 120 * attempt);
+                                    return;
+                                }
+                                console.warn('[COS] getauth 请求失败(已重试):', err && err.message ? err.message : err);
+                                if (isCredentialUsable(cachedTempCredential)) {
+                                    console.warn('[COS] 使用缓存临时密钥兜底');
+                                    callback(cachedTempCredential);
+                                    return;
+                                }
+                                callback({
+                                    TmpSecretId: '__invalid__',
+                                    TmpSecretKey: '__invalid__',
+                                    SecurityToken: '',
+                                    ExpiredTime: Math.floor(Date.now() / 1000) + 60
+                                });
+                            });
+                    };
+                    doFetch(1);
                 },
                 Protocol: 'https:'
             });

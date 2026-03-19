@@ -324,6 +324,7 @@ Page({
       // 使用轻量推荐接口，避免 /products 返回 skus 明细导致 callContainer 1MB 包体超限
       const result = await request.get(API.PRODUCT.RECOMMENDED, {
         type: 'hot',
+        lite: 1,
         limit: 8
       }, {
         showLoading: false,
