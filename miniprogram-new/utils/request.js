@@ -65,6 +65,28 @@ function beforeRequest(config) {
 }
 
 /**
+ * needAuth 请求前确保登录可用（首次进入/缓存失效场景）
+ * @param {object} config
+ */
+async function ensureAuthReady(config) {
+  if (!config || !config.needAuth) return;
+  const openid = wx.getStorageSync('openid');
+  if (openid) return;
+  try {
+    const auth = require('./auth.js');
+    const ok = await auth.ensureLogin();
+    if (!ok) {
+      throw new Error('自动登录失败');
+    }
+  } catch (e) {
+    throw {
+      message: (e && e.message) || '请先登录',
+      code: 401
+    };
+  }
+}
+
+/**
  * 响应后处理
  * @param {object} response - 响应数据
  * @param {object} config - 请求配置
@@ -241,69 +263,95 @@ function requestWithCallContainer(url, config) {
  * @returns {Promise} 请求结果
  */
 function request(url, options = {}) {
-  const fullUrl = API_BASE_URL + url;
-  const config = {
-    ...DEFAULT_CONFIG,
-    ...options,
-    url: fullUrl,
-    method: options.method || 'GET',
-    data: options.data || {},
-  };
-  const processedConfig = beforeRequest(config);
-
-  // 生产环境：优先用云托管 callContainer（无需配置 request 合法域名）
-  if (ENV_INFO.isProduction) {
-    if (typeof wx !== 'undefined' && wx.cloud) {
-      wx.cloud.init({ env: CLOUD_ENV, traceUser: true });
-    }
-    if (wx.cloud && typeof wx.cloud.callContainer === 'function') {
-      return requestWithCallContainer(url, processedConfig);
-    }
-    if (!_productionFallbackWarned) {
-      _productionFallbackWarned = true;
-      console.warn(
-        '[Request] 生产环境未使用云托管：当前环境无 wx.cloud.callContainer。',
-        '请确保：1) 在微信开发者工具中开通「云开发」并选择与云托管一致的环境（' + CLOUD_ENV + '）；',
-        '2) 或使用真机预览/正式版。否则 wx.request 可能因未配置合法域名而失败。'
-      );
-    }
-  }
-
-  // 开发环境或降级：使用 wx.request
-  if (ENV_INFO.isDevelopment && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-    console.warn('[Request] ⚠️ 开发环境URL格式可能不正确:', fullUrl);
-  }
-
-  return new Promise((resolve, reject) => {
-    const requestConfig = {
-      ...processedConfig,
-      timeout: config.timeout || DEFAULT_CONFIG.timeout,
+  return (async () => {
+    const fullUrl = API_BASE_URL + url;
+    const retryAuth = !!options.__retryAuth;
+    const config = {
+      ...DEFAULT_CONFIG,
+      ...options,
+      url: fullUrl,
+      method: options.method || 'GET',
+      data: options.data || {},
     };
-    const requestStartTime = Date.now();
-    console.log(`[Request] 开始请求: ${config.method} ${config.url}, timeout=${requestConfig.timeout}ms`);
+    delete config.__retryAuth;
 
-    wx.request({
-      ...requestConfig,
-      success: (response) => {
-        const requestDuration = Date.now() - requestStartTime;
-        console.log(`[Request] 请求成功: ${config.method} ${config.url}, 耗时=${requestDuration}ms`);
-        console.log(`[Request] 响应状态码: ${response.statusCode}`);
-        afterResponse(response, config).then(resolve).catch(reject);
-      },
-      fail: (error) => {
-        const requestDuration = Date.now() - requestStartTime;
-        console.error(`[Request] 请求失败: ${config.method} ${config.url}, 耗时=${requestDuration}ms`, error);
-        let errorMessage = '网络连接失败';
-        if (error.errMsg) {
-          if (error.errMsg.includes('timeout')) errorMessage = '请求超时，请检查网络连接';
-          else if (error.errMsg.includes('fail')) errorMessage = '网络请求失败，请检查服务器是否运行';
-          else if (error.errMsg.includes('abort')) errorMessage = '请求被取消';
-          else errorMessage = `网络错误: ${error.errMsg}`;
+    await ensureAuthReady(config);
+    const processedConfig = beforeRequest(config);
+
+    const doRequest = () => {
+      // 生产环境：优先用云托管 callContainer（无需配置 request 合法域名）
+      if (ENV_INFO.isProduction) {
+        if (typeof wx !== 'undefined' && wx.cloud) {
+          wx.cloud.init({ env: CLOUD_ENV, traceUser: true });
         }
-        handleError({ message: errorMessage, error: error }, config).catch(reject);
+        if (wx.cloud && typeof wx.cloud.callContainer === 'function') {
+          return requestWithCallContainer(url, processedConfig);
+        }
+        if (!_productionFallbackWarned) {
+          _productionFallbackWarned = true;
+          console.warn(
+            '[Request] 生产环境未使用云托管：当前环境无 wx.cloud.callContainer。',
+            '请确保：1) 在微信开发者工具中开通「云开发」并选择与云托管一致的环境（' + CLOUD_ENV + '）；',
+            '2) 或使用真机预览/正式版。否则 wx.request 可能因未配置合法域名而失败。'
+          );
+        }
       }
-    });
-  });
+
+      // 开发环境或降级：使用 wx.request
+      if (ENV_INFO.isDevelopment && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+        console.warn('[Request] ⚠️ 开发环境URL格式可能不正确:', fullUrl);
+      }
+
+      return new Promise((resolve, reject) => {
+        const requestConfig = {
+          ...processedConfig,
+          timeout: config.timeout || DEFAULT_CONFIG.timeout,
+        };
+        const requestStartTime = Date.now();
+        console.log(`[Request] 开始请求: ${config.method} ${config.url}, timeout=${requestConfig.timeout}ms`);
+
+        wx.request({
+          ...requestConfig,
+          success: (response) => {
+            const requestDuration = Date.now() - requestStartTime;
+            console.log(`[Request] 请求成功: ${config.method} ${config.url}, 耗时=${requestDuration}ms`);
+            console.log(`[Request] 响应状态码: ${response.statusCode}`);
+            afterResponse(response, config).then(resolve).catch(reject);
+          },
+          fail: (error) => {
+            const requestDuration = Date.now() - requestStartTime;
+            console.error(`[Request] 请求失败: ${config.method} ${config.url}, 耗时=${requestDuration}ms`, error);
+            let errorMessage = '网络连接失败';
+            if (error.errMsg) {
+              if (error.errMsg.includes('timeout')) errorMessage = '请求超时，请检查网络连接';
+              else if (error.errMsg.includes('fail')) errorMessage = '网络请求失败，请检查服务器是否运行';
+              else if (error.errMsg.includes('abort')) errorMessage = '请求被取消';
+              else errorMessage = `网络错误: ${error.errMsg}`;
+            }
+            handleError({ message: errorMessage, error: error }, config).catch(reject);
+          }
+        });
+      });
+    };
+
+    try {
+      return await doRequest();
+    } catch (err) {
+      const code = err && err.code;
+      const msg = (err && err.message) || '';
+      const shouldRelogin = config.needAuth && !retryAuth && (code === 401 || msg.includes('请先登录'));
+      if (!shouldRelogin) throw err;
+
+      try {
+        wx.removeStorageSync('openid');
+        wx.removeStorageSync('memberId');
+      } catch (_) {}
+      const auth = require('./auth.js');
+      const ok = await auth.ensureLogin();
+      if (!ok) throw err;
+      return request(url, { ...options, __retryAuth: true });
+    }
+  })();
 }
 
 // ==================== 快捷方法 ====================

@@ -55,6 +55,9 @@ Page({
     // 加载商城名称（用于首页标题/分享标题）
     this.loadMallName();
 
+    // 再触发一次自动登录（不阻塞首屏），提升首次进入任意入口的登录成功率
+    app.autoLogin && app.autoLogin().catch(() => {});
+
     // 加载页面数据
     this.loadPageData();
   },
@@ -318,10 +321,10 @@ Page({
    */
   async loadHotProducts() {
     try {
-      const result = await request.get(API.PRODUCT.LIST, {
-        isHot: true,
-        page: 1,
-        limit: 8  // 首页热门商品只显示8个，减少初始加载
+      // 使用轻量推荐接口，避免 /products 返回 skus 明细导致 callContainer 1MB 包体超限
+      const result = await request.get(API.PRODUCT.RECOMMENDED, {
+        type: 'hot',
+        limit: 8
       }, {
         showLoading: false,
         showError: false

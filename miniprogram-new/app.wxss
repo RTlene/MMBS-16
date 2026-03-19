@@ -52,8 +52,8 @@ page {
   height: 100%;
   background-color: var(--bg-page);
   color: var(--text-color);
-  font-size: 28rpx;
-  line-height: 1.6;
+  font-size: 29rpx;
+  line-height: 1.62;
 }
 
 view, text, image, input, button {
