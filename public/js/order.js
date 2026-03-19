@@ -213,6 +213,11 @@ class OrderManagement {
             return;
         }
 
+        // 表头结构在当前页渲染期间保持不变：放到 forEach 外层计算，避免作用域导致 hasCheckbox 未定义
+        const headerRow = table?.querySelector('thead tr');
+        const hasCheckbox = headerRow?.querySelector('th input[type="checkbox"]') !== null;
+        const hasUnitPrice = headerRow?.textContent.includes('单价');
+
         this.orders.forEach(order => {
             // 处理商品信息（支持多商品）
             let productInfo = '-';
@@ -232,13 +237,7 @@ class OrderManagement {
             }
 
             const row = document.createElement('tr');
-            
-            // 检查表格是否有复选框列（通过检查表头）
-            const table = tbody.closest('table');
-            const headerRow = table?.querySelector('thead tr');
-            const hasCheckbox = headerRow?.querySelector('th input[type="checkbox"]') !== null;
-            const hasUnitPrice = headerRow?.textContent.includes('单价');
-            
+
             // 构建行HTML
             let rowHtml = '';
             
