@@ -417,27 +417,37 @@ Page({
       const page = reset ? 1 : (append ? (this.data.allPage + 1) : this.data.allPage);
       this.setData({ allLoading: true });
 
-      const result = await request.get(API.PRODUCT.LIST, {
+      // 逻辑上每次加载6个，但拆分成3次请求，每次2个，降低单次包体
+      const baseChunkPage = (page - 1) * 3;
+      const chunkRequests = [1, 2, 3].map((idx) => request.get(API.PRODUCT.LIST, {
         lite: 1,
-        page,
-        limit: 6
+        page: baseChunkPage + idx,
+        limit: 2
       }, {
         showLoading: false,
         showError: false
-      });
+      }).catch(() => null));
 
-      const list = (result && result.data && Array.isArray(result.data.products))
-        ? result.data.products
-        : [];
+      const chunkResults = await Promise.all(chunkRequests);
+      const list = [];
+      for (let i = 0; i < chunkResults.length; i++) {
+        const chunk = chunkResults[i];
+        const products = (chunk && chunk.data && Array.isArray(chunk.data.products)) ? chunk.data.products : [];
+        if (products.length > 0) {
+          list.push(...products);
+        }
+      }
       const optimizedProducts = list.map(product => ({
         ...product,
         images: (product.images || []).map(img => buildOptimizedImageUrl(img, { type: 'list' }))
       }));
       const merged = append ? (this.data.allProducts || []).concat(optimizedProducts) : optimizedProducts;
+      const lastChunk = chunkResults[2];
+      const hasMore = !!(lastChunk && lastChunk.data && lastChunk.data.hasMore);
       this.setData({
         allProducts: merged,
         allPage: page,
-        allHasMore: !!(result && result.data && result.data.hasMore),
+        allHasMore: hasMore,
         allLoadedOnce: true
       });
     } catch (error) {

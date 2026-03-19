@@ -9,12 +9,36 @@ const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
 
+function normalizeImageRef(item) {
+    if (typeof item === 'string') {
+        const raw = item.trim();
+        if (!raw) return '';
+        // 兼容历史上将图片数组序列化成字符串存储的情况
+        if ((raw.startsWith('[') || raw.startsWith('{')) && raw.length < 10000) {
+            try {
+                return pickLiteImage(JSON.parse(raw));
+            } catch (_) {
+                // ignore parse error, fallback raw
+            }
+        }
+        return raw;
+    }
+    if (!item || typeof item !== 'object') return '';
+    const keys = ['url', 'imageUrl', 'image', 'src', 'fileId', 'fileID', 'path'];
+    for (const key of keys) {
+        const val = item[key];
+        if (typeof val === 'string' && val.trim()) {
+            return val.trim();
+        }
+    }
+    return '';
+}
+
 function pickLiteImage(images) {
     // 仅返回一个可用且长度受控的图片引用，避免 base64/超长字符串撑爆响应包。
-    const list = Array.isArray(images) ? images : [];
+    const list = Array.isArray(images) ? images : [images];
     for (const item of list) {
-        if (typeof item !== 'string') continue;
-        const img = item.trim();
+        const img = normalizeImageRef(item);
         if (!img) continue;
         if (img.startsWith('data:image/')) continue;
         if (img.length > 2048) continue;
