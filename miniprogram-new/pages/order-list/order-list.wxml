@@ -84,11 +84,11 @@
         </view>
         <view 
           class="action-btn primary"
-          wx:if="{{item.status === 'shipped'}}"
+          wx:if="{{item.status === 'shipped' || (item.deliveryType === 'pickup' && item.status === 'paid')}}"
           catchtap="onConfirmReceive"
           data-id="{{item.id}}"
         >
-          确认收货
+          {{item.deliveryType === 'pickup' ? '确认自提' : '确认收货'}}
         </view>
         <view 
           class="action-btn secondary"

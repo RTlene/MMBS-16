@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, ReturnRequest, Store, Coupon, MemberCoupon, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
 const configStore = require('../services/configStore');
+const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
 // 尝试加载 PromotionService，如果失败则设为 null
@@ -761,6 +762,36 @@ router.get('/orders/stats', authenticateMiniappUser, async (req, res) => {
     }
 });
 
+// 通过商户订单号查询订单ID（用于微信小程序订单详情path回跳）
+router.get('/orders/by-order-no/:orderNo', authenticateMiniappUser, async (req, res) => {
+    try {
+        const { orderNo } = req.params;
+        const member = req.member;
+        const order = await Order.findOne({
+            where: {
+                memberId: member.id,
+                orderNo: String(orderNo || '').trim()
+            },
+            attributes: ['id', 'orderNo', 'status', 'createdAt']
+        });
+        if (!order) {
+            return res.status(404).json({ code: 1, message: '订单不存在' });
+        }
+        res.json({
+            code: 0,
+            message: '获取成功',
+            data: {
+                orderId: order.id,
+                orderNo: order.orderNo,
+                status: order.status
+            }
+        });
+    } catch (error) {
+        console.error('通过订单号查询订单失败:', error);
+        res.status(500).json({ code: 1, message: '查询失败', error: error.message });
+    }
+});
+
 // 获取订单详情（小程序端）
 router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
     try {
@@ -980,10 +1011,12 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
                 });
             }
         } else if (status === 'delivered') {
-            if (order.status !== 'shipped') {
+            const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
+            const canDeliver = order.status === 'shipped' || (isPickupOrder && order.status === 'paid');
+            if (!canDeliver) {
                 return res.status(400).json({
                     code: 1,
-                    message: '只有已发货的订单才能确认收货'
+                    message: isPickupOrder ? '当前自提订单不可确认自提' : '只有已发货的订单才能确认收货'
                 });
             }
         }
@@ -993,6 +1026,9 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
 
         if (status === 'delivered') {
             updateData.deliveredAt = new Date();
+            if (String(order.deliveryType || '') === 'pickup' && !order.shippingMethod) {
+                updateData.shippingMethod = 'pickup';
+            }
         }
 
         await order.update(updateData);
@@ -1005,7 +1041,11 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
             operatorType: 'member',
             oldStatus,
             newStatus: status,
-            description: status === 'cancelled' ? `用户取消订单（会员ID: ${member.id}）` : `用户确认收货（会员ID: ${member.id}）`,
+            description: status === 'cancelled'
+                ? `用户取消订单（会员ID: ${member.id}）`
+                : ((String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提')
+                    ? `用户确认自提完成（会员ID: ${member.id}）`
+                    : `用户确认收货（会员ID: ${member.id}）`),
             data: { 
                 memberId: member.id, // 在 data 中记录会员ID
                 remark 
@@ -1018,6 +1058,23 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
                 await CommissionService.calculateOrderCommission(order.id);
             } catch (e) {
                 console.error('订单完成佣金计算失败:', e);
+            }
+            try {
+                const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
+                if (isPickupOrder) {
+                    await wechatMiniappOrderService.uploadShippingInfo({
+                        order,
+                        memberOpenid: member.openid,
+                        isPickup: true,
+                        shippingCompany: '用户自提',
+                        trackingNumber: `PICKUP-${order.orderNo}`,
+                        receiverPhone: order.receiverPhone || member.phone || ''
+                    });
+                }
+                await wechatMiniappOrderService.notifyConfirmReceive({ order });
+                console.log('[OrderSync] 用户确认收货/自提已同步微信小程序订单:', order.orderNo);
+            } catch (syncErr) {
+                console.warn('[OrderSync] 用户确认收货/自提同步微信失败:', order.orderNo, syncErr.message);
             }
         }
 

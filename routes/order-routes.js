@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const CommissionService = require('../services/commissionService');
 const wechatPayService = require('../services/wechatPayService');
+const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 
@@ -977,6 +978,22 @@ router.put('/:id/ship', async (req, res) => {
             data: { shippingCompany, trackingNumber, shippingMethod }
         });
 
+        // 同步微信小程序订单发货信息（失败不影响本地发货）
+        try {
+            const member = await Member.findByPk(order.memberId, { attributes: ['id', 'openid', 'phone'] });
+            await wechatMiniappOrderService.uploadShippingInfo({
+                order,
+                memberOpenid: member?.openid,
+                isPickup: false,
+                shippingCompany,
+                trackingNumber,
+                receiverPhone: order.receiverPhone || member?.phone || ''
+            });
+            console.log('[OrderSync] 发货信息已同步到微信小程序订单:', order.orderNo);
+        } catch (syncErr) {
+            console.warn('[OrderSync] 发货信息同步微信失败:', order.orderNo, syncErr.message);
+        }
+
         res.json({
             code: 0,
             message: '发货成功',
@@ -989,6 +1006,73 @@ router.put('/:id/ship', async (req, res) => {
             message: '发货失败',
             error: error.message
         });
+    }
+});
+
+// 自提确认（后台）
+router.put('/:id/pickup-confirm', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const order = await Order.findByPk(id);
+        if (!order) {
+            return res.status(404).json({ code: 1, message: '订单不存在' });
+        }
+
+        const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
+        if (!isPickupOrder) {
+            return res.status(400).json({ code: 1, message: '仅自提订单可确认用户自提' });
+        }
+        if (order.status !== 'paid') {
+            return res.status(400).json({ code: 1, message: '仅已支付待自提订单可确认' });
+        }
+
+        await order.update({
+            status: 'delivered',
+            deliveredAt: new Date(),
+            shippingMethod: order.shippingMethod || 'pickup',
+            updatedBy: req.user?.id
+        });
+
+        await OrderOperationLog.create({
+            orderId: order.id,
+            operation: 'deliver',
+            operatorId: req.user?.id,
+            operatorType: 'admin',
+            oldStatus: 'paid',
+            newStatus: 'delivered',
+            description: '后台确认用户自提完成'
+        });
+
+        try {
+            const member = await Member.findByPk(order.memberId, { attributes: ['id', 'openid', 'phone'] });
+            await wechatMiniappOrderService.uploadShippingInfo({
+                order,
+                memberOpenid: member?.openid,
+                isPickup: true,
+                shippingCompany: '用户自提',
+                trackingNumber: `PICKUP-${order.orderNo}`,
+                receiverPhone: order.receiverPhone || member?.phone || ''
+            });
+            await wechatMiniappOrderService.notifyConfirmReceive({ order });
+            console.log('[OrderSync] 自提确认已同步到微信小程序订单:', order.orderNo);
+        } catch (syncErr) {
+            console.warn('[OrderSync] 自提确认同步微信失败:', order.orderNo, syncErr.message);
+        }
+
+        try {
+            await CommissionService.calculateOrderCommission(order.id);
+        } catch (error) {
+            console.error('订单完成佣金计算失败:', error);
+        }
+
+        res.json({
+            code: 0,
+            message: '确认用户自提成功',
+            data: { order }
+        });
+    } catch (error) {
+        console.error('确认用户自提失败:', error);
+        res.status(500).json({ code: 1, message: '确认用户自提失败', error: error.message });
     }
 });
 
@@ -1028,6 +1112,13 @@ router.put('/:id/deliver', async (req, res) => {
             newStatus: 'delivered',
             description: '订单已确认收货'
         });
+
+        try {
+            await wechatMiniappOrderService.notifyConfirmReceive({ order });
+            console.log('[OrderSync] 收货确认已同步到微信小程序订单:', order.orderNo);
+        } catch (syncErr) {
+            console.warn('[OrderSync] 收货确认同步微信失败:', order.orderNo, syncErr.message);
+        }
 
         // 订单完成时触发佣金计算
         try {

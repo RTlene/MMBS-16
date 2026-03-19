@@ -21,13 +21,40 @@ Page({
   },
 
   onLoad(options) {
-    const { id, from } = options;
+    const { id, orderNo, from } = options;
+    const rawId = id != null ? String(id).trim() : '';
+    const incomingOrderNo = orderNo != null ? String(orderNo).trim() : '';
+    const likelyOrderNo = incomingOrderNo || ((rawId && /[A-Za-z]/.test(rawId)) ? rawId : '');
+    const likelyOrderId = likelyOrderNo ? '' : rawId;
     this.setData({ 
-      orderId: id,
+      orderId: likelyOrderId,
+      orderNo: likelyOrderNo,
       from: from || ''
     });
-    
+
+    if (likelyOrderNo && !likelyOrderId) {
+      this.resolveOrderIdByOrderNo(likelyOrderNo)
+        .then((resolvedId) => {
+          if (!resolvedId) throw new Error('订单不存在');
+          this.setData({ orderId: resolvedId });
+          this.loadOrderDetail();
+        })
+        .catch((err) => {
+          this.setData({ loading: false, error: (err && err.message) || '订单不存在' });
+        });
+      return;
+    }
+
     this.loadOrderDetail();
+  },
+
+  async resolveOrderIdByOrderNo(orderNo) {
+    const url = `/api/miniapp/orders/by-order-no/${encodeURIComponent(orderNo)}`;
+    const result = await request.get(url, {}, { showLoading: false, needAuth: true, showError: false });
+    if (result && result.code === 0 && result.data && result.data.orderId) {
+      return result.data.orderId;
+    }
+    return null;
   },
 
   /**
@@ -425,13 +452,15 @@ Page({
    */
   async onConfirmReceive() {
     const { order } = this.data;
-    if (!order || order.status !== 'shipped') {
+    const isPickup = order && order.deliveryType === 'pickup';
+    const canConfirm = order && (order.status === 'shipped' || (isPickup && order.status === 'paid'));
+    if (!canConfirm) {
       return;
     }
 
     wx.showModal({
-      title: '确认收货',
-      content: '确认已收到商品吗？',
+      title: isPickup ? '确认自提' : '确认收货',
+      content: isPickup ? '确认已完成到店自提吗？' : '确认已收到商品吗？',
       success: async (res) => {
         if (res.confirm) {
           try {

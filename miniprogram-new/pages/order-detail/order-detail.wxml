@@ -210,10 +210,10 @@
     </button>
     <button
       class="action-btn primary"
-      wx:if="{{order.status === 'shipped'}}"
+      wx:if="{{order.status === 'shipped' || (order.deliveryType === 'pickup' && order.status === 'paid')}}"
       bindtap="onConfirmReceive"
     >
-      确认收货
+      {{order.deliveryType === 'pickup' ? '确认自提' : '确认收货'}}
     </button>
     <!-- 已发货/已收货：申请退货（含换货说明） -->
     <button

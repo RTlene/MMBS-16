@@ -435,10 +435,12 @@ Page({
    */
   async onConfirmReceive(e) {
     const { id } = e.currentTarget.dataset;
+    const order = (this.data.orders || []).find(o => String(o.id) === String(id));
+    const isPickup = order && order.deliveryType === 'pickup';
     
     wx.showModal({
-      title: '确认收货',
-      content: '确认已收到商品吗？',
+      title: isPickup ? '确认自提' : '确认收货',
+      content: isPickup ? '确认已完成到店自提吗？' : '确认已收到商品吗？',
       success: async (res) => {
         if (res.confirm) {
           try {

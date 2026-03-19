@@ -338,6 +338,7 @@ class OrderManagement {
     // 获取操作按钮（退款、退货均在订单管理内处理）
     getActionButtons(order) {
         let buttons = '';
+        const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
 
         // 修改订单（仅待支付状态）
         if (order.status === 'pending') {
@@ -349,6 +350,8 @@ class OrderManagement {
             const isServiceOrder = this.isServiceOrder(order);
             if (isServiceOrder) {
                 buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.verifyOrder(${order.id})" title="核销"><i class="fas fa-check-circle"></i> 核销</button>`;
+            } else if (isPickupOrder) {
+                buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.confirmPickupOrder(${order.id})" title="确认用户自提"><i class="fas fa-store"></i> 确认用户自提</button>`;
             } else {
                 buttons += `<button class="btn btn-action btn-primary" onclick="orderManagement.shipOrder(${order.id})" title="发货"><i class="fas fa-truck"></i> 发货</button>`;
             }
@@ -1470,6 +1473,27 @@ class OrderManagement {
         } catch (error) {
             console.error('确认收货失败:', error);
             showAlert('确认收货失败', 'error');
+        }
+    }
+
+    // 确认用户自提（后台）
+    async confirmPickupOrder(orderId) {
+        if (!confirm('确认该订单已由用户自提完成？')) return;
+        try {
+            const response = await fetch(`/api/orders/${orderId}/pickup-confirm`, {
+                method: 'PUT',
+                headers: getAuthHeaders()
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert('确认用户自提成功', 'success');
+                this.loadOrders();
+            } else {
+                showAlert('确认用户自提失败: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('确认用户自提失败:', error);
+            showAlert('确认用户自提失败', 'error');
         }
     }
 
