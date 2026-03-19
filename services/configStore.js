@@ -53,20 +53,29 @@ async function read() {
         console.warn('[ConfigStore] COS 未配置，无法读取统一配置');
         return {};
     }
-    try {
-        const buf = await cosStorage.getObjectBuffer(CONFIG_OBJECT_KEY);
-        const plain = decrypt(buf);
-        const data = JSON.parse(plain);
-        console.log('[ConfigStore] 已从对象存储加载加密配置');
-        return data;
-    } catch (e) {
-        if (e.statusCode === 404 || (e.message && e.message === 'NOT_FOUND')) {
-            console.log('[ConfigStore] 对象存储中暂无配置');
+    const maxAttempts = 3;
+    for (let i = 1; i <= maxAttempts; i++) {
+        try {
+            const buf = await cosStorage.getObjectBuffer(CONFIG_OBJECT_KEY);
+            const plain = decrypt(buf);
+            const data = JSON.parse(plain);
+            console.log('[ConfigStore] 已从对象存储加载加密配置');
+            return data;
+        } catch (e) {
+            if (e.statusCode === 404 || (e.message && e.message === 'NOT_FOUND')) {
+                console.log('[ConfigStore] 对象存储中暂无配置');
+                return {};
+            }
+            if (i < maxAttempts) {
+                console.warn(`[ConfigStore] 从对象存储读取失败(第${i}次)，准备重试:`, e.message);
+                await new Promise(r => setTimeout(r, 300 * i));
+                continue;
+            }
+            console.warn('[ConfigStore] 从对象存储读取失败:', e.message);
             return {};
         }
-        console.warn('[ConfigStore] 从对象存储读取失败:', e.message);
-        return {};
     }
+    return {};
 }
 
 /**

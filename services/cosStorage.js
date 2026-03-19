@@ -16,6 +16,39 @@ const WX_COS_AUTH_URL = 'http://api.weixin.qq.com/_/cos/getauth';
 
 let cosClient = null;
 
+function _pick(obj, keys) {
+    if (!obj || typeof obj !== 'object') return undefined;
+    for (const k of keys) {
+        if (obj[k] != null && obj[k] !== '') return obj[k];
+    }
+    return undefined;
+}
+
+/**
+ * 兼容云托管 getauth 的多种返回结构
+ * 常见结构：
+ * - { TmpSecretId, TmpSecretKey, Token, ExpiredTime }
+ * - { credentials: { tmpSecretId, tmpSecretKey, sessionToken }, expiredTime }
+ * - { data: { ...上述任一结构... } }
+ */
+function normalizeGetAuthPayload(raw) {
+    const root = raw && typeof raw === 'object' ? raw : {};
+    const data = (root.data && typeof root.data === 'object') ? root.data : root;
+    const creds = (data.credentials && typeof data.credentials === 'object')
+        ? data.credentials
+        : ((root.credentials && typeof root.credentials === 'object') ? root.credentials : data);
+
+    const TmpSecretId = _pick(creds, ['TmpSecretId', 'tmpSecretId', 'secretId']);
+    const TmpSecretKey = _pick(creds, ['TmpSecretKey', 'tmpSecretKey', 'secretKey']);
+    const SecurityToken = _pick(creds, ['Token', 'token', 'SecurityToken', 'sessionToken']) || '';
+    const ExpiredTimeRaw = _pick(data, ['ExpiredTime', 'expiredTime', 'expired_time']) ||
+        _pick(root, ['ExpiredTime', 'expiredTime', 'expired_time']);
+    const ExpiredTime = Number(ExpiredTimeRaw) || Math.floor(Date.now() / 1000) + 600;
+
+    if (!TmpSecretId || !TmpSecretKey) return null;
+    return { TmpSecretId, TmpSecretKey, SecurityToken, ExpiredTime };
+}
+
 /**
  * 是否仅使用云托管注入的 BUCKET+REGION（无 SECRET_ID/SECRET_KEY 时走 getauth 临时密钥）
  */
@@ -51,16 +84,13 @@ function getClient() {
                 getAuthorization: function (options, callback) {
                     axios.get(WX_COS_AUTH_URL, { timeout: 10000, validateStatus: () => true })
                         .then(res => {
-                            const data = res.data;
-                            if (data && data.TmpSecretId && data.TmpSecretKey) {
-                                callback({
-                                    TmpSecretId: data.TmpSecretId,
-                                    TmpSecretKey: data.TmpSecretKey,
-                                    SecurityToken: data.Token || '',
-                                    ExpiredTime: data.ExpiredTime
-                                });
+                            const payload = normalizeGetAuthPayload(res.data);
+                            if (payload) {
+                                callback(payload);
                             } else {
-                                callback(new Error('getauth 返回无效: ' + JSON.stringify(data)));
+                                const body = JSON.stringify(res.data || {});
+                                console.warn('[COS] getauth 返回结构不匹配:', body.slice(0, 500));
+                                callback(new Error('getauth 返回无效: 缺少临时密钥字段'));
                             }
                         })
                         .catch(err => callback(err));
