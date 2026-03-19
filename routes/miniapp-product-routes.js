@@ -220,9 +220,6 @@ router.get('/products/recommended', async (req, res) => {
                 'id',
                 'name',
                 'images',
-                'price',
-                'originalPrice',
-                'sales',
                 'isFeatured',
                 'isHot',
                 'sortOrder',
@@ -262,7 +259,7 @@ router.get('/products/recommended', async (req, res) => {
                 price: priceMin,
                 priceMin,
                 priceMax,
-                originalPrice: product.originalPrice,
+                originalPrice: null,
                 category: product.category ? {
                     id: product.category.id,
                     name: product.category.name
@@ -272,7 +269,7 @@ router.get('/products/recommended', async (req, res) => {
                     price: primarySku.price,
                     images: primarySku.images || []
                 } : null,
-                sales: product.sales || 0,
+                sales: 0,
                 isFeatured: product.isFeatured
             };
         });
