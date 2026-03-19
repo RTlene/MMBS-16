@@ -22,7 +22,8 @@ class WeChatPayService {
         // 加载证书（如果存在）
         this.privateKey = null;
         this.certSerialNo = null;
-        this.refreshFromEnv();
+        // 启动早期可能尚未完成配置/证书恢复，这里不立即加载，避免误报“文件不存在”。
+        // 在实际调用支付能力或启动恢复完成后再 refreshFromEnv。
     }
 
     refreshFromEnv() {

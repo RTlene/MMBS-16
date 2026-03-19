@@ -21,10 +21,20 @@ Page({
     categories: [],
     // 热门商品
     hotProducts: [],
+    hotPage: 1,
+    hotHasMore: true,
+    hotLoading: false,
+    hotLoadedOnce: false,
     // 首页资讯列表（简单列表，最多 5 条）
     homeArticles: [],
     // 精选推荐商品
     recommendProducts: [],
+    // 全部商品（首页底部分页懒加载）
+    allProducts: [],
+    allPage: 1,
+    allHasMore: true,
+    allLoading: false,
+    allLoadedOnce: false,
     // 加载状态
     loading: false,
     refreshing: false,
@@ -73,7 +83,26 @@ Page({
   },
 
   onPageScroll(e) {
-    this.updateSearchOpacity(e.scrollTop || 0);
+    const scrollTop = e.scrollTop || 0;
+    this.updateSearchOpacity(scrollTop);
+    // 惰性加载热门商品：用户开始下滑后再请求，减少首屏体积和失败概率
+    if (!this.data.hotLoadedOnce && !this.data.hotLoading && scrollTop > 220) {
+      this.loadHotProducts({ reset: true });
+    }
+    // 全部商品放在首页最下方，用户明显下滑后再开始加载首屏
+    if (!this.data.allLoadedOnce && !this.data.allLoading && scrollTop > 520) {
+      this.loadAllProducts({ reset: true });
+    }
+  },
+
+  onReachBottom() {
+    if (!this.data.allLoadedOnce && !this.data.allLoading) {
+      this.loadAllProducts({ reset: true });
+      return;
+    }
+    if (this.data.allHasMore && !this.data.allLoading) {
+      this.loadAllProducts({ append: true });
+    }
   },
 
   /**
@@ -99,7 +128,19 @@ Page({
    */
   onPullDownRefresh() {
     console.log('[Index] 下拉刷新');
-    this.setData({ refreshing: true });
+    this.setData({
+      refreshing: true,
+      hotProducts: [],
+      hotPage: 1,
+      hotHasMore: true,
+      hotLoading: false,
+      hotLoadedOnce: false,
+      allProducts: [],
+      allPage: 1,
+      allHasMore: true,
+      allLoading: false,
+      allLoadedOnce: false
+    });
     
     this.loadPageData().then(() => {
       wx.stopPullDownRefresh();
@@ -153,7 +194,6 @@ Page({
         this.loadBanners(),
         this.loadActivityBanners(),
         this.loadCategories(),
-        this.loadHotProducts(),
         this.loadHomeArticles(),
         this.loadRecommendProducts()
       ]);
@@ -319,13 +359,21 @@ Page({
   /**
    * 加载热门商品
    */
-  async loadHotProducts() {
+  async loadHotProducts(options = {}) {
     try {
+      const reset = !!options.reset;
+      const append = !!options.append && !reset;
+      if (this.data.hotLoading) return;
+      if (append && !this.data.hotHasMore) return;
+      const page = reset ? 1 : (append ? (this.data.hotPage + 1) : this.data.hotPage);
+      this.setData({ hotLoading: true });
+
       // 使用轻量推荐接口，避免 /products 返回 skus 明细导致 callContainer 1MB 包体超限
       const result = await request.get(API.PRODUCT.RECOMMENDED, {
         type: 'hot',
         lite: 1,
-        limit: 8
+        page,
+        limit: 4
       }, {
         showLoading: false,
         showError: false
@@ -337,17 +385,68 @@ Page({
           ...product,
           images: (product.images || []).map(img => buildOptimizedImageUrl(img, { type: 'list' }))
         }));
-        
+        const merged = append
+          ? (this.data.hotProducts || []).concat(optimizedProducts)
+          : optimizedProducts;
         this.setData({ 
-          hotProducts: optimizedProducts 
+          hotProducts: merged,
+          hotPage: page,
+          hotHasMore: !!result.data.hasMore,
+          hotLoadedOnce: true
         });
       } else {
         // 数据为空，设置为空数组
-        this.setData({ hotProducts: [] });
+        this.setData({ hotProducts: [], hotHasMore: false, hotLoadedOnce: true });
       }
     } catch (error) {
       console.error('[Index] 加载热门商品失败:', error);
-      this.setData({ hotProducts: [] });
+      if (!this.data.hotLoadedOnce) {
+        this.setData({ hotProducts: [], hotHasMore: false });
+      }
+    } finally {
+      this.setData({ hotLoading: false });
+    }
+  },
+
+  async loadAllProducts(options = {}) {
+    try {
+      const reset = !!options.reset;
+      const append = !!options.append && !reset;
+      if (this.data.allLoading) return;
+      if (append && !this.data.allHasMore) return;
+      const page = reset ? 1 : (append ? (this.data.allPage + 1) : this.data.allPage);
+      this.setData({ allLoading: true });
+
+      const result = await request.get(API.PRODUCT.LIST, {
+        lite: 1,
+        page,
+        limit: 6
+      }, {
+        showLoading: false,
+        showError: false
+      });
+
+      const list = (result && result.data && Array.isArray(result.data.products))
+        ? result.data.products
+        : [];
+      const optimizedProducts = list.map(product => ({
+        ...product,
+        images: (product.images || []).map(img => buildOptimizedImageUrl(img, { type: 'list' }))
+      }));
+      const merged = append ? (this.data.allProducts || []).concat(optimizedProducts) : optimizedProducts;
+      this.setData({
+        allProducts: merged,
+        allPage: page,
+        allHasMore: !!(result && result.data && result.data.hasMore),
+        allLoadedOnce: true
+      });
+    } catch (error) {
+      console.error('[Index] 加载全部商品失败:', error);
+      if (!this.data.allLoadedOnce) {
+        this.setData({ allProducts: [], allHasMore: false });
+      }
+    } finally {
+      this.setData({ allLoading: false });
     }
   },
 

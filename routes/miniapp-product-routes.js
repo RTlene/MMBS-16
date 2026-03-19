@@ -9,6 +9,20 @@ const wxCloudStorage = require('../services/wxCloudStorage');
 
 const router = express.Router();
 
+function pickLiteImage(images) {
+    // 仅返回一个可用且长度受控的图片引用，避免 base64/超长字符串撑爆响应包。
+    const list = Array.isArray(images) ? images : [];
+    for (const item of list) {
+        if (typeof item !== 'string') continue;
+        const img = item.trim();
+        if (!img) continue;
+        if (img.startsWith('data:image/')) continue;
+        if (img.length > 2048) continue;
+        return img;
+    }
+    return '';
+}
+
 async function resolveIconUrl(icon) {
     const raw = (icon && String(icon).trim()) || '';
     if (!raw) return null;
@@ -36,6 +50,7 @@ router.get('/products', async (req, res) => {
         const {
             page = 1,
             limit = 20,
+            lite = '',
             categoryId = '',
             keyword = '',
             sortBy = 'createdAt',
@@ -94,9 +109,13 @@ router.get('/products', async (req, res) => {
             order.push([sortBy, sortOrder.toUpperCase()]);
         }
 
+        const isLite = String(lite) === '1';
         const { count, rows } = await Product.findAndCountAll({
             where,
-            include: [
+            attributes: isLite
+                ? ['id', 'name', 'images', 'isFeatured', 'isHot', 'sortOrder', 'createdAt']
+                : undefined,
+            include: isLite ? [] : [
                 { 
                     model: Category, 
                     as: 'category', 
@@ -119,6 +138,26 @@ router.get('/products', async (req, res) => {
 
         // 处理商品数据，适配小程序展示
         const products = rows.map(product => {
+            if (isLite) {
+                const firstImage = pickLiteImage(product.images);
+                return {
+                    id: product.id,
+                    name: product.name,
+                    images: firstImage ? [firstImage] : [],
+                    price: 0,
+                    priceMin: 0,
+                    priceMax: 0,
+                    originalPrice: null,
+                    brand: '',
+                    category: null,
+                    stock: 0,
+                    sales: 0,
+                    isFeatured: product.isFeatured || false,
+                    isHot: product.isHot || false,
+                    status: 'active',
+                    createdAt: product.createdAt
+                };
+            }
             // 从SKU中获取价格区间和库存
             const activeSkus = (product.skus || []).filter(sku => sku && sku.status === 'active');
             const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
@@ -203,8 +242,11 @@ router.get('/products', async (req, res) => {
 // 获取推荐商品（小程序端）- 必须在 /products/:id 之前定义
 router.get('/products/recommended', async (req, res) => {
     try {
-        const { limit = 10, type = 'featured', lite = '' } = req.query;
+        const { limit = 10, page = 1, type = 'featured', lite = '' } = req.query;
         const isLite = String(lite) === '1' || type === 'hot'; // 首页热门默认走轻量
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.max(1, Math.min(20, parseInt(limit, 10) || 10));
+        const offsetNum = (pageNum - 1) * limitNum;
 
         let where = { status: 'active' };
         
@@ -225,42 +267,44 @@ router.get('/products/recommended', async (req, res) => {
                 'sortOrder',
                 'createdAt'
             ],
-            include: [
+            include: isLite ? [] : [
                 { 
                     model: Category, 
                     as: 'category', 
                     attributes: ['id', 'name']
                 },
-                ...(!isLite ? [{
+                {
                     model: ProductSKU,
                     as: 'skus',
                     attributes: ['id', 'price', 'images', 'stock', 'status'],
                     where: { status: 'active' },
                     required: false
-                }] : [])
+                }
             ],
-            limit: parseInt(limit),
+            limit: limitNum,
+            offset: offsetNum,
             order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']]
         });
 
         // 处理推荐商品数据（含价格区间）
         const recommendedProducts = products.map(product => {
-            const activeSkus = (product.skus || []).filter(sku => sku && sku.status === 'active');
+            const activeSkus = isLite ? [] : (product.skus || []).filter(sku => sku && sku.status === 'active');
             const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
-            const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
-            const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
+            const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
+            const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
             const primarySku = getSkuWithMostStock(activeSkus);
             const productImages = Array.isArray(product.images) ? product.images : [];
+            const firstImage = pickLiteImage(productImages);
             return {
                 id: product.id,
                 name: product.name,
                 // 轻量模式只返回首图，显著降低首页包体
-                images: isLite ? (productImages.length > 0 ? [productImages[0]] : []) : productImages,
+                images: isLite ? (firstImage ? [firstImage] : []) : productImages,
                 price: priceMin,
                 priceMin,
                 priceMax,
                 originalPrice: null,
-                category: product.category ? {
+                category: (!isLite && product.category) ? {
                     id: product.category.id,
                     name: product.category.name
                 } : null,
@@ -278,7 +322,12 @@ router.get('/products/recommended', async (req, res) => {
         res.json({
             code: 0,
             message: '获取成功',
-            data: { products: recommendedProducts || [] }
+            data: {
+                products: recommendedProducts || [],
+                page: pageNum,
+                limit: limitNum,
+                hasMore: (recommendedProducts || []).length >= limitNum
+            }
         });
     } catch (error) {
         console.error('获取推荐商品失败:', error);

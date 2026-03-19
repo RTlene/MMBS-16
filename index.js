@@ -225,7 +225,6 @@ app.get("/", async (req, res) => {
 
 // 云托管默认探针检查 80 端口，未设置 PORT 时使用 80；本地开发可在 .env 中设置 PORT=3000
 const port = process.env.PORT || 80;
-const fs = require('fs');
 const startupAt = Date.now();
 let dbReady = false;
 let dbInitError = null;
@@ -254,12 +253,8 @@ function startActiveMemberCheckInterval() {
   }, 60 * 1000);
 }
 
-/** 启动时从配置文件恢复微信支付相关环境变量，避免每次部署后需重新在后台配置 */
-function loadPaymentConfigIntoEnv() {
-  const configPath = path.join(__dirname, 'config', 'wechat-payment-config.json');
-  if (!fs.existsSync(configPath)) return;
+function loadPaymentConfigIntoEnv(payment = {}) {
   try {
-    const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     const map = {
       wxAppId: 'WX_APPID',
       wxMchId: 'WX_MCHID',
@@ -272,37 +267,28 @@ function loadPaymentConfigIntoEnv() {
       keyPath: 'WX_PAY_KEY_PATH'
     };
     for (const [key, envKey] of Object.entries(map)) {
-      const v = data[key];
+      const v = payment[key];
       if (v != null && String(v).trim() !== '') process.env[envKey] = String(v).trim();
     }
-    // 沙箱模式：若环境变量已设置（如 docker-compose WX_PAY_SANDBOX=true），则不覆盖，便于强制启用沙箱
-    if (process.env.WX_PAY_SANDBOX === undefined || process.env.WX_PAY_SANDBOX === '') {
-      if (data.sandbox === true || data.sandbox === 'true') process.env.WX_PAY_SANDBOX = 'true';
-      else if (data.sandbox === false || data.sandbox === 'false') process.env.WX_PAY_SANDBOX = 'false';
-    }
-    console.log('[Startup] 已从 config/wechat-payment-config.json 恢复微信支付配置');
+    if (payment.sandbox === true || payment.sandbox === 'true') process.env.WX_PAY_SANDBOX = 'true';
+    else if (payment.sandbox === false || payment.sandbox === 'false') process.env.WX_PAY_SANDBOX = 'false';
+    console.log('[Startup] 已从加密配置恢复微信支付配置');
   } catch (e) {
-    console.warn('[Startup] 读取微信支付配置失败:', e.message);
+    console.warn('[Startup] 恢复微信支付配置失败:', e.message);
   }
 }
 
 async function bootstrap() {
-  // 优先从统一配置存储（对象存储加密 / 本地）加载，并同步 payment 到本地文件供后续使用
+  // 优先从统一配置存储（对象存储加密）加载 payment，并注入当前进程环境
   try {
     const configData = await configStore.read();
     configStore._cache = configData;
-    const payment = configStore.getSection('payment');
-    if (payment && Object.keys(payment).length > 0) {
-      const configPath = path.join(__dirname, 'config', 'wechat-payment-config.json');
-      const configDir = path.dirname(configPath);
-      if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
-      fs.writeFileSync(configPath, JSON.stringify(payment, null, 2), 'utf8');
-    }
+    const payment = (configData && configData.payment) ? configData.payment : {};
+    loadPaymentConfigIntoEnv(payment);
   } catch (e) {
     console.warn('[Startup] 加载统一配置失败:', e.message);
     configStore._cache = {};
   }
-  loadPaymentConfigIntoEnv();
   if (typeof ensureCertFromStorage === 'function') {
     try {
       await ensureCertFromStorage();

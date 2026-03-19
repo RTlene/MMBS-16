@@ -64,45 +64,15 @@ const uploadZip = multer({
     }
 });
 
-// 配置存储路径（使用 JSON 文件存储，实际生产环境建议使用数据库）
-const CONFIG_FILE_PATH = path.join(__dirname, '../config/wechat-payment-config.json');
-
-// 确保配置目录存在
-const configDir = path.dirname(CONFIG_FILE_PATH);
-if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
-}
-
 /**
- * 读取配置（优先从统一配置存储 payment 段取，否则读本地文件）
+ * 读取配置（仅从统一配置存储 payment 段读取）
  */
 function readConfig() {
     const fromStore = configStore.getSection('payment');
     if (fromStore && typeof fromStore === 'object' && Object.keys(fromStore).length > 0) {
         return fromStore;
     }
-    try {
-        if (fs.existsSync(CONFIG_FILE_PATH)) {
-            const data = fs.readFileSync(CONFIG_FILE_PATH, 'utf8');
-            return JSON.parse(data);
-        }
-    } catch (error) {
-        console.error('[PaymentConfig] 读取配置失败:', error);
-    }
     return {};
-}
-
-/**
- * 保存配置
- */
-function saveConfig(config) {
-    try {
-        fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 2), 'utf8');
-        return true;
-    } catch (error) {
-        console.error('[PaymentConfig] 保存配置失败:', error);
-        return false;
-    }
 }
 
 function maskSecret(secret) {
@@ -361,9 +331,7 @@ router.post('/save', authenticateToken, async (req, res) => {
         next.wxApiV3Key = next.wxApiV3Key || '';
         next.updatedAt = new Date().toISOString();
 
-        // 保存配置到文件
-        saveConfig(next);
-        // 同步到统一配置存储（对象存储加密 + 本地 app-config.json）
+        // 同步到统一配置存储（对象存储加密）
         await configStore.setSection('payment', next);
 
         // 更新环境变量（仅当前进程，重启后需要重新配置）
@@ -383,7 +351,7 @@ router.post('/save', authenticateToken, async (req, res) => {
 
         res.json({
             code: 0,
-            message: '配置保存成功！已写入本地配置文件，并更新当前进程环境变量。',
+            message: '配置保存成功！已写入加密配置存储，并更新当前进程环境变量。',
             data: {
                 ...next,
                 // 不返回敏感信息
@@ -391,7 +359,7 @@ router.post('/save', authenticateToken, async (req, res) => {
                 wxApiV3Key: next.wxApiV3Key ? '***已保存***' : ''
             },
             warning: next.wxNotifyUrl
-                ? '已写入 config/wechat-payment-config.json（本地联调用）。生产环境建议用环境变量/密钥管理，不建议落盘。'
+                ? undefined
                 : '已保存基础配置。回调地址未配置：你可以先用“假回调”联调业务；正式下单/真回调需要可访问的（通常为HTTPS）回调地址。'
         });
     } catch (error) {
@@ -529,7 +497,10 @@ router.post('/upload-cert', authenticateToken, (req, res, next) => {
             }
         }
         if ((certSaved || keySaved) && (config.certStorageRef || config.keyStorageRef)) {
-            saveConfig(config);
+            await configStore.setSection('payment', {
+                ...readConfig(),
+                ...config
+            });
         }
 
         process.env.WX_PAY_CERT_PATH = certPath;
@@ -642,7 +613,10 @@ router.post('/upload-cert-zip', authenticateToken, (req, res, next) => {
             }
         }
         if ((certEntry || keyEntry) && (config.certStorageRef || config.keyStorageRef)) {
-            saveConfig(config);
+            await configStore.setSection('payment', {
+                ...readConfig(),
+                ...config
+            });
         }
 
         process.env.WX_PAY_CERT_PATH = certPath;
