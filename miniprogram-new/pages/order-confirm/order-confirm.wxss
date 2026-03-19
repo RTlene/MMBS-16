@@ -3,7 +3,8 @@
 .order-confirm-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #f0f4f8 0%, #e8eef5 120rpx);
-  padding-bottom: 180rpx;
+  /* 预留底部固定操作栏空间，避免内容(备注textarea)与按钮发生视觉/点击重叠 */
+  padding-bottom: calc(220rpx + env(safe-area-inset-bottom, 0));
 }
 
 .section-block {
@@ -696,6 +697,7 @@
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: space-between;
