@@ -53,7 +53,7 @@ async function read() {
         console.warn('[ConfigStore] COS 未配置，无法读取统一配置');
         return {};
     }
-    const maxAttempts = 3;
+    const maxAttempts = 5;
     for (let i = 1; i <= maxAttempts; i++) {
         try {
             const buf = await cosStorage.getObjectBuffer(CONFIG_OBJECT_KEY);
@@ -68,7 +68,7 @@ async function read() {
             }
             if (i < maxAttempts) {
                 console.warn(`[ConfigStore] 从对象存储读取失败(第${i}次)，准备重试:`, e.message);
-                await new Promise(r => setTimeout(r, 300 * i));
+                await new Promise(r => setTimeout(r, 500 * i));
                 continue;
             }
             console.warn('[ConfigStore] 从对象存储读取失败:', e.message);

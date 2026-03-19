@@ -45,12 +45,30 @@ function normalizeGetAuthPayload(raw) {
 
     const TmpSecretId = _pick(creds, ['TmpSecretId', 'tmpSecretId', 'secretId']);
     const TmpSecretKey = _pick(creds, ['TmpSecretKey', 'tmpSecretKey', 'secretKey']);
-    const SecurityToken = _pick(creds, ['Token', 'token', 'SecurityToken', 'sessionToken']) || '';
+    const SecurityToken = _pick(creds, [
+        'Token',
+        'token',
+        'SecurityToken',
+        'securityToken',
+        'sessionToken',
+        'SessionToken',
+        'TmpToken',
+        'tmpToken',
+        'XCosSecurityToken',
+        'xCosSecurityToken'
+    ]) || _pick(data, [
+        'Token',
+        'token',
+        'SecurityToken',
+        'securityToken',
+        'sessionToken',
+        'SessionToken'
+    ]) || '';
     const ExpiredTimeRaw = _pick(data, ['ExpiredTime', 'expiredTime', 'expired_time']) ||
         _pick(root, ['ExpiredTime', 'expiredTime', 'expired_time']);
     const ExpiredTime = Number(ExpiredTimeRaw) || Math.floor(Date.now() / 1000) + 600;
 
-    if (!TmpSecretId || !TmpSecretKey) return null;
+    if (!TmpSecretId || !TmpSecretKey || !SecurityToken) return null;
     return { TmpSecretId, TmpSecretKey, SecurityToken, ExpiredTime };
 }
 
@@ -95,7 +113,7 @@ function getClient() {
             cosClient = new COS({
                 getAuthorization: function (options, callback) {
                     const doFetch = (attempt = 1) => {
-                        axios.get(WX_COS_AUTH_URL, { timeout: 10000, validateStatus: () => true })
+                        axios.get(WX_COS_AUTH_URL, { timeout: 12000, validateStatus: () => true })
                             .then(res => {
                                 const payload = normalizeGetAuthPayload(res.data);
                                 if (payload) {
@@ -104,8 +122,8 @@ function getClient() {
                                     return;
                                 }
 
-                                if (attempt < 3) {
-                                    setTimeout(() => doFetch(attempt + 1), 120 * attempt);
+                                if (attempt < 5) {
+                                    setTimeout(() => doFetch(attempt + 1), 300 * attempt);
                                     return;
                                 }
 
@@ -125,8 +143,8 @@ function getClient() {
                                 });
                             })
                             .catch(err => {
-                                if (attempt < 3) {
-                                    setTimeout(() => doFetch(attempt + 1), 120 * attempt);
+                                if (attempt < 5) {
+                                    setTimeout(() => doFetch(attempt + 1), 300 * attempt);
                                     return;
                                 }
                                 console.warn('[COS] getauth 请求失败(已重试):', err && err.message ? err.message : err);

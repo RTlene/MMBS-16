@@ -216,6 +216,18 @@ router.get('/products/recommended', async (req, res) => {
 
         const products = await Product.findAll({
             where,
+            attributes: [
+                'id',
+                'name',
+                'images',
+                'price',
+                'originalPrice',
+                'sales',
+                'isFeatured',
+                'isHot',
+                'sortOrder',
+                'createdAt'
+            ],
             include: [
                 { 
                     model: Category, 
