@@ -21,8 +21,10 @@ const DEFAULT_SYSTEM = {
     mallName: '',
     returnAddress: '',
     afterSalesImageRetentionDays: 90, // 售后凭证图保留天数，超期后清除转为轻量化存储
-    /** 高德地图 Key（门店地图选点等）；若环境变量 AMAP_KEY 已设置则优先生效 */
+    /** 高德 Web 端(JS API) Key，用于后台地图选点 */
     amapKey: '',
+    /** 高德 Web 服务 Key（地理编码/逆地理）；与 JS Key 分离填写可避免 USERKEY_PLAT_NOMATCH */
+    amapWebServiceKey: '',
     /** 高德安全密钥（JS API 2.0）；若环境变量 AMAP_SECURITY_JS_CODE 已设置则优先生效 */
     amapSecurityJsCode: ''
 };
@@ -56,6 +58,7 @@ router.put('/system', authenticateToken, async (req, res) => {
             returnAddress: body.returnAddress !== undefined ? String(body.returnAddress || '').trim() : (current.returnAddress ?? ''),
             afterSalesImageRetentionDays: body.afterSalesImageRetentionDays !== undefined ? Math.max(1, Math.min(3650, parseInt(body.afterSalesImageRetentionDays, 10) || 90)) : (current.afterSalesImageRetentionDays ?? 90),
             amapKey: body.amapKey !== undefined ? String(body.amapKey || '').trim().slice(0, 256) : (current.amapKey ?? ''),
+            amapWebServiceKey: body.amapWebServiceKey !== undefined ? String(body.amapWebServiceKey || '').trim().slice(0, 256) : (current.amapWebServiceKey ?? ''),
             amapSecurityJsCode: body.amapSecurityJsCode !== undefined ? String(body.amapSecurityJsCode || '').trim().slice(0, 256) : (current.amapSecurityJsCode ?? '')
         };
         await configStore.setSection(SECTION, next);

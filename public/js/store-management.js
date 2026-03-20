@@ -146,7 +146,7 @@ async function openMapPickerModal() {
     try {
         const cfg = await fetchAmapConfig();
         if (!cfg.enabled || !cfg.mapJsKey) {
-            alert('未配置高德 Key：请在「通用设置」中填写高德地图 Key，或设置环境变量 AMAP_KEY；并在高德控制台为该 Key 勾选「Web服务」与「Web端(JS API)」。');
+            alert('未配置高德地图 Key：请在「通用设置」填写「Web 端（JS API）Key」；若地理编码失败，请另填「Web 服务 Key」或在高德控制台为 Key 同时勾选「Web服务」。');
             modal.classList.remove('show');
             return;
         }

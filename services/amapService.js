@@ -1,25 +1,51 @@
 /**
  * 高德地图 Web 服务 API（地理编码 / 逆地理编码）
- * Key 来源（优先级）：环境变量 AMAP_KEY / AMAP_WEB_SERVICE_KEY → 通用设置 system.amapKey
+ *
+ * Web 服务（REST）Key 优先级：
+ *   AMAP_WEB_SERVICE_KEY → 通用设置 amapWebServiceKey → AMAP_KEY → 通用设置 amapKey
+ * 说明：仅勾选「Web端(JS API)」的 Key 调用 REST 会返回 USERKEY_PLAT_NOMATCH，需单独配置 Web 服务 Key
+ *   或在控制台为 Key 同时勾选「Web服务」。
  */
 const axios = require('axios');
 const configStore = require('./configStore');
 
 const BASE = 'https://restapi.amap.com/v3';
 
-function getKeyFromEnv() {
-    return (process.env.AMAP_KEY || process.env.AMAP_WEB_SERVICE_KEY || '').trim();
+function getSys() {
+    return configStore.getSection('system') || {};
 }
 
-function getKeyFromSettings() {
-    const sys = configStore.getSection('system') || {};
+/** 仅用于 geocode / regeo */
+function getWebServiceKey() {
+    const envDedicated = (process.env.AMAP_WEB_SERVICE_KEY || '').trim();
+    if (envDedicated) return envDedicated;
+    const sys = getSys();
+    const cfgDedicated = String(sys.amapWebServiceKey || '').trim();
+    if (cfgDedicated) return cfgDedicated;
+    const envLegacy = (process.env.AMAP_KEY || '').trim();
+    if (envLegacy) return envLegacy;
     return String(sys.amapKey || '').trim();
 }
 
+function formatAmapFailMessage(info, infocode) {
+    const code = infocode != null ? String(infocode) : '';
+    const i = info != null ? String(info) : '';
+    if (i === 'USERKEY_PLAT_NOMATCH' || code === '10009') {
+        return '高德 Key 与接口平台不匹配：地理编码需使用勾选「Web服务」的 Key。请在通用设置填写「Web 服务 Key」，或在同一 Key 上同时勾选「Web服务」与「Web端(JS API)」。';
+    }
+    if (i === 'INVALID_USER_KEY' || code === '10001') {
+        return '高德 Key 无效或未开通对应服务，请检查控制台 Key 与服务权限。';
+    }
+    if (i === 'DAILY_QUERY_OVER_LIMIT' || code === '10044') {
+        return '高德接口当日调用量已达上限。';
+    }
+    return i || '高德接口调用失败';
+}
+
 function getKey() {
-    const key = getKeyFromEnv() || getKeyFromSettings();
+    const key = getWebServiceKey();
     if (!key) {
-        throw new Error('未配置高德地图 Key：请在「通用设置」中填写，或设置环境变量 AMAP_KEY');
+        throw new Error('未配置高德 Web 服务 Key：请在「通用设置」填写「Web 服务 Key」，或设置环境变量 AMAP_WEB_SERVICE_KEY（亦可用同时支持 Web 服务的 AMAP_KEY）');
     }
     return key;
 }
@@ -64,7 +90,7 @@ async function reverseGeocode(lng, lat) {
         timeout: 15000
     });
     if (String(data.status) !== '1') {
-        throw new Error(data.info || '逆地理编码失败');
+        throw new Error(formatAmapFailMessage(data.info, data.infocode));
     }
     const re = data.regeocode || {};
     const ac = re.addressComponent || {};
@@ -101,7 +127,7 @@ async function geocode(address) {
         timeout: 15000
     });
     if (String(data.status) !== '1') {
-        throw new Error(data.info || '地理编码失败');
+        throw new Error(formatAmapFailMessage(data.info, data.infocode));
     }
     const list = data.geocodes || [];
     if (!list.length) {
@@ -136,5 +162,5 @@ async function geocode(address) {
 module.exports = {
     reverseGeocode,
     geocode,
-    getKeyConfigured: () => !!(getKeyFromEnv() || getKeyFromSettings())
+    getKeyConfigured: () => !!getWebServiceKey()
 };

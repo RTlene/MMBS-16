@@ -22,6 +22,7 @@
             const returnAddressEl = document.getElementById('returnAddress');
             const afterSalesDaysEl = document.getElementById('afterSalesImageRetentionDays');
             const amapKeyEl = document.getElementById('amapKey');
+            const amapWsEl = document.getElementById('amapWebServiceKey');
             const amapSecEl = document.getElementById('amapSecurityJsCode');
             if (afterSalesDaysEl) afterSalesDaysEl.value = d.afterSalesImageRetentionDays != null ? d.afterSalesImageRetentionDays : 90;
             if (modeEl) {
@@ -35,6 +36,7 @@
             if (intervalEl) intervalEl.value = d.activeMemberCheckIntervalHours != null ? d.activeMemberCheckIntervalHours : 24;
             if (returnAddressEl) returnAddressEl.value = d.returnAddress != null ? d.returnAddress : '';
             if (amapKeyEl) amapKeyEl.value = d.amapKey != null ? d.amapKey : '';
+            if (amapWsEl) amapWsEl.value = d.amapWebServiceKey != null ? d.amapWebServiceKey : '';
             if (amapSecEl) amapSecEl.value = d.amapSecurityJsCode != null ? d.amapSecurityJsCode : '';
         } catch (e) {
             console.error('加载系统设置失败', e);
@@ -51,6 +53,7 @@
         const returnAddressEl = document.getElementById('returnAddress');
         const afterSalesDaysEl = document.getElementById('afterSalesImageRetentionDays');
         const amapKeyEl = document.getElementById('amapKey');
+        const amapWsEl = document.getElementById('amapWebServiceKey');
         const amapSecEl = document.getElementById('amapSecurityJsCode');
         const body = {
             activeMemberCheckEnabled: enabledEl ? enabledEl.checked : false,
@@ -62,6 +65,7 @@
             returnAddress: returnAddressEl ? String(returnAddressEl.value || '').trim() : '',
             afterSalesImageRetentionDays: afterSalesDaysEl ? Math.max(1, Math.min(3650, parseInt(afterSalesDaysEl.value, 10) || 90)) : 90,
             amapKey: amapKeyEl ? String(amapKeyEl.value || '').trim().slice(0, 256) : '',
+            amapWebServiceKey: amapWsEl ? String(amapWsEl.value || '').trim().slice(0, 256) : '',
             amapSecurityJsCode: amapSecEl ? String(amapSecEl.value || '').trim().slice(0, 256) : ''
         };
         try {
@@ -111,9 +115,11 @@
 
     async function saveAmapSettings() {
         const amapKeyEl = document.getElementById('amapKey');
+        const amapWsEl = document.getElementById('amapWebServiceKey');
         const amapSecEl = document.getElementById('amapSecurityJsCode');
         const body = {
             amapKey: amapKeyEl ? String(amapKeyEl.value || '').trim().slice(0, 256) : '',
+            amapWebServiceKey: amapWsEl ? String(amapWsEl.value || '').trim().slice(0, 256) : '',
             amapSecurityJsCode: amapSecEl ? String(amapSecEl.value || '').trim().slice(0, 256) : ''
         };
         try {

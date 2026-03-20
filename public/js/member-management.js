@@ -181,9 +181,9 @@ function buildMembersExportQuery() {
     const levelFilter = document.getElementById('levelFilter');
 
     const params = new URLSearchParams();
-    if (searchInput?.value) params.set('search', searchInput.value);
+    const q = searchInput && searchInput.value ? searchInput.value.trim() : '';
+    if (q) params.set('search', q);
     if (statusFilter?.value) params.set('status', statusFilter.value);
-    // 后端使用 memberLevelId 参数
     if (levelFilter?.value) params.set('memberLevelId', levelFilter.value);
 
     return params.toString();
@@ -344,12 +344,19 @@ function renderStats(data) {
 async function loadMembers() {
     try {
         const token = localStorage.getItem('token');
+        const searchInput = document.getElementById('searchInput');
+        const statusEl = document.getElementById('statusFilter');
+        const levelEl = document.getElementById('levelFilter');
+        const searchVal = (searchInput && searchInput.value ? searchInput.value : '').trim();
+        const statusVal = statusEl ? (statusEl.value || '') : '';
+        const memberLevelIdVal = levelEl ? (levelEl.value || '') : '';
+
         const params = new URLSearchParams({
-            page: window.memberManagementData.currentPage,
-            limit: window.memberManagementData.pageSize,
-            search: window.memberManagementData.searchKeyword,
-            status: window.memberManagementData.statusFilter,
-            level: window.memberManagementData.levelFilter
+            page: String(window.memberManagementData.currentPage),
+            limit: String(window.memberManagementData.pageSize),
+            search: searchVal,
+            status: statusVal,
+            memberLevelId: memberLevelIdVal
         });
 
         const response = await fetch(`/api/members?${params}`, {
@@ -370,11 +377,11 @@ async function loadMembers() {
     }
 }
 
-// 加载会员等级数据
+// 加载会员等级数据（表单下拉 + 列表筛选下拉，使用系统中全部等级）
 async function loadMemberLevels() {
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch('/api/member-levels?status=active&limit=100', {
+        const response = await fetch('/api/member-levels?limit=500', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -382,15 +389,39 @@ async function loadMemberLevels() {
         const result = await response.json();
         
         if (result.code === 0) {
+            const levels = Array.isArray(result.data.levels) ? result.data.levels : [];
+            levels.sort((a, b) => {
+                const so = (parseInt(a.sortOrder, 10) || 0) - (parseInt(b.sortOrder, 10) || 0);
+                if (so !== 0) return so;
+                return (parseInt(a.level, 10) || 0) - (parseInt(b.level, 10) || 0);
+            });
+
             const select = document.getElementById('memberLevelId');
             if (select) {
                 select.innerHTML = '<option value="">请选择会员等级</option>';
-                result.data.levels.forEach(level => {
+                levels.forEach(level => {
                     const option = document.createElement('option');
                     option.value = level.id;
-                    option.textContent = level.name;
+                    const inactive = level.status === 'inactive' ? '（已停用）' : '';
+                    option.textContent = (level.name || '') + inactive;
                     select.appendChild(option);
                 });
+            }
+
+            const filterSel = document.getElementById('levelFilter');
+            if (filterSel) {
+                const prev = filterSel.value;
+                filterSel.innerHTML = '<option value="">全部等级</option><option value="__none__">无等级</option>';
+                levels.forEach(level => {
+                    const option = document.createElement('option');
+                    option.value = level.id;
+                    const inactive = level.status === 'inactive' ? '（已停用）' : '';
+                    option.textContent = (level.name || '') + inactive;
+                    filterSel.appendChild(option);
+                });
+                if (prev && [...filterSel.options].some(o => o.value === prev)) {
+                    filterSel.value = prev;
+                }
             }
         }
     } catch (error) {

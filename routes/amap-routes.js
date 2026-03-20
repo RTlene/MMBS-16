@@ -7,11 +7,18 @@ const configStore = require('../services/configStore');
 
 const router = express.Router();
 
+/** 前端 JS 地图 Key：优先 JS 专用，避免误用仅 Web 服务的 Key */
 function resolveMapJsKey() {
-    const env = (process.env.AMAP_KEY || process.env.AMAP_WEB_SERVICE_KEY || '').trim();
-    if (env) return env;
+    const jsEnv = (process.env.AMAP_JS_KEY || '').trim();
+    if (jsEnv) return jsEnv;
+    const legacyEnv = (process.env.AMAP_KEY || '').trim();
+    if (legacyEnv) return legacyEnv;
     const sys = configStore.getSection('system') || {};
-    return String(sys.amapKey || '').trim();
+    const cfgJs = String(sys.amapKey || '').trim();
+    if (cfgJs) return cfgJs;
+    const cfgWs = String(sys.amapWebServiceKey || '').trim();
+    if (cfgWs) return cfgWs;
+    return (process.env.AMAP_WEB_SERVICE_KEY || '').trim();
 }
 
 function resolveSecurityJsCode() {

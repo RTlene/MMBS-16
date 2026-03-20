@@ -100,9 +100,14 @@
             <div class="card-header">高德地图</div>
             <div class="card-body">
                 <div class="form-group">
-                    <label class="form-label">Web 服务 Key / JS API Key</label>
-                    <input type="password" id="amapKey" name="amapKey" class="form-input form-input-wide" maxlength="256" autocomplete="off" placeholder="在高德开放平台创建 Key，勾选「Web服务」与「Web端(JS API)」">
-                    <p class="form-hint">用于后台门店「地图选点」、地理编码与逆地理编码。若服务器已设置环境变量 <code>AMAP_KEY</code>，将优先使用环境变量，此处保存的值仅在未配置环境变量时生效。</p>
+                    <label class="form-label">Web 端（JS API）Key — 地图选点</label>
+                    <input type="password" id="amapKey" name="amapKey" class="form-input form-input-wide" maxlength="256" autocomplete="off" placeholder="用于加载后台地图，需勾选「Web端(JS API)」">
+                    <p class="form-hint">环境变量优先：<code>AMAP_JS_KEY</code> 或 <code>AMAP_KEY</code>。若地理编码报错 USERKEY_PLAT_NOMATCH，说明当前 Key 未开通 Web 服务，请在下方填写独立的 Web 服务 Key。</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Web 服务 Key — 地理编码 / 逆地理</label>
+                    <input type="password" id="amapWebServiceKey" name="amapWebServiceKey" class="form-input form-input-wide" maxlength="256" autocomplete="off" placeholder="需勾选「Web服务」，可与上方 JS Key 相同（控制台同时勾选两平台）">
+                    <p class="form-hint">环境变量优先：<code>AMAP_WEB_SERVICE_KEY</code>。未填写时回退使用上方的 JS Key（此时该 Key 必须同时支持 Web 服务）。</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label">安全密钥（可选）</label>

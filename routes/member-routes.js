@@ -97,6 +97,47 @@ function parseRemarkBalance(remark) {
     return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * 会员列表 / 导出 共用筛选（搜索、状态、会员等级、分销等级）
+ */
+function buildMemberListWhere({ search = '', status = '', memberLevelId = '', distributorLevelId = '' }) {
+    const where = {};
+    const s = search != null ? String(search).trim() : '';
+    if (s) {
+        const or = [
+            { nickname: { [Op.like]: `%${s}%` } },
+            { realName: { [Op.like]: `%${s}%` } },
+            { phone: { [Op.like]: `%${s}%` } },
+            { memberCode: { [Op.like]: `%${s}%` } },
+            { openid: { [Op.like]: `%${s}%` } },
+            { unionid: { [Op.like]: `%${s}%` } }
+        ];
+        if (/^\d{1,10}$/.test(s)) {
+            const idn = parseInt(s, 10);
+            if (idn > 0) or.push({ id: idn });
+        }
+        where[Op.or] = or;
+    }
+    if (status) {
+        where.status = status;
+    }
+    const rawLevel = memberLevelId != null ? String(memberLevelId).trim() : '';
+    if (rawLevel === '__none__' || rawLevel === 'none' || rawLevel === 'null') {
+        where.memberLevelId = { [Op.is]: null };
+    } else if (rawLevel !== '') {
+        const lid = parseInt(rawLevel, 10);
+        if (Number.isFinite(lid)) where.memberLevelId = lid;
+    }
+    const rawDist = distributorLevelId != null ? String(distributorLevelId).trim() : '';
+    if (rawDist === '__none__' || rawDist === 'none' || rawDist === 'null') {
+        where.distributorLevelId = { [Op.is]: null };
+    } else if (rawDist !== '') {
+        const did = parseInt(rawDist, 10);
+        if (Number.isFinite(did)) where.distributorLevelId = did;
+    }
+    return where;
+}
+
 // 获取会员列表
 router.get('/', authenticateToken, async (req, res) => {
     try {
@@ -112,31 +153,7 @@ router.get('/', authenticateToken, async (req, res) => {
         } = req.query;
 
         const offset = (page - 1) * limit;
-        const where = {};
-
-        // 搜索条件
-        if (search) {
-            where[Op.or] = [
-                { nickname: { [Op.like]: `%${search}%` } },
-                { realName: { [Op.like]: `%${search}%` } },
-                { phone: { [Op.like]: `%${search}%` } },
-                { memberCode: { [Op.like]: `%${search}%` } }
-            ];
-        }
-
-        // 状态筛选
-        if (status) {
-            where.status = status;
-        }
-
-        // 等级筛选
-        if (memberLevelId) {
-            where.memberLevelId = memberLevelId;
-        }
-
-        if (distributorLevelId) {
-            where.distributorLevelId = distributorLevelId;
-        }
+        const where = buildMemberListWhere({ search, status, memberLevelId, distributorLevelId });
 
         // 排序
         const order = [[sortBy, sortOrder.toUpperCase()]];
@@ -197,18 +214,7 @@ router.get('/export', authenticateToken, async (req, res) => {
             sortOrder = 'DESC'
         } = req.query;
 
-        const where = {};
-        if (search) {
-            where[Op.or] = [
-                { nickname: { [Op.like]: `%${search}%` } },
-                { realName: { [Op.like]: `%${search}%` } },
-                { phone: { [Op.like]: `%${search}%` } },
-                { memberCode: { [Op.like]: `%${search}%` } }
-            ];
-        }
-        if (status) where.status = status;
-        if (memberLevelId) where.memberLevelId = memberLevelId;
-        if (distributorLevelId) where.distributorLevelId = distributorLevelId;
+        const where = buildMemberListWhere({ search, status, memberLevelId, distributorLevelId });
 
         const order = [[sortBy, String(sortOrder || 'DESC').toUpperCase()]];
 
