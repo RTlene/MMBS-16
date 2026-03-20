@@ -47,6 +47,26 @@ function pickLiteImage(images) {
     return '';
 }
 
+/** 轻量列表仍需要展示价格：只关联 SKU 的 price/stock/status，包体远小于带图 SKU */
+function skuIncludeForListCard(isLite) {
+    return {
+        model: ProductSKU,
+        as: 'skus',
+        attributes: isLite ? ['price', 'stock', 'status'] : ['id', 'sku', 'name', 'price', 'stock', 'images', 'status'],
+        where: { status: 'active' },
+        required: false
+    };
+}
+
+function priceRangeFromSkus(product) {
+    const activeSkus = (product.skus || []).filter((sku) => sku && sku.status === 'active');
+    const prices = activeSkus.map((s) => parseFloat(s.price) || 0).filter((p) => !Number.isNaN(p));
+    const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
+    const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
+    const totalStock = activeSkus.reduce((sum, sku) => sum + (parseInt(sku.stock, 10) || 0), 0);
+    return { activeSkus, priceMin, priceMax, totalStock };
+}
+
 async function resolveIconUrl(icon) {
     const raw = (icon && String(icon).trim()) || '';
     if (!raw) return null;
@@ -134,26 +154,23 @@ router.get('/products', async (req, res) => {
         }
 
         const isLite = String(lite) === '1';
+        const listIncludes = [];
+        if (!isLite) {
+            listIncludes.push({
+                model: Category,
+                as: 'category',
+                attributes: ['id', 'name'],
+                required: false
+            });
+        }
+        listIncludes.push(skuIncludeForListCard(isLite));
+
         const { count, rows } = await Product.findAndCountAll({
             where,
             attributes: isLite
                 ? ['id', 'name', 'images', 'isFeatured', 'isHot', 'sortOrder', 'createdAt']
                 : undefined,
-            include: isLite ? [] : [
-                { 
-                    model: Category, 
-                    as: 'category', 
-                    attributes: ['id', 'name'],
-                    required: false
-                },
-                {
-                    model: ProductSKU,
-                    as: 'skus',
-                    attributes: ['id', 'sku', 'name', 'price', 'stock', 'images', 'status'],
-                    where: { status: 'active' },
-                    required: false
-                }
-            ],
+            include: listIncludes,
             limit: parseInt(limit),
             offset: parseInt(offset),
             order,
@@ -163,18 +180,19 @@ router.get('/products', async (req, res) => {
         // 处理商品数据，适配小程序展示
         const products = rows.map(product => {
             if (isLite) {
+                const { priceMin, priceMax, totalStock } = priceRangeFromSkus(product);
                 const firstImage = pickLiteImage(product.images);
                 return {
                     id: product.id,
                     name: product.name,
                     images: firstImage ? [firstImage] : [],
-                    price: 0,
-                    priceMin: 0,
-                    priceMax: 0,
+                    price: priceMin,
+                    priceMin,
+                    priceMax,
                     originalPrice: null,
                     brand: '',
                     category: null,
-                    stock: 0,
+                    stock: totalStock,
                     sales: 0,
                     isFeatured: product.isFeatured || false,
                     isHot: product.isHot || false,
@@ -183,11 +201,7 @@ router.get('/products', async (req, res) => {
                 };
             }
             // 从SKU中获取价格区间和库存
-            const activeSkus = (product.skus || []).filter(sku => sku && sku.status === 'active');
-            const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
-            const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
-            const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
-            const totalStock = activeSkus.reduce((sum, sku) => sum + (parseInt(sku.stock) || 0), 0);
+            const { activeSkus, priceMin, priceMax, totalStock } = priceRangeFromSkus(product);
             
             // 如果商品有图片，确保是数组格式
             let productImages = product.images || [];
@@ -280,6 +294,22 @@ router.get('/products/recommended', async (req, res) => {
             where.isHot = true;
         }
 
+        const recIncludes = [];
+        if (!isLite) {
+            recIncludes.push({
+                model: Category,
+                as: 'category',
+                attributes: ['id', 'name']
+            });
+        }
+        recIncludes.push({
+            model: ProductSKU,
+            as: 'skus',
+            attributes: isLite ? ['price', 'stock', 'status'] : ['id', 'price', 'images', 'stock', 'status'],
+            where: { status: 'active' },
+            required: false
+        });
+
         const products = await Product.findAll({
             where,
             attributes: [
@@ -291,31 +321,15 @@ router.get('/products/recommended', async (req, res) => {
                 'sortOrder',
                 'createdAt'
             ],
-            include: isLite ? [] : [
-                { 
-                    model: Category, 
-                    as: 'category', 
-                    attributes: ['id', 'name']
-                },
-                {
-                    model: ProductSKU,
-                    as: 'skus',
-                    attributes: ['id', 'price', 'images', 'stock', 'status'],
-                    where: { status: 'active' },
-                    required: false
-                }
-            ],
+            include: recIncludes,
             limit: limitNum,
             offset: offsetNum,
             order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']]
         });
 
-        // 处理推荐商品数据（含价格区间）
+        // 处理推荐商品数据（含价格区间；轻量模式也查 SKU 仅取价，避免首页卡片全为 ¥0）
         const recommendedProducts = products.map(product => {
-            const activeSkus = isLite ? [] : (product.skus || []).filter(sku => sku && sku.status === 'active');
-            const prices = activeSkus.map(s => parseFloat(s.price) || 0).filter(p => !isNaN(p));
-            const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
-            const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
+            const { activeSkus, priceMin, priceMax } = priceRangeFromSkus(product);
             const primarySku = getSkuWithMostStock(activeSkus);
             const productImages = Array.isArray(product.images) ? product.images : [];
             const firstImage = pickLiteImage(productImages);

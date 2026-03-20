@@ -11,6 +11,20 @@ const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+/** 历史库 orders 表可能无 storeId；不能仅信模型（未迁移时仍可能带关联），以表结构为准并缓存 */
+let ordersTableHasStoreIdCache = null;
+async function shouldJoinOrderStore() {
+    if (ordersTableHasStoreIdCache !== null) return ordersTableHasStoreIdCache;
+    try {
+        const desc = await sequelize.getQueryInterface().describeTable('orders');
+        ordersTableHasStoreIdCache = !!(desc && desc.storeId);
+    } catch (e) {
+        console.warn('[OrderRoutes] describeTable(orders) 失败，订单列表不关联门店:', e.message);
+        ordersTableHasStoreIdCache = false;
+    }
+    return ordersTableHasStoreIdCache;
+}
+
 function sendCsv(res, filename, csvText) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
@@ -69,42 +83,46 @@ router.get('/', async (req, res) => {
         console.log('[OrderRoutes] 查询订单，条件:', JSON.stringify(where, null, 2));
         console.log('[OrderRoutes] 分页参数: page=', page, 'limit=', limit, 'offset=', offset);
 
+        const listIncludes = [
+            {
+                model: Member,
+                as: 'member',
+                attributes: ['id', 'nickname', 'phone', 'avatar'],
+                required: false
+            },
+            {
+                model: OrderItem,
+                as: 'items',
+                attributes: ['id', 'productId', 'skuId', 'productName', 'skuName', 'quantity', 'unitPrice', 'totalAmount', 'productSnapshot'],
+                include: [{
+                    model: Product,
+                    as: 'product',
+                    attributes: ['id', 'name', 'productType'],
+                    required: false
+                }],
+                required: false
+            },
+            {
+                model: OrderOperationLog,
+                as: 'operationLogs',
+                attributes: ['id', 'operation', 'data', 'createdAt'],
+                required: false,
+                limit: 50,
+                order: [['createdAt', 'DESC']]
+            }
+        ];
+        if (await shouldJoinOrderStore()) {
+            listIncludes.push({
+                model: Store,
+                as: 'store',
+                attributes: ['id', 'name', 'address'],
+                required: false
+            });
+        }
+
         const { count, rows } = await Order.findAndCountAll({
             where,
-            include: [
-                { 
-                    model: Member, 
-                    as: 'member', 
-                    attributes: ['id', 'nickname', 'phone', 'avatar'],
-                    required: false
-                },
-                {
-                    model: OrderItem,
-                    as: 'items',
-                    attributes: ['id', 'productId', 'skuId', 'productName', 'skuName', 'quantity', 'unitPrice', 'totalAmount', 'productSnapshot'],
-                    include: [{
-                        model: Product,
-                        as: 'product',
-                        attributes: ['id', 'name', 'productType'],
-                        required: false
-                    }],
-                    required: false
-                },
-                {
-                    model: OrderOperationLog,
-                    as: 'operationLogs',
-                    attributes: ['id', 'operation', 'data', 'createdAt'],
-                    required: false,
-                    limit: 50,
-                    order: [['createdAt', 'DESC']]
-                },
-                {
-                    model: Store,
-                    as: 'store',
-                    attributes: ['id', 'name', 'address'],
-                    required: false
-                }
-            ],
+            include: listIncludes,
             order: [['createdAt', 'DESC']],
             limit: parseInt(limit),
             offset: parseInt(offset),
@@ -707,33 +725,39 @@ router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         
-        const order = await Order.findByPk(id, {
-            include: [
-                { model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'avatar'] },
-                { model: Product, as: 'product', attributes: ['id', 'name', 'images'], required: false },
-                { model: Store, as: 'store', attributes: ['id', 'name', 'address', 'phone'], required: false },
-                { 
-                    model: OrderItem, 
-                    as: 'items', 
-                    attributes: ['id', 'productId', 'skuId', 'productName', 'skuName', 'quantity', 'unitPrice', 'totalAmount', 'productImage', 'appliedCoupons', 'appliedPromotions', 'discounts', 'productSnapshot', 'skuSnapshot'],
+        const detailIncludes = [
+            { model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'avatar'] },
+            { model: Product, as: 'product', attributes: ['id', 'name', 'images'], required: false }
+        ];
+        if (await shouldJoinOrderStore()) {
+            detailIncludes.push({ model: Store, as: 'store', attributes: ['id', 'name', 'address', 'phone'], required: false });
+        }
+        detailIncludes.push(
+            {
+                model: OrderItem,
+                as: 'items',
+                attributes: ['id', 'productId', 'skuId', 'productName', 'skuName', 'quantity', 'unitPrice', 'totalAmount', 'productImage', 'appliedCoupons', 'appliedPromotions', 'discounts', 'productSnapshot', 'skuSnapshot'],
+                required: false
+            },
+            { model: OrderOperationLog, as: 'operationLogs',
+                include: [{ model: User, as: 'operator', attributes: ['id', 'username'] }],
+                order: [['createdAt', 'DESC']],
+                required: false
+            },
+            { model: MemberCommissionRecord, as: 'commissionRecords',
+                attributes: ['id', 'type', 'amount', 'description', 'status', 'createdAt'],
+                include: [{
+                    model: Member,
+                    as: 'member',
+                    attributes: ['id', 'nickname', 'phone'],
                     required: false
-                },
-                { model: OrderOperationLog, as: 'operationLogs', 
-                  include: [{ model: User, as: 'operator', attributes: ['id', 'username'] }],
-                  order: [['createdAt', 'DESC']],
-                  required: false
-                },
-                { model: MemberCommissionRecord, as: 'commissionRecords',
-                  attributes: ['id', 'type', 'amount', 'description', 'status', 'createdAt'],
-                  include: [{
-                      model: Member,
-                      as: 'member',
-                      attributes: ['id', 'nickname', 'phone'],
-                      required: false
-                  }],
-                  required: false
-                }
-            ]
+                }],
+                required: false
+            }
+        );
+
+        const order = await Order.findByPk(id, {
+            include: detailIncludes
         });
 
         if (!order) {
