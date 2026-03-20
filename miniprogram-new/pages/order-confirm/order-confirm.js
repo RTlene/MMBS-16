@@ -261,9 +261,25 @@ Page({
     this.setData({ showStorePicker: false });
   },
 
+  /**
+   * 根据门店 ID 从列表/已选缓存取完整对象。
+   * 注意：wxml 的 data-* 不能传对象（官方仅支持字符串），禁止 data-store="{{item}}"，否则 dataset 拿不到 id。
+   */
+  _getStoreById(storeId) {
+    if (storeId == null || storeId === '') return null;
+    const sid = parseInt(storeId, 10);
+    if (Number.isNaN(sid) || sid <= 0) return null;
+    const list = this.data.storeList || [];
+    let found = list.find((s) => Number(s.id) === sid);
+    if (!found && this.data.selectedStore && Number(this.data.selectedStore.id) === sid) {
+      found = this.data.selectedStore;
+    }
+    return found || null;
+  },
+
   /** 选择门店 */
   onSelectStore(e) {
-    const store = e.currentTarget.dataset.store;
+    const store = this._getStoreById(e.currentTarget.dataset.storeId);
     if (!store) return;
     this.setData({
       selectedStore: store,
@@ -273,7 +289,7 @@ Page({
 
   /** 打开门店地图（小程序内） */
   onOpenStoreMap(e) {
-    const store = e.currentTarget.dataset.store;
+    const store = this._getStoreById(e.currentTarget.dataset.storeId);
     if (!store || store.latitude == null || store.longitude == null) {
       wx.showToast({ title: '该门店暂无坐标', icon: 'none' });
       return;
@@ -289,7 +305,7 @@ Page({
 
   /** 打开外部地图（腾讯/高德/苹果地图） */
   onOpenExternalMap(e) {
-    const store = e.currentTarget.dataset.store;
+    const store = this._getStoreById(e.currentTarget.dataset.storeId);
     if (!store || !store.address) {
       wx.showToast({ title: '暂无地址', icon: 'none' });
       return;
@@ -761,7 +777,8 @@ Page({
     }
 
     if (isPickup) {
-      if (!selectedStore || !selectedStore.id) {
+      const sid = selectedStore ? parseInt(selectedStore.id, 10) : NaN;
+      if (!selectedStore || Number.isNaN(sid) || sid <= 0) {
         wx.showToast({ title: '请选择自提门店', icon: 'none' });
         return;
       }
@@ -792,7 +809,7 @@ Page({
         quantity: item.quantity
       })),
       deliveryType: isPickup ? 'pickup' : 'delivery',
-      storeId: isPickup ? selectedStore.id : null,
+      storeId: isPickup ? parseInt(selectedStore.id, 10) : null,
       receiverName: isPickup ? '' : (receiverName || '').trim().slice(0, LIMITS.receiverName),
       receiverPhone: isPickup ? '' : purePhone.slice(0, 20),
       shippingAddress: isPickup ? '' : (shippingAddress || '').trim().slice(0, LIMITS.shippingAddress),

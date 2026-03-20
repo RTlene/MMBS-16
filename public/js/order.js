@@ -54,6 +54,18 @@ class OrderManagement {
         return this.getOrderType(order) === 'service';
     }
 
+    /** 是否门店自提（deliveryType / shippingMethod / storeId 多通道，兼容误落库） */
+    isPickupDeliveryOrder(order) {
+        if (!order) return false;
+        if (String(order.deliveryType || '').toLowerCase() === 'pickup') return true;
+        const sm = String(order.shippingMethod || '').toLowerCase();
+        if (sm === 'pickup' || order.shippingMethod === '自提') return true;
+        const sid = order.storeId != null ? parseInt(order.storeId, 10) : NaN;
+        // 业务上 storeId 仅用于自提；有门店且非快递单号发货场景时按自提展示（修复 deliveryType 被写成 delivery 的历史单）
+        if (Number.isFinite(sid) && sid > 0) return true;
+        return false;
+    }
+
     // 初始化
     async init() {
         console.log('[OrderManagement] init() 方法被调用');
@@ -343,7 +355,7 @@ class OrderManagement {
     // 获取操作按钮（退款、退货均在订单管理内处理）
     getActionButtons(order) {
         let buttons = '';
-        const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
+        const isPickupOrder = this.isPickupDeliveryOrder(order);
 
         // 修改订单（仅待支付状态）
         if (order.status === 'pending') {
@@ -523,11 +535,11 @@ class OrderManagement {
 
     /** 列表「配送方式」列：快递 / 门店自提 + 门店名 */
     getDeliveryTypeCell(order) {
-        const dt = String(order.deliveryType || '').toLowerCase();
-        if (dt === 'pickup') {
+        if (this.isPickupDeliveryOrder(order)) {
             const storeName = order.store && order.store.name ? order.store.name : '';
             return storeName ? `门店自提（${this.escapeHtml(storeName)}）` : '门店自提';
         }
+        const dt = String(order.deliveryType || '').toLowerCase();
         if (dt === 'delivery' || order.shippingAddress) return '快递配送';
         if (order.deliveryType) return String(order.deliveryType);
         return '—';
@@ -653,10 +665,10 @@ class OrderManagement {
             const detailDeliveryTypeEl = document.getElementById('detailDeliveryType');
             const detailPickupStoreEl = document.getElementById('detailPickupStore');
             if (detailDeliveryTypeEl) {
-                detailDeliveryTypeEl.textContent = String(order.deliveryType || '') === 'pickup' ? '门店自提' : '快递配送';
+                detailDeliveryTypeEl.textContent = this.isPickupDeliveryOrder(order) ? '门店自提' : '快递配送';
             }
             if (detailPickupStoreEl) {
-                if (String(order.deliveryType || '') === 'pickup' && order.store) {
+                if (this.isPickupDeliveryOrder(order) && order.store) {
                     const sn = order.store.name || '';
                     const sa = order.store.address || '';
                     detailPickupStoreEl.textContent = [sn, sa].filter(Boolean).join(' ') || '-';
@@ -1220,7 +1232,7 @@ class OrderManagement {
             // 先获取订单信息，检查是否为服务商品
             const order = this.orders.find(o => o.id === parseInt(orderId));
             if (order) {
-                if (String(order.deliveryType || '') === 'pickup') {
+                if (this.isPickupDeliveryOrder(order)) {
                     showAlert('该订单为门店自提，请点击「确认用户自提」，无需填写快递单号。', 'info');
                     return;
                 }

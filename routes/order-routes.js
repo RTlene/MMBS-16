@@ -25,6 +25,16 @@ async function shouldJoinOrderStore() {
     return ordersTableHasStoreIdCache;
 }
 
+/** 是否门店自提（deliveryType / shippingMethod / storeId，与后台列表逻辑一致） */
+function isOrderPickupDelivery(order) {
+    if (!order) return false;
+    if (String(order.deliveryType || '').toLowerCase() === 'pickup') return true;
+    const sm = String(order.shippingMethod || '').toLowerCase();
+    if (sm === 'pickup' || order.shippingMethod === '自提') return true;
+    const sid = order.storeId != null ? parseInt(order.storeId, 10) : NaN;
+    return Number.isFinite(sid) && sid > 0;
+}
+
 function sendCsv(res, filename, csvText) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
@@ -614,11 +624,7 @@ router.post('/import-shipping', upload.single('file'), async (req, res) => {
                 continue;
             }
 
-            const isPickupImport =
-                String(order.deliveryType || '') === 'pickup' ||
-                String(order.shippingMethod || '') === 'pickup' ||
-                String(order.shippingMethod || '') === '自提';
-            if (isPickupImport) {
+            if (isOrderPickupDelivery(order)) {
                 results.skipped += 1;
                 results.errors.push({ line, orderNo, reason: '自提订单不能使用导入发货，请在后台点击「确认用户自提」' });
                 continue;
@@ -1008,11 +1014,7 @@ router.put('/:id/ship', async (req, res) => {
             });
         }
 
-        const isPickupOrder =
-            String(order.deliveryType || '') === 'pickup' ||
-            String(order.shippingMethod || '') === 'pickup' ||
-            String(order.shippingMethod || '') === '自提';
-        if (isPickupOrder) {
+        if (isOrderPickupDelivery(order)) {
             return res.status(400).json({
                 code: 1,
                 message: '该订单为门店自提，请勿使用「快递发货」。请在列表中点击「确认用户自提」，系统会向微信同步自提发货信息。'
@@ -1076,20 +1078,23 @@ router.put('/:id/pickup-confirm', async (req, res) => {
             return res.status(404).json({ code: 1, message: '订单不存在' });
         }
 
-        const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
-        if (!isPickupOrder) {
+        if (!isOrderPickupDelivery(order)) {
             return res.status(400).json({ code: 1, message: '仅自提订单可确认用户自提' });
         }
         if (order.status !== 'paid') {
             return res.status(400).json({ code: 1, message: '仅已支付待自提订单可确认' });
         }
 
-        await order.update({
+        const pickupUpdate = {
             status: 'delivered',
             deliveredAt: new Date(),
             shippingMethod: order.shippingMethod || 'pickup',
             updatedBy: req.user?.id
-        });
+        };
+        if (Order.rawAttributes.deliveryType) {
+            pickupUpdate.deliveryType = 'pickup';
+        }
+        await order.update(pickupUpdate);
 
         await OrderOperationLog.create({
             orderId: order.id,

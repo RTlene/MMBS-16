@@ -21,6 +21,60 @@ try {
 
 const router = express.Router();
 
+/** 统一小程序传入的配送方式，避免大小写/别名导致误判为快递 */
+function normalizeMiniappDeliveryType(raw) {
+    const s = String(raw == null ? '' : raw).trim().toLowerCase();
+    if (s === 'pickup' || s === '自提' || s === 'store_pickup' || s === 'store') return 'pickup';
+    return 'delivery';
+}
+
+/**
+ * 解析创建订单请求体：兼容云托管/网关将 JSON 转为 snake_case，或包一层 { data: {...} }
+ */
+function parseMiniappCreateOrderBody(req) {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const raw =
+        body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : body;
+
+    const pick = (camel, snake) => {
+        if (raw[camel] !== undefined && raw[camel] !== null) return raw[camel];
+        if (snake && raw[snake] !== undefined && raw[snake] !== null) return raw[snake];
+        return undefined;
+    };
+
+    let items = pick('items', 'items');
+    if (!Array.isArray(items)) items = [];
+
+    items = items.map((it) => {
+        if (!it || typeof it !== 'object') return it;
+        return {
+            productId: it.productId ?? it.product_id,
+            skuId: it.skuId ?? it.sku_id,
+            quantity: it.quantity ?? it.qty ?? 1
+        };
+    });
+
+    return {
+        items,
+        productId: pick('productId', 'product_id'),
+        skuId: pick('skuId', 'sku_id'),
+        quantity: pick('quantity', 'quantity') ?? 1,
+        shippingAddress: pick('shippingAddress', 'shipping_address'),
+        receiverName: pick('receiverName', 'receiver_name'),
+        receiverPhone: pick('receiverPhone', 'receiver_phone'),
+        deliveryTypeRaw: pick('deliveryType', 'delivery_type'),
+        storeIdIn: pick('storeId', 'store_id'),
+        remark: pick('remark', 'remark') ?? '',
+        paymentMethod: pick('paymentMethod', 'payment_method') ?? 'wechat',
+        appliedCoupons: pick('appliedCoupons', 'applied_coupons') ?? [],
+        appliedPromotions: pick('appliedPromotions', 'applied_promotions') ?? [],
+        pointUsage: pick('pointUsage', 'point_usage'),
+        commissionUsage: pick('commissionUsage', 'commission_usage'),
+        pointsUsage: pick('pointsUsage', 'points_usage'),
+        _rawKeys: Object.keys(raw)
+    };
+}
+
 // 生成核销码（格式：日期6位+随机6位，唯一性由业务层保证）
 function generateVerificationCode() {
     const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
@@ -42,24 +96,64 @@ async function generateUniqueVerificationCode(maxRetries = 10) {
 // 创建订单（小程序端）- 修改版本
 router.post('/orders', authenticateMiniappUser, async (req, res) => {
     try {
+        const parsedBody = parseMiniappCreateOrderBody(req);
         let {
-            items = [],
+            items,
             productId,
             skuId,
             quantity = 1,
             shippingAddress,
             receiverName,
             receiverPhone,
-            deliveryType = 'delivery',  // delivery-配送上门, pickup-门店自提
-            storeId = null,             // 门店自提时的门店ID
+            deliveryTypeRaw,
+            storeIdIn,
             remark = '',
             paymentMethod = 'wechat',
             appliedCoupons = [],
             appliedPromotions = [],
             pointUsage = null,
             commissionUsage = null,
-            pointsUsage = null
-        } = req.body;
+            pointsUsage = null,
+            _rawKeys
+        } = parsedBody;
+
+        if (!Array.isArray(appliedCoupons)) appliedCoupons = [];
+        if (!Array.isArray(appliedPromotions)) appliedPromotions = [];
+
+        /**
+         * 配送方式最终值：
+         * - 客户端若漏传 deliveryType（网关/旧版/序列化问题），只要带了有效 storeId，仍按自提落库。
+         * - 仅当请求里明确传 delivery / 快递 意图时强制快递，并忽略 storeId（防止脏字段）。
+         */
+        const explicitExpress =
+            String(deliveryTypeRaw || '').trim().toLowerCase() === 'delivery' ||
+            String(deliveryTypeRaw || '').trim() === '快递' ||
+            String(deliveryTypeRaw || '').trim() === '配送上门';
+        const parsedStoreId =
+            storeIdIn != null && storeIdIn !== ''
+                ? parseInt(storeIdIn, 10)
+                : NaN;
+        const hasValidStore = Number.isFinite(parsedStoreId) && parsedStoreId > 0;
+
+        let deliveryType = normalizeMiniappDeliveryType(
+            deliveryTypeRaw !== undefined && deliveryTypeRaw !== null ? deliveryTypeRaw : 'delivery'
+        );
+        let storeId = hasValidStore ? parsedStoreId : null;
+        if (explicitExpress) {
+            deliveryType = 'delivery';
+            storeId = null;
+        } else if (hasValidStore) {
+            deliveryType = 'pickup';
+        }
+
+        console.log('[MiniappOrder] POST /orders parsed', {
+            deliveryType,
+            storeId,
+            explicitExpress,
+            hasValidStore,
+            itemCount: items.length,
+            bodyKeysSample: (_rawKeys || []).slice(0, 15)
+        });
 
         const member = req.member;
         
@@ -294,7 +388,9 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             receiverPhone: isPickup ? null : receiverPhone,
             remark,
             isTest: false,
-            createdBy: member.id
+            createdBy: member.id,
+            // 历史库可能无 deliveryType 列：用 shippingMethod 标记自提，后台列表可识别
+            ...(isPickup ? { shippingMethod: 'pickup' } : {})
         };
         // 若数据库尚未执行 deliveryType/storeId 迁移，则不带这两字段插入
         let order;
@@ -489,6 +585,14 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             }
         }
 
+        const resolvedDeliveryType =
+            order.deliveryType ||
+            (String(order.shippingMethod || '').toLowerCase() === 'pickup' || order.shippingMethod === '自提'
+                ? 'pickup'
+                : isPickup
+                    ? 'pickup'
+                    : 'delivery');
+
         res.json({
             code: 0,
             message: orderStatus === 'paid' ? '订单创建成功并已完成支付' : '订单创建成功',
@@ -505,8 +609,8 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                     shippingAddress: order.shippingAddress,
                     receiverName: order.receiverName,
                     receiverPhone: order.receiverPhone,
-                    deliveryType: order.deliveryType,
-                    storeId: order.storeId,
+                    deliveryType: resolvedDeliveryType,
+                    storeId: order.storeId != null ? order.storeId : (isPickup ? parseInt(storeId, 10) : null),
                     remark: order.remark,
                     createdAt: order.createdAt,
                     items: normalizedItems.map(item => ({

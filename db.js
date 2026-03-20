@@ -3401,13 +3401,18 @@ async function init() {
       console.warn('[DB] product_member_prices 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
-    // 若 orders 表无 storeId/deliveryType 列（未执行迁移），则从 Order 模型移除，避免查询/插入报错
+    // 若 orders 表缺少某列，仅从 Order 模型移除对应属性（避免误删：仅有 deliveryType 无 storeId 时不应移除 deliveryType）
     try {
       const orderDesc = await sequelize.getQueryInterface().describeTable('orders');
-      if (orderDesc && !orderDesc.storeId) {
-        if (Order.rawAttributes.storeId) Order.removeAttribute('storeId');
-        if (Order.rawAttributes.deliveryType) Order.removeAttribute('deliveryType');
-        console.log('[DB] orders 表无 storeId/deliveryType，已从 Order 模型移除');
+      if (orderDesc) {
+        if (!orderDesc.storeId && Order.rawAttributes.storeId) {
+          Order.removeAttribute('storeId');
+          console.log('[DB] orders 表无 storeId，已从 Order 模型移除');
+        }
+        if (!orderDesc.deliveryType && Order.rawAttributes.deliveryType) {
+          Order.removeAttribute('deliveryType');
+          console.log('[DB] orders 表无 deliveryType，已从 Order 模型移除');
+        }
       }
     } catch (e) {
       // 表不存在或无权查询时忽略

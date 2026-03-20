@@ -95,8 +95,8 @@
         <text class="store-address">{{selectedStore.address}}</text>
         <text class="store-distance" wx:if="{{selectedStore.distance != null}}">约 {{selectedStore.distance}} km</text>
         <view class="store-actions">
-          <text class="store-action-link" catchtap="onOpenStoreMap" data-store="{{selectedStore}}">查看地图</text>
-          <text class="store-action-link" catchtap="onOpenExternalMap" data-store="{{selectedStore}}">打开外部地图</text>
+          <text class="store-action-link" catchtap="onOpenStoreMap" data-store-id="{{selectedStore.id}}">查看地图</text>
+          <text class="store-action-link" catchtap="onOpenExternalMap" data-store-id="{{selectedStore.id}}">打开外部地图</text>
         </view>
       </view>
       <view class="store-choose-placeholder" wx:else>
@@ -361,7 +361,7 @@
           wx:for="{{storeList}}"
           wx:key="id"
           bindtap="onSelectStore"
-          data-store="{{item}}"
+          data-store-id="{{item.id}}"
         >
           <view class="store-item-main">
             <text class="store-item-name">{{item.name}}</text>
@@ -369,8 +369,8 @@
             <text class="store-item-distance" wx:if="{{item.distance != null}}">约 {{item.distance}} km</text>
           </view>
           <view class="store-item-actions">
-            <text class="store-item-btn" catchtap="onOpenStoreMap" data-store="{{item}}">地图</text>
-            <text class="store-item-btn" catchtap="onOpenExternalMap" data-store="{{item}}">外部地图</text>
+            <text class="store-item-btn" catchtap="onOpenStoreMap" data-store-id="{{item.id}}">地图</text>
+            <text class="store-item-btn" catchtap="onOpenExternalMap" data-store-id="{{item.id}}">外部地图</text>
           </view>
         </view>
         <view class="no-store" wx:if="{{storeList.length === 0}}">

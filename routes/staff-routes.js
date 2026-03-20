@@ -7,6 +7,15 @@ const { authenticateStaff } = require('../middleware/staff-auth');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const router = express.Router();
 
+function isOrderPickupDelivery(order) {
+    if (!order) return false;
+    if (String(order.deliveryType || '').toLowerCase() === 'pickup') return true;
+    const sm = String(order.shippingMethod || '').toLowerCase();
+    if (sm === 'pickup' || order.shippingMethod === '自提') return true;
+    const sid = order.storeId != null ? parseInt(order.storeId, 10) : NaN;
+    return Number.isFinite(sid) && sid > 0;
+}
+
 // 员工登录（小程序端）
 router.post('/staff/login', async (req, res) => {
     try {
@@ -293,11 +302,7 @@ router.put('/staff/orders/:id/ship', authenticateStaff, async (req, res) => {
             });
         }
 
-        const isPickupOrder =
-            String(order.deliveryType || '') === 'pickup' ||
-            String(order.shippingMethod || '') === 'pickup' ||
-            String(order.shippingMethod || '') === '自提';
-        if (isPickupOrder) {
+        if (isOrderPickupDelivery(order)) {
             return res.status(400).json({
                 code: 1,
                 message: '自提订单请使用后台「确认用户自提」，勿走快递发货'
