@@ -941,6 +941,17 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             });
         }
 
+        /** 自提门店：join 未带上时按 storeId 补查（避免后台/小程序详情无门店名） */
+        let storeForDetail = order.store || null;
+        if (!storeForDetail) {
+            const sid = order.storeId != null ? parseInt(order.storeId, 10) : NaN;
+            if (Number.isFinite(sid) && sid > 0) {
+                storeForDetail = await Store.findByPk(sid, {
+                    attributes: ['id', 'name', 'address', 'region', 'latitude', 'longitude', 'phone', 'businessHours']
+                });
+            }
+        }
+
         const items = formatOrderItems(order.items);
         const primaryItem = getPrimaryItem(items, order.product);
 
@@ -1007,15 +1018,15 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             paymentTime: order.paymentTime,
             deliveryType: order.deliveryType || 'delivery',
             storeId: order.storeId,
-            store: order.store ? {
-                id: order.store.id,
-                name: order.store.name,
-                address: order.store.address,
-                region: order.store.region,
-                latitude: order.store.latitude,
-                longitude: order.store.longitude,
-                phone: order.store.phone,
-                businessHours: order.store.businessHours
+            store: storeForDetail ? {
+                id: storeForDetail.id,
+                name: storeForDetail.name,
+                address: storeForDetail.address,
+                region: storeForDetail.region,
+                latitude: storeForDetail.latitude,
+                longitude: storeForDetail.longitude,
+                phone: storeForDetail.phone,
+                businessHours: storeForDetail.businessHours
             } : null,
             shippingAddress: order.shippingAddress,
             receiverName: order.receiverName,

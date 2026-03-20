@@ -3401,15 +3401,18 @@ async function init() {
       console.warn('[DB] product_member_prices 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
-    // 若 orders 表缺少某列，仅从 Order 模型移除对应属性（避免误删：仅有 deliveryType 无 storeId 时不应移除 deliveryType）
+    // 若 orders 表缺少某列，仅从 Order 模型移除对应属性（describeTable 列名可能是 storeId / store_id）
     try {
       const orderDesc = await sequelize.getQueryInterface().describeTable('orders');
+      const hasCol = (desc, name) =>
+        desc &&
+        Object.keys(desc).some((k) => k.toLowerCase().replace(/_/g, '') === name.toLowerCase().replace(/_/g, ''));
       if (orderDesc) {
-        if (!orderDesc.storeId && Order.rawAttributes.storeId) {
+        if (!hasCol(orderDesc, 'storeId') && Order.rawAttributes.storeId) {
           Order.removeAttribute('storeId');
           console.log('[DB] orders 表无 storeId，已从 Order 模型移除');
         }
-        if (!orderDesc.deliveryType && Order.rawAttributes.deliveryType) {
+        if (!hasCol(orderDesc, 'deliveryType') && Order.rawAttributes.deliveryType) {
           Order.removeAttribute('deliveryType');
           console.log('[DB] orders 表无 deliveryType，已从 Order 模型移除');
         }

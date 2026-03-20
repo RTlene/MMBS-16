@@ -668,10 +668,16 @@ class OrderManagement {
                 detailDeliveryTypeEl.textContent = this.isPickupDeliveryOrder(order) ? '门店自提' : '快递配送';
             }
             if (detailPickupStoreEl) {
-                if (this.isPickupDeliveryOrder(order) && order.store) {
-                    const sn = order.store.name || '';
-                    const sa = order.store.address || '';
-                    detailPickupStoreEl.textContent = [sn, sa].filter(Boolean).join(' ') || '-';
+                if (this.isPickupDeliveryOrder(order)) {
+                    if (order.store && (order.store.name || order.store.address)) {
+                        const sn = order.store.name || '';
+                        const sa = order.store.address || '';
+                        detailPickupStoreEl.textContent = [sn, sa].filter(Boolean).join(' ') || '-';
+                    } else if (order.storeId != null && String(order.storeId).trim() !== '') {
+                        detailPickupStoreEl.textContent = `门店 ID: ${order.storeId}（未关联到门店资料，请在后台检查门店是否存在）`;
+                    } else {
+                        detailPickupStoreEl.textContent = '-';
+                    }
                 } else {
                     detailPickupStoreEl.textContent = '-';
                 }

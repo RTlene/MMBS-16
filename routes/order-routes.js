@@ -13,16 +13,57 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 /** 历史库 orders 表可能无 storeId；不能仅信模型（未迁移时仍可能带关联），以表结构为准并缓存 */
 let ordersTableHasStoreIdCache = null;
+
+/** MySQL/describeTable 可能返回 storeId、store_id 或大小写变体 */
+function ordersTableHasStoreIdColumn(desc) {
+    if (!desc || typeof desc !== 'object') return false;
+    return Object.keys(desc).some((k) => k.toLowerCase().replace(/_/g, '') === 'storeid');
+}
+
 async function shouldJoinOrderStore() {
     if (ordersTableHasStoreIdCache !== null) return ordersTableHasStoreIdCache;
     try {
         const desc = await sequelize.getQueryInterface().describeTable('orders');
-        ordersTableHasStoreIdCache = !!(desc && desc.storeId);
+        ordersTableHasStoreIdCache = ordersTableHasStoreIdColumn(desc);
     } catch (e) {
         console.warn('[OrderRoutes] describeTable(orders) 失败，订单列表不关联门店:', e.message);
         ordersTableHasStoreIdCache = false;
     }
     return ordersTableHasStoreIdCache;
+}
+
+/** 订单 JSON 上补全自提门店（避免未 join 或 join 失败时详情/列表无门店名） */
+async function enrichPickupStoreOnOrderJson(orderJson) {
+    if (!orderJson) return;
+    const sid = orderJson.storeId != null ? parseInt(orderJson.storeId, 10) : NaN;
+    if (!Number.isFinite(sid) || sid <= 0) return;
+    if (orderJson.store && orderJson.store.id) return;
+    const st = await Store.findByPk(sid, { attributes: ['id', 'name', 'address', 'phone'] });
+    if (st) orderJson.store = st.toJSON();
+}
+
+async function enrichPickupStoresOnOrderJsonList(orderJsonList) {
+    if (!Array.isArray(orderJsonList) || orderJsonList.length === 0) return;
+    const ids = [
+        ...new Set(
+            orderJsonList
+                .map((o) => (o.storeId != null ? parseInt(o.storeId, 10) : NaN))
+                .filter((n) => Number.isFinite(n) && n > 0)
+        )
+    ];
+    if (ids.length === 0) return;
+    const stores = await Store.findAll({
+        where: { id: ids },
+        attributes: ['id', 'name', 'address', 'phone']
+    });
+    const map = new Map(stores.map((s) => [s.id, s.toJSON()]));
+    for (const o of orderJsonList) {
+        const sid = o.storeId != null ? parseInt(o.storeId, 10) : NaN;
+        if (!Number.isFinite(sid) || sid <= 0) continue;
+        if (o.store && o.store.id) continue;
+        const st = map.get(sid);
+        if (st) o.store = st;
+    }
 }
 
 /** 是否门店自提（deliveryType / shippingMethod / storeId，与后台列表逻辑一致） */
@@ -152,11 +193,14 @@ router.get('/', async (req, res) => {
             console.log('[OrderRoutes] 搜索过滤后订单数量:', orders.length);
         }
 
+        const ordersJson = orders.map((o) => o.toJSON());
+        await enrichPickupStoresOnOrderJsonList(ordersJson);
+
         const responseData = {
             code: 0,
             message: '获取成功',
             data: {
-                orders: orders,
+                orders: ordersJson,
                 totalCount: count,
                 totalPages: Math.ceil(count / limit),
                 currentPage: parseInt(page)
@@ -816,6 +860,8 @@ router.get('/:id', async (req, res) => {
         if (!orderData.commissionRecords) {
             orderData.commissionRecords = [];
         }
+
+        await enrichPickupStoreOnOrderJson(orderData);
         
         res.json({
             code: 0,
