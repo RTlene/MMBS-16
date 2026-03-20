@@ -41,3 +41,29 @@ ALTER TABLE popups CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 - **routes/member-routes.js**：会员导入不再剥离 emoji，昵称、姓名、地址、备注等原样写入。
 
 执行完上述 SQL 并重启应用后，即可正常存储昵称等中的 emoji。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

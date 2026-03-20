@@ -16,6 +16,7 @@
         .form-group:last-child { margin-bottom: 0; }
         .form-label { display: block; margin-bottom: 6px; font-weight: 500; color: #333; }
         .form-input { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
+        .form-input.form-input-wide { max-width: 520px; }
         .form-hint { font-size: 12px; color: #888; margin-top: 4px; }
         .btn { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .btn-primary { background: #1890ff; color: white; }
@@ -91,6 +92,25 @@
                 <div class="form-group form-row" style="gap:12px;">
                     <button type="button" class="btn btn-primary" id="saveAfterSalesImageSettingsBtn">保存</button>
                     <button type="button" class="btn" id="cleanupAfterSalesImagesBtn" style="background:#f0f0f0;">立即清理超期凭证图</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">高德地图</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Web 服务 Key / JS API Key</label>
+                    <input type="password" id="amapKey" name="amapKey" class="form-input form-input-wide" maxlength="256" autocomplete="off" placeholder="在高德开放平台创建 Key，勾选「Web服务」与「Web端(JS API)」">
+                    <p class="form-hint">用于后台门店「地图选点」、地理编码与逆地理编码。若服务器已设置环境变量 <code>AMAP_KEY</code>，将优先使用环境变量，此处保存的值仅在未配置环境变量时生效。</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">安全密钥（可选）</label>
+                    <input type="password" id="amapSecurityJsCode" name="amapSecurityJsCode" class="form-input form-input-wide" maxlength="256" autocomplete="off" placeholder="控制台启用安全密钥时填写">
+                    <p class="form-hint">对应高德「安全密钥」；若已设置环境变量 <code>AMAP_SECURITY_JS_CODE</code> 则优先使用环境变量。</p>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary" id="saveAmapSettingsBtn">保存高德配置</button>
                 </div>
             </div>
         </div>

@@ -21,6 +21,8 @@
             const mallNameEl = document.getElementById('mallName');
             const returnAddressEl = document.getElementById('returnAddress');
             const afterSalesDaysEl = document.getElementById('afterSalesImageRetentionDays');
+            const amapKeyEl = document.getElementById('amapKey');
+            const amapSecEl = document.getElementById('amapSecurityJsCode');
             if (afterSalesDaysEl) afterSalesDaysEl.value = d.afterSalesImageRetentionDays != null ? d.afterSalesImageRetentionDays : 90;
             if (modeEl) {
                 modeEl.value = (d.activeMemberCheckMode === 'simple' ? 'simple' : 'scheduled');
@@ -32,6 +34,8 @@
             if (conditionEl) conditionEl.value = d.activeMemberCondition === 'lastOrderAt' ? 'lastOrderAt' : 'lastActiveAt';
             if (intervalEl) intervalEl.value = d.activeMemberCheckIntervalHours != null ? d.activeMemberCheckIntervalHours : 24;
             if (returnAddressEl) returnAddressEl.value = d.returnAddress != null ? d.returnAddress : '';
+            if (amapKeyEl) amapKeyEl.value = d.amapKey != null ? d.amapKey : '';
+            if (amapSecEl) amapSecEl.value = d.amapSecurityJsCode != null ? d.amapSecurityJsCode : '';
         } catch (e) {
             console.error('加载系统设置失败', e);
         }
@@ -46,6 +50,8 @@
         const mallNameEl = document.getElementById('mallName');
         const returnAddressEl = document.getElementById('returnAddress');
         const afterSalesDaysEl = document.getElementById('afterSalesImageRetentionDays');
+        const amapKeyEl = document.getElementById('amapKey');
+        const amapSecEl = document.getElementById('amapSecurityJsCode');
         const body = {
             activeMemberCheckEnabled: enabledEl ? enabledEl.checked : false,
             activeMemberCheckMode: modeEl && modeEl.value === 'simple' ? 'simple' : 'scheduled',
@@ -54,7 +60,9 @@
             activeMemberCheckIntervalHours: intervalEl ? Math.max(1, Math.min(720, parseInt(intervalEl.value, 10) || 24)) : 24,
             mallName: mallNameEl ? String(mallNameEl.value || '').trim().slice(0, 50) : '',
             returnAddress: returnAddressEl ? String(returnAddressEl.value || '').trim() : '',
-            afterSalesImageRetentionDays: afterSalesDaysEl ? Math.max(1, Math.min(3650, parseInt(afterSalesDaysEl.value, 10) || 90)) : 90
+            afterSalesImageRetentionDays: afterSalesDaysEl ? Math.max(1, Math.min(3650, parseInt(afterSalesDaysEl.value, 10) || 90)) : 90,
+            amapKey: amapKeyEl ? String(amapKeyEl.value || '').trim().slice(0, 256) : '',
+            amapSecurityJsCode: amapSecEl ? String(amapSecEl.value || '').trim().slice(0, 256) : ''
         };
         try {
             const res = await fetch('/api/settings/system', {
@@ -101,6 +109,31 @@
         }
     }
 
+    async function saveAmapSettings() {
+        const amapKeyEl = document.getElementById('amapKey');
+        const amapSecEl = document.getElementById('amapSecurityJsCode');
+        const body = {
+            amapKey: amapKeyEl ? String(amapKeyEl.value || '').trim().slice(0, 256) : '',
+            amapSecurityJsCode: amapSecEl ? String(amapSecEl.value || '').trim().slice(0, 256) : ''
+        };
+        try {
+            const res = await fetch('/api/settings/system', {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(body)
+            });
+            const result = await res.json();
+            if (result.code === 0) {
+                alert('高德配置已保存（若已打开门店管理页，建议刷新页面以重新加载地图配置）');
+            } else {
+                alert('保存失败：' + (result.message || '未知错误'));
+            }
+        } catch (e) {
+            console.error(e);
+            alert('保存失败');
+        }
+    }
+
     async function cleanupAfterSalesImages() {
         if (!confirm('确定要立即清理已超期的售后凭证图吗？清理后图片将不可恢复。')) return;
         try {
@@ -130,6 +163,8 @@
         if (btnAfterSales) btnAfterSales.addEventListener('click', saveAfterSalesImageSettings);
         const btnCleanup = document.getElementById('cleanupAfterSalesImagesBtn');
         if (btnCleanup) btnCleanup.addEventListener('click', cleanupAfterSalesImages);
+        const btnAmap = document.getElementById('saveAmapSettingsBtn');
+        if (btnAmap) btnAmap.addEventListener('click', saveAmapSettings);
         const modeEl = document.getElementById('activeMemberCheckMode');
         if (modeEl) modeEl.addEventListener('change', updateActiveMemberModeUI);
     }

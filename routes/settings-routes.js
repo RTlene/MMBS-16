@@ -1,5 +1,5 @@
 /**
- * 系统设置 API：通用设置（如活跃会员自动检测）存储在 configStore section 'system'
+ * 系统设置 API：通用设置（如活跃会员自动检测、高德地图 Key）存储在 configStore section 'system'
  * 含售后凭证图保留天数及清理接口
  */
 const express = require('express');
@@ -20,7 +20,11 @@ const DEFAULT_SYSTEM = {
     activeMemberCheckIntervalHours: 24,
     mallName: '',
     returnAddress: '',
-    afterSalesImageRetentionDays: 90  // 售后凭证图保留天数，超期后清除转为轻量化存储
+    afterSalesImageRetentionDays: 90, // 售后凭证图保留天数，超期后清除转为轻量化存储
+    /** 高德地图 Key（门店地图选点等）；若环境变量 AMAP_KEY 已设置则优先生效 */
+    amapKey: '',
+    /** 高德安全密钥（JS API 2.0）；若环境变量 AMAP_SECURITY_JS_CODE 已设置则优先生效 */
+    amapSecurityJsCode: ''
 };
 
 // GET /api/settings/system
@@ -50,7 +54,9 @@ router.put('/system', authenticateToken, async (req, res) => {
             activeMemberCheckIntervalHours: body.activeMemberCheckIntervalHours !== undefined ? Math.max(1, Math.min(720, parseInt(body.activeMemberCheckIntervalHours, 10) || 24)) : (current.activeMemberCheckIntervalHours ?? 24),
             mallName: body.mallName !== undefined ? String(body.mallName || '').trim().slice(0, 50) : (current.mallName ?? ''),
             returnAddress: body.returnAddress !== undefined ? String(body.returnAddress || '').trim() : (current.returnAddress ?? ''),
-            afterSalesImageRetentionDays: body.afterSalesImageRetentionDays !== undefined ? Math.max(1, Math.min(3650, parseInt(body.afterSalesImageRetentionDays, 10) || 90)) : (current.afterSalesImageRetentionDays ?? 90)
+            afterSalesImageRetentionDays: body.afterSalesImageRetentionDays !== undefined ? Math.max(1, Math.min(3650, parseInt(body.afterSalesImageRetentionDays, 10) || 90)) : (current.afterSalesImageRetentionDays ?? 90),
+            amapKey: body.amapKey !== undefined ? String(body.amapKey || '').trim().slice(0, 256) : (current.amapKey ?? ''),
+            amapSecurityJsCode: body.amapSecurityJsCode !== undefined ? String(body.amapSecurityJsCode || '').trim().slice(0, 256) : (current.amapSecurityJsCode ?? '')
         };
         await configStore.setSection(SECTION, next);
         res.json({ code: 0, message: '保存成功', data: next });
