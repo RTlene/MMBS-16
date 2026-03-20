@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Order, Member, Product, ProductSKU, MemberCommissionRecord, DistributorLevel, OrderOperationLog, User, OrderItem, ReturnRequest, RefundRecord, VerificationCode, CommissionCalculation, sequelize } = require('../db');
+const { Order, Member, Product, ProductSKU, MemberCommissionRecord, DistributorLevel, OrderOperationLog, User, OrderItem, ReturnRequest, RefundRecord, VerificationCode, CommissionCalculation, Store, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const CommissionService = require('../services/commissionService');
@@ -97,6 +97,12 @@ router.get('/', async (req, res) => {
                     required: false,
                     limit: 50,
                     order: [['createdAt', 'DESC']]
+                },
+                {
+                    model: Store,
+                    as: 'store',
+                    attributes: ['id', 'name', 'address'],
+                    required: false
                 }
             ],
             order: [['createdAt', 'DESC']],
@@ -590,6 +596,16 @@ router.post('/import-shipping', upload.single('file'), async (req, res) => {
                 continue;
             }
 
+            const isPickupImport =
+                String(order.deliveryType || '') === 'pickup' ||
+                String(order.shippingMethod || '') === 'pickup' ||
+                String(order.shippingMethod || '') === '自提';
+            if (isPickupImport) {
+                results.skipped += 1;
+                results.errors.push({ line, orderNo, reason: '自提订单不能使用导入发货，请在后台点击「确认用户自提」' });
+                continue;
+            }
+
             await order.update({
                 status: 'shipped',
                 shippingCompany,
@@ -609,6 +625,16 @@ router.post('/import-shipping', upload.single('file'), async (req, res) => {
                 description: `批量导入发货，物流公司：${shippingCompany}，单号：${trackingNumber}`,
                 data: { shippingCompany, trackingNumber, shippingMethod, import: true }
             });
+
+            try {
+                await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
+                    isPickup: false,
+                    shippingCompany,
+                    trackingNumber
+                });
+            } catch (syncErr) {
+                console.warn('[OrderSync] 导入发货同步微信失败:', order.orderNo, syncErr.message);
+            }
 
             results.success += 1;
         }
@@ -685,6 +711,7 @@ router.get('/:id', async (req, res) => {
             include: [
                 { model: Member, as: 'member', attributes: ['id', 'nickname', 'phone', 'avatar'] },
                 { model: Product, as: 'product', attributes: ['id', 'name', 'images'], required: false },
+                { model: Store, as: 'store', attributes: ['id', 'name', 'address', 'phone'], required: false },
                 { 
                     model: OrderItem, 
                     as: 'items', 
@@ -957,6 +984,17 @@ router.put('/:id/ship', async (req, res) => {
             });
         }
 
+        const isPickupOrder =
+            String(order.deliveryType || '') === 'pickup' ||
+            String(order.shippingMethod || '') === 'pickup' ||
+            String(order.shippingMethod || '') === '自提';
+        if (isPickupOrder) {
+            return res.status(400).json({
+                code: 1,
+                message: '该订单为门店自提，请勿使用「快递发货」。请在列表中点击「确认用户自提」，系统会向微信同步自提发货信息。'
+            });
+        }
+
         await order.update({
             status: 'shipped',
             shippingCompany,
@@ -978,16 +1016,12 @@ router.put('/:id/ship', async (req, res) => {
             data: { shippingCompany, trackingNumber, shippingMethod }
         });
 
-        // 同步微信小程序订单发货信息（失败不影响本地发货）
+        // 同步微信小程序「发货信息录入」（失败不影响本地发货）
         try {
-            const member = await Member.findByPk(order.memberId, { attributes: ['id', 'openid', 'phone'] });
-            await wechatMiniappOrderService.uploadShippingInfo({
-                order,
-                memberOpenid: member?.openid,
+            await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
                 isPickup: false,
                 shippingCompany,
-                trackingNumber,
-                receiverPhone: order.receiverPhone || member?.phone || ''
+                trackingNumber
             });
             console.log('[OrderSync] 发货信息已同步到微信小程序订单:', order.orderNo);
         } catch (syncErr) {
@@ -1044,16 +1078,19 @@ router.put('/:id/pickup-confirm', async (req, res) => {
         });
 
         try {
-            const member = await Member.findByPk(order.memberId, { attributes: ['id', 'openid', 'phone'] });
-            await wechatMiniappOrderService.uploadShippingInfo({
-                order,
-                memberOpenid: member?.openid,
-                isPickup: true,
-                shippingCompany: '用户自提',
-                trackingNumber: `PICKUP-${order.orderNo}`,
-                receiverPhone: order.receiverPhone || member?.phone || ''
+            const orderForWx = await Order.findByPk(order.id, {
+                include: [{ model: OrderItem, as: 'items', attributes: ['productName', 'skuName', 'quantity'], required: false }]
             });
-            await wechatMiniappOrderService.notifyConfirmReceive({ order });
+            const memberWx = await Member.findByPk(order.memberId, { attributes: ['openid', 'phone'] });
+            await wechatMiniappOrderService.uploadShippingInfo({
+                order: orderForWx,
+                memberOpenid: memberWx?.openid,
+                isPickup: true,
+                shippingCompany: '',
+                trackingNumber: '',
+                receiverPhone: order.receiverPhone || memberWx?.phone || ''
+            });
+            await wechatMiniappOrderService.notifyConfirmReceive({ order: orderForWx });
             console.log('[OrderSync] 自提确认已同步到微信小程序订单:', order.orderNo);
         } catch (syncErr) {
             console.warn('[OrderSync] 自提确认同步微信失败:', order.orderNo, syncErr.message);

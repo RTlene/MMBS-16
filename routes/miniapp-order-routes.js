@@ -1062,16 +1062,14 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
             try {
                 const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
                 if (isPickupOrder) {
-                    await wechatMiniappOrderService.uploadShippingInfo({
-                        order,
-                        memberOpenid: member.openid,
+                    await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
                         isPickup: true,
-                        shippingCompany: '用户自提',
-                        trackingNumber: `PICKUP-${order.orderNo}`,
-                        receiverPhone: order.receiverPhone || member.phone || ''
+                        shippingCompany: '',
+                        trackingNumber: ''
                     });
                 }
-                await wechatMiniappOrderService.notifyConfirmReceive({ order });
+                const orderForNotify = await Order.findByPk(order.id);
+                await wechatMiniappOrderService.notifyConfirmReceive({ order: orderForNotify });
                 console.log('[OrderSync] 用户确认收货/自提已同步微信小程序订单:', order.orderNo);
             } catch (syncErr) {
                 console.warn('[OrderSync] 用户确认收货/自提同步微信失败:', order.orderNo, syncErr.message);

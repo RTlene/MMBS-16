@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { User, Product, ProductSKU, Order, OrderItem, VerificationCode } = require('../db');
 const { authenticateStaff } = require('../middleware/staff-auth');
+const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const router = express.Router();
 
 // 员工登录（小程序端）
@@ -292,6 +293,17 @@ router.put('/staff/orders/:id/ship', authenticateStaff, async (req, res) => {
             });
         }
 
+        const isPickupOrder =
+            String(order.deliveryType || '') === 'pickup' ||
+            String(order.shippingMethod || '') === 'pickup' ||
+            String(order.shippingMethod || '') === '自提';
+        if (isPickupOrder) {
+            return res.status(400).json({
+                code: 1,
+                message: '自提订单请使用后台「确认用户自提」，勿走快递发货'
+            });
+        }
+
         await order.update({
             status: 'shipped',
             shippingCompany,
@@ -299,6 +311,16 @@ router.put('/staff/orders/:id/ship', authenticateStaff, async (req, res) => {
             shippingMethod: shippingMethod || 'express',
             shippedAt: new Date()
         });
+
+        try {
+            await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
+                isPickup: false,
+                shippingCompany,
+                trackingNumber
+            });
+        } catch (syncErr) {
+            console.warn('[OrderSync][Staff] 发货同步微信失败:', order.orderNo, syncErr.message);
+        }
 
         res.json({
             code: 0,

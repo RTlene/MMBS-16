@@ -128,9 +128,76 @@ function readLngLatFromForm() {
     return { lng, lat, ok: Number.isFinite(lng) && Number.isFinite(lat) };
 }
 
+/** 打开地图弹窗时：用主表单「区域+详细地址」预填搜索框（每次打开同步） */
+function prefillMapPickerSearchInput() {
+    const searchInp = document.getElementById('mapPickerSearchAddress');
+    if (!searchInp) return;
+    const reg = (document.getElementById('storeRegion') || {}).value || '';
+    const addr = (document.getElementById('storeAddress') || {}).value || '';
+    searchInp.value = [reg, addr].filter((x) => String(x).trim()).join('') || addr || '';
+}
+
+function bindMapPickerSearchEnterOnce() {
+    const searchInp = document.getElementById('mapPickerSearchAddress');
+    if (!searchInp || searchInp.dataset.enterBound === '1') return;
+    searchInp.dataset.enterBound = '1';
+    searchInp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            locateMapPickerByAddress();
+        }
+    });
+}
+
+/** 将标记与视野移到指定经纬度（不改变主表单，直至用户点确认选点） */
+function moveMapPickerTo(lng, lat, zoom) {
+    mapPickLng = lng;
+    mapPickLat = lat;
+    if (amapPickerMap && amapPickerMarker) {
+        amapPickerMarker.setPosition([lng, lat]);
+        amapPickerMap.setCenter([lng, lat]);
+        if (zoom != null && Number.isFinite(zoom)) amapPickerMap.setZoom(zoom);
+    }
+}
+
+/** 地图弹窗：按输入框地址调用地理编码并定位 */
+async function locateMapPickerByAddress() {
+    const inp = document.getElementById('mapPickerSearchAddress');
+    let address = (inp && inp.value ? inp.value : '').trim();
+    if (!address) {
+        const reg = (document.getElementById('storeRegion') || {}).value || '';
+        const addr = (document.getElementById('storeAddress') || {}).value || '';
+        address = [reg, addr].filter((x) => String(x).trim()).join('') || String(addr).trim();
+    }
+    if (!address) {
+        alert('请输入要搜索的地址');
+        return;
+    }
+    if (!amapPickerMap || !amapPickerMarker) {
+        alert('地图尚未加载完成，请稍候再试');
+        return;
+    }
+    try {
+        const params = new URLSearchParams({ address });
+        const res = await fetch(`${AMAP_API}/geocode?${params}`, { headers: getHeaders() });
+        const result = await res.json();
+        if (result.code !== 0 || !result.data) {
+            alert(result.message || '未找到该地址，请换更完整的描述');
+            return;
+        }
+        const d = result.data;
+        moveMapPickerTo(d.lng, d.lat, 17);
+    } catch (e) {
+        alert(e.message || '定位失败');
+    }
+}
+
 async function openMapPickerModal() {
     const modal = document.getElementById('storeMapPickerModal');
     if (!modal) return;
+
+    prefillMapPickerSearchInput();
+    bindMapPickerSearchEnterOnce();
 
     const cur = readLngLatFromForm();
     if (cur.ok) {
@@ -176,6 +243,7 @@ async function openMapPickerModal() {
             mapPickLat = typeof ll.getLat === 'function' ? ll.getLat() : ll.lat;
             amapPickerMarker.setPosition([mapPickLng, mapPickLat]);
         });
+        bindMapPickerSearchEnterOnce();
     } catch (e) {
         console.error(e);
         alert(e.message || '打开地图失败');
@@ -273,6 +341,7 @@ window.closeMapPickerModal = closeMapPickerModal;
 window.confirmMapPick = confirmMapPick;
 window.geocodeStoreAddress = geocodeStoreAddress;
 window.regeoStoreFromInputs = regeoStoreFromInputs;
+window.locateMapPickerByAddress = locateMapPickerByAddress;
 
 function renderTable() {
     const tbody = document.getElementById('storeTableBody');

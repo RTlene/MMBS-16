@@ -294,6 +294,11 @@ class OrderManagement {
             // 支付方式
             rowHtml += `<td>${this.getPaymentMethodText(order.paymentMethod)}</td>`;
             
+            // 配送方式（快递 / 门店自提 + 门店名）
+            if (headerRow?.textContent.includes('配送方式')) {
+                rowHtml += `<td>${this.getDeliveryTypeCell(order)}</td>`;
+            }
+
             // 支付时间（如果有这个列）
             if (headerRow?.textContent.includes('支付时间')) {
                 rowHtml += `<td>${order.paymentTime ? this.formatDate(order.paymentTime) : '-'}</td>`;
@@ -516,6 +521,25 @@ class OrderManagement {
         return methodMap[method] || method || '-';
     }
 
+    /** 列表「配送方式」列：快递 / 门店自提 + 门店名 */
+    getDeliveryTypeCell(order) {
+        const dt = String(order.deliveryType || '').toLowerCase();
+        if (dt === 'pickup') {
+            const storeName = order.store && order.store.name ? order.store.name : '';
+            return storeName ? `门店自提（${this.escapeHtml(storeName)}）` : '门店自提';
+        }
+        if (dt === 'delivery' || order.shippingAddress) return '快递配送';
+        if (order.deliveryType) return String(order.deliveryType);
+        return '—';
+    }
+
+    escapeHtml(str) {
+        if (str == null) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
     // 渲染分页
     renderPagination() {
         const pagination = document.getElementById('ordersPagination');
@@ -626,6 +650,20 @@ class OrderManagement {
             
             if (detailMemberName) detailMemberName.textContent = order.member?.nickname || '-';
             if (detailMemberPhone) detailMemberPhone.textContent = order.member?.phone || '-';
+            const detailDeliveryTypeEl = document.getElementById('detailDeliveryType');
+            const detailPickupStoreEl = document.getElementById('detailPickupStore');
+            if (detailDeliveryTypeEl) {
+                detailDeliveryTypeEl.textContent = String(order.deliveryType || '') === 'pickup' ? '门店自提' : '快递配送';
+            }
+            if (detailPickupStoreEl) {
+                if (String(order.deliveryType || '') === 'pickup' && order.store) {
+                    const sn = order.store.name || '';
+                    const sa = order.store.address || '';
+                    detailPickupStoreEl.textContent = [sn, sa].filter(Boolean).join(' ') || '-';
+                } else {
+                    detailPickupStoreEl.textContent = '-';
+                }
+            }
             if (detailReceiverName) detailReceiverName.textContent = order.receiverName || '-';
             if (detailReceiverPhone) detailReceiverPhone.textContent = order.receiverPhone || '-';
             if (detailShippingAddress) detailShippingAddress.textContent = order.shippingAddress || '-';
@@ -1181,6 +1219,12 @@ class OrderManagement {
         try {
             // 先获取订单信息，检查是否为服务商品
             const order = this.orders.find(o => o.id === parseInt(orderId));
+            if (order) {
+                if (String(order.deliveryType || '') === 'pickup') {
+                    showAlert('该订单为门店自提，请点击「确认用户自提」，无需填写快递单号。', 'info');
+                    return;
+                }
+            }
             if (order && order.items && order.items.length > 0) {
                 // 检查订单是否包含服务商品
                 const isServiceOrder = this.isServiceOrder(order);

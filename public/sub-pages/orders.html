@@ -759,6 +759,7 @@
                             <th>总金额</th>
                             <th>状态</th>
                             <th>支付方式</th>
+                            <th>配送方式</th>
                             <th>支付时间</th>
                             <th>创建时间</th>
                             <th>操作</th>
@@ -894,6 +895,14 @@
                                         <tr>
                                             <td><strong>联系电话：</strong></td>
                                             <td id="detailMemberPhone">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>配送方式：</strong></td>
+                                            <td id="detailDeliveryType">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>自提门店：</strong></td>
+                                            <td id="detailPickupStore">-</td>
                                         </tr>
                                         <tr>
                                             <td><strong>收货人：</strong></td>
@@ -1161,8 +1170,8 @@
                                     <option value="标准快递">标准快递</option>
                                     <option value="次日达">次日达</option>
                                     <option value="当日达">当日达</option>
-                                    <option value="自提">自提</option>
                                 </select>
+                                <small class="form-text text-muted">门店自提订单请勿在此发货，请使用列表中的「确认用户自提」。</small>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="shippingRemark" class="form-label">备注</label>
