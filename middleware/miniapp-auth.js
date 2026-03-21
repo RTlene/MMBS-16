@@ -4,11 +4,8 @@
  */
 
 const axios = require('axios');
-const https = require('https');
+const { mergeAxiosHttpsOpts } = require('../utils/wechatHttpsAgent');
 const { Member, MemberLevel } = require('../db');
-
-// 云托管等环境出网可能经代理/SSL 拦截，会收到自签名证书，需跳过证书校验才能访问微信 API
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // ==================== 微信 access_token（用于手机号解密等） ====================
 let _wxAccessTokenCache = { token: null, expiresAt: 0 };
@@ -22,11 +19,13 @@ async function getWxAccessToken() {
   if (_wxAccessTokenCache.token && _wxAccessTokenCache.expiresAt - now > 60 * 1000) {
     return _wxAccessTokenCache.token;
   }
-  const resp = await axios.get('https://api.weixin.qq.com/cgi-bin/token', {
-    params: { grant_type: 'client_credential', appid, secret },
-    timeout: 10000,
-    httpsAgent
-  });
+  const resp = await axios.get(
+    'https://api.weixin.qq.com/cgi-bin/token',
+    mergeAxiosHttpsOpts({
+      params: { grant_type: 'client_credential', appid, secret },
+      timeout: 10000
+    })
+  );
   const data = resp && resp.data ? resp.data : {};
   if (data.errcode) throw new Error(data.errmsg || '获取微信 access_token 失败');
   if (!data.access_token) throw new Error('获取微信 access_token 失败：缺少 access_token');
@@ -51,16 +50,18 @@ async function code2Session(code) {
       throw new Error('未配置微信小程序 AppID 或 AppSecret。请在云托管环境变量中配置 WX_APPID 和 WX_APPSECRET');
     }
     
-    const response = await axios.get('https://api.weixin.qq.com/sns/jscode2session', {
-      params: {
-        appid: appid,
-        secret: secret,
-        js_code: code,
-        grant_type: 'authorization_code'
-      },
-      timeout: 10000,
-      httpsAgent
-    });
+    const response = await axios.get(
+      'https://api.weixin.qq.com/sns/jscode2session',
+      mergeAxiosHttpsOpts({
+        params: {
+          appid: appid,
+          secret: secret,
+          js_code: code,
+          grant_type: 'authorization_code'
+        },
+        timeout: 10000
+      })
+    );
 
     console.log('[MiniappAuth] code2Session 响应:', response.data);
 
@@ -258,7 +259,7 @@ async function miniappGetPhoneNumber(req, res) {
     const resp = await axios.post(
       `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(accessToken)}`,
       { code: phoneCode },
-      { timeout: 10000, httpsAgent, headers: { 'Content-Type': 'application/json' } }
+      mergeAxiosHttpsOpts({ timeout: 10000, headers: { 'Content-Type': 'application/json' } })
     );
     const data = resp && resp.data ? resp.data : {};
     if (data.errcode && data.errcode !== 0) {

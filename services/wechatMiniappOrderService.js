@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { mergeAxiosHttpsOpts } = require('../utils/wechatHttpsAgent');
 
 const TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/token';
 const UPLOAD_SHIPPING_URL = 'https://api.weixin.qq.com/wxa/sec/order/upload_shipping_info';
@@ -29,7 +30,7 @@ async function fetchIsTradeManaged() {
     const res = await axios.post(
         `${IS_TRADE_MANAGED_URL}?access_token=${encodeURIComponent(accessToken)}`,
         {},
-        { timeout: 10000 }
+        mergeAxiosHttpsOpts({ timeout: 10000 })
     );
     const data = res.data || {};
     if (data.errcode !== 0) {
@@ -163,14 +164,17 @@ async function getAccessToken() {
         throw new Error('缺少 WX_APPID 或 WX_APPSECRET');
     }
 
-    const res = await axios.get(TOKEN_URL, {
-        params: {
-            grant_type: 'client_credential',
-            appid,
-            secret
-        },
-        timeout: 10000
-    });
+    const res = await axios.get(
+        TOKEN_URL,
+        mergeAxiosHttpsOpts({
+            params: {
+                grant_type: 'client_credential',
+                appid,
+                secret
+            },
+            timeout: 10000
+        })
+    );
     const data = res.data || {};
     if (!data.access_token) {
         throw new Error(data.errmsg || '获取 access_token 失败');
@@ -227,9 +231,11 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
         payload.receiver_contact = phone;
     }
 
-    const res = await axios.post(`${UPLOAD_SHIPPING_URL}?access_token=${encodeURIComponent(accessToken)}`, payload, {
-        timeout: 12000
-    });
+    const res = await axios.post(
+        `${UPLOAD_SHIPPING_URL}?access_token=${encodeURIComponent(accessToken)}`,
+        payload,
+        mergeAxiosHttpsOpts({ timeout: 12000 })
+    );
     const data = res.data || {};
     if (data.errcode !== 0) {
         console.error('[WechatOrderSync] upload_shipping_info 失败', {
@@ -274,9 +280,11 @@ async function notifyConfirmReceive({ order }) {
     const payload = {
         order_key: buildOrderKey(order)
     };
-    const res = await axios.post(`${CONFIRM_RECEIVE_URL}?access_token=${encodeURIComponent(accessToken)}`, payload, {
-        timeout: 12000
-    });
+    const res = await axios.post(
+        `${CONFIRM_RECEIVE_URL}?access_token=${encodeURIComponent(accessToken)}`,
+        payload,
+        mergeAxiosHttpsOpts({ timeout: 12000 })
+    );
     const data = res.data || {};
     if (data.errcode !== 0) {
         const msg = `${data.errcode} ${data.errmsg || ''}`.trim();

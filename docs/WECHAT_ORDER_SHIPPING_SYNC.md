@@ -33,6 +33,10 @@
 | `WX_APPSECRET` | 小程序 AppSecret，用于 `access_token` |
 | `WX_MCHID` | 商户号；当订单上无 `transactionId` 时，用于 `order_key` 类型 1（商户订单号）回退 |
 
+### HTTPS / 云托管
+
+若日志出现 **`self-signed certificate`**（访问 `api.weixin.qq.com` 失败），多为云托管出网经代理导致 TLS 校验不通过。项目已通过 `utils/wechatHttpsAgent.js` 与登录接口一致，对微信 API 默认使用 **`rejectUnauthorized: false`**。若在可直连公网的环境希望严格校验证书，可设置 **`WX_HTTPS_STRICT=1`**。
+
 ## 公众平台仍不同步时的排查清单
 
 1. **是否已开通「发货信息管理服务」**  
