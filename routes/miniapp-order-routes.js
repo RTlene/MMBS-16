@@ -4,7 +4,7 @@ const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, Order
 const CommissionService = require('../services/commissionService');
 const configStore = require('../services/configStore');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
-const { enrichPickupStoreOnOrderJson } = require('../utils/orderStoreEnrich');
+const { enrichPickupStoreOnOrderJson, persistMiniappOrderPickupFields } = require('../utils/orderStoreEnrich');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
 // 尝试加载 PromotionService，如果失败则设为 null
@@ -408,6 +408,19 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             } else {
                 throw createErr;
             }
+        }
+
+        // 强制落库自提门店/配送方式（Sequelize 可能因模型移除字段未写入 INSERT）
+        try {
+            if (isPickup && order && order.id) {
+                await persistMiniappOrderPickupFields(order.id, {
+                    storeId: parseInt(storeId, 10),
+                    isPickup: true
+                });
+                await order.reload();
+            }
+        } catch (persistErr) {
+            console.error('[MiniappOrder] persistMiniappOrderPickupFields 失败:', persistErr.message);
         }
 
         // 如果使用了佣金或积分，扣除相应的余额

@@ -22,6 +22,9 @@
   - 发货：快递 `logistics_type=1`，自提 `logistics_type=4`。
   - 调用发货/确认收货前会探测 **`is_trade_managed`**，未开通时在服务器日志中输出 **WARN**（关键词：`[WechatOrderSync]`）。
 
+- **支付成功回调**（`routes/payment-routes.js`）：若订单为 **门店自提**（`utils/orderStoreEnrich.js` 中 `isPickupOrderByRaw`：按库表 raw 读取 `deliveryType` / `storeId` / **`shippingMethod`**），会在写入 `transactionId` 后自动调用 **`upload_shipping_info`**（自提模式），便于公众平台与订单资金状态对齐。快递订单仍仅在后台「发货」时同步。
+- **若公众平台仍显示「待发货」**：先看云日志是否出现 `[WechatOrderSync] 支付回调：未识别为自提`（说明库中未写入自提标记）；或 `upload_shipping_info 失败` 的 `errcode`；或 `会员 openid 为空`。历史库若仅有 `shippingMethod=pickup` 而无 `deliveryType`/`storeId` 列，旧逻辑会跳过同步，已改为同时识别 `shippingMethod`。
+
 ## 环境变量（必填）
 
 | 变量 | 说明 |
@@ -49,4 +52,4 @@
 
 ## 门店自提（订单详情无门店名）
 
-若 `orders` 表中门店外键列与 Sequelize 模型字段不一致（如列为 `store_id`），仅 `toJSON()` 可能拿不到 `storeId`。本项目通过 `utils/orderStoreEnrich.js` 按真实列名 **raw 查询** 补全 `storeId` 与门店信息，后台与小程序订单详情均应能显示自提门店。
+若 `orders` 表中门店外键列与 Sequelize 模型字段不一致（如列为 `store_id`），或启动时从模型移除了 `storeId`，**`Order.create` 可能不会把门店写入数据库**。本项目在小程序创建订单后通过 `utils/orderStoreEnrich.js` 的 **`persistMiniappOrderPickupFields`** 按真实列名执行 **UPDATE** 强制落库，再结合 raw 查询补全详情展示。

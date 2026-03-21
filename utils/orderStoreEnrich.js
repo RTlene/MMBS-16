@@ -1,25 +1,100 @@
 /**
  * 自提门店补全：Sequelize 可能未映射 orders 表中的门店列（列名 storeId / store_id），
- * 导致 toJSON() 无 storeId、无法 JOIN Store。此处用 describeTable 解析真实列名并 raw 读取。
+ * 导致 toJSON() 无 storeId、无法 JOIN Store。此处用 describeTable 解析真实列名并 raw 读写。
  */
 const { Store, sequelize } = require('../db');
 
-let _storeIdColName = null;
-let _storeIdColResolved = false;
+let _ordersDescCache = null;
+
+async function getOrdersTableDesc() {
+    if (!_ordersDescCache) {
+        try {
+            _ordersDescCache = await sequelize.getQueryInterface().describeTable('orders');
+        } catch (e) {
+            _ordersDescCache = {};
+        }
+    }
+    return _ordersDescCache;
+}
+
+function findColumnKey(desc, logicalCompact) {
+    return Object.keys(desc || {}).find((k) => k.toLowerCase().replace(/_/g, '') === logicalCompact);
+}
 
 async function getOrdersStoreIdColumnName() {
-    if (_storeIdColResolved) return _storeIdColName;
-    _storeIdColResolved = true;
-    try {
-        const desc = await sequelize.getQueryInterface().describeTable('orders');
-        const key = Object.keys(desc || {}).find(
-            (k) => k.toLowerCase().replace(/_/g, '') === 'storeid'
-        );
-        _storeIdColName = key || null;
-    } catch (e) {
-        _storeIdColName = null;
+    const desc = await getOrdersTableDesc();
+    return findColumnKey(desc, 'storeid') || null;
+}
+
+async function getOrdersDeliveryTypeColumnName() {
+    const desc = await getOrdersTableDesc();
+    return findColumnKey(desc, 'deliverytype') || null;
+}
+
+async function getOrdersShippingMethodColumnName() {
+    const desc = await getOrdersTableDesc();
+    return findColumnKey(desc, 'shippingmethod') || null;
+}
+
+/**
+ * 创建订单后强制写入自提字段（避免 Sequelize 已移除属性/列名不一致导致 INSERT 未落库）
+ */
+async function persistMiniappOrderPickupFields(orderId, { storeId, isPickup }) {
+    if (!orderId || !isPickup) return;
+    const sid = parseInt(storeId, 10);
+    const storeCol = await getOrdersStoreIdColumnName();
+    const dtCol = await getOrdersDeliveryTypeColumnName();
+    const smCol = await getOrdersShippingMethodColumnName();
+    if (!storeCol && !dtCol && !smCol) {
+        console.warn('[OrderStore] persist pickup skipped: orders 表无 storeId/deliveryType/shippingMethod 列');
+        return;
     }
-    return _storeIdColName;
+    if (storeCol && (!Number.isFinite(sid) || sid <= 0)) {
+        console.warn('[OrderStore] persist pickup skipped: bad storeId', storeId);
+        return;
+    }
+    const parts = [];
+    const repl = { id: orderId };
+    if (storeCol) {
+        repl.sid = sid;
+        parts.push(`\`${storeCol.replace(/`/g, '``')}\` = :sid`);
+    }
+    if (dtCol) {
+        repl.dt = 'pickup';
+        parts.push(`\`${dtCol.replace(/`/g, '``')}\` = :dt`);
+    }
+    if (smCol) {
+        repl.pmsm = 'pickup';
+        parts.push(`\`${smCol.replace(/`/g, '``')}\` = :pmsm`);
+    }
+    if (parts.length === 0) return;
+    await sequelize.query(`UPDATE orders SET ${parts.join(', ')} WHERE id = :id`, { replacements: repl });
+    console.log('[OrderStore] persist pickup fields OK', { orderId, storeCol, dtCol, smCol, sid });
+}
+
+/** 支付回调等场景：不依赖 Sequelize 模型是否含 deliveryType/storeId */
+async function isPickupOrderByRaw(orderId) {
+    if (!orderId) return false;
+    const dtCol = await getOrdersDeliveryTypeColumnName();
+    const storeCol = await getOrdersStoreIdColumnName();
+    const smCol = await getOrdersShippingMethodColumnName();
+    // 历史库可能仅有 shippingMethod（pickup/自提），无 deliveryType/storeId 列；此前会误判为非自提导致未同步微信发货
+    if (!dtCol && !storeCol && !smCol) return false;
+    const cols = ['id'];
+    if (dtCol) cols.push(`\`${dtCol.replace(/`/g, '``')}\` AS dt`);
+    if (storeCol) cols.push(`\`${storeCol.replace(/`/g, '``')}\` AS sid`);
+    if (smCol) cols.push(`\`${smCol.replace(/`/g, '``')}\` AS sm`);
+    const [rows] = await sequelize.query(`SELECT ${cols.join(', ')} FROM orders WHERE id = :id LIMIT 1`, {
+        replacements: { id: orderId }
+    });
+    const r = rows && rows[0];
+    if (!r) return false;
+    if (String(r.dt || '').toLowerCase() === 'pickup') return true;
+    if (r.sid != null && parseInt(r.sid, 10) > 0) return true;
+    const sm = String(r.sm || '').trim();
+    const sml = sm.toLowerCase();
+    if (sml === 'pickup' || sm === '自提' || sml === 'store_pickup' || sml === 'store') return true;
+    return false;
 }
 
 /**
@@ -103,6 +178,10 @@ async function enrichPickupStoresOnOrderJsonList(orderJsonList) {
 
 module.exports = {
     getOrdersStoreIdColumnName,
+    getOrdersDeliveryTypeColumnName,
+    getOrdersShippingMethodColumnName,
+    persistMiniappOrderPickupFields,
+    isPickupOrderByRaw,
     readStoreIdsForOrderIds,
     enrichPickupStoreOnOrderJson,
     enrichPickupStoresOnOrderJsonList

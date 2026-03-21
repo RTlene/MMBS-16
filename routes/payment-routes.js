@@ -8,6 +8,8 @@ const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 const { authenticateToken } = require('../middleware/auth');
 const { Order, Member } = require('../db');
 const wechatPayService = require('../services/wechatPayService');
+const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
+const { isPickupOrderByRaw } = require('../utils/orderStoreEnrich');
 
 const router = express.Router();
 
@@ -300,6 +302,28 @@ router.post('/wechat/notify', async (req, res) => {
                 }
 
                 console.log('[Payment] 订单支付成功:', order.orderNo);
+
+                // 门店自提：支付成功后向微信录入发货信息（logistics_type=4），否则公众平台订单与资金状态不同步
+                try {
+                    const pickup = await isPickupOrderByRaw(order.id);
+                    if (pickup && wechatMiniappOrderService.isEnabled()) {
+                        await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
+                            isPickup: true,
+                            shippingCompany: '',
+                            trackingNumber: ''
+                        });
+                        console.log('[WechatOrderSync] 支付回调已同步自提发货信息', order.orderNo);
+                    } else if (pickup && !wechatMiniappOrderService.isEnabled()) {
+                        console.warn(
+                            '[WechatOrderSync] 支付回调：自提订单但缺少 WX_APPID/WX_APPSECRET，未调用 upload_shipping_info',
+                            order.orderNo
+                        );
+                    } else if (!pickup) {
+                        console.log('[WechatOrderSync] 支付回调：未识别为自提（仅 deliveryType/storeId/shippingMethod 任一为自提），跳过同步', order.orderNo);
+                    }
+                } catch (syncErr) {
+                    console.warn('[WechatOrderSync] 支付回调同步自提发货失败（可稍后在后台确认自提重试）', order.orderNo, syncErr.message);
+                }
             }
         } else if (trade_state === 'CLOSED' || trade_state === 'REVOKED') {
             // 支付关闭或撤销

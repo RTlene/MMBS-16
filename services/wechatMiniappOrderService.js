@@ -194,6 +194,9 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
     if (!order || !order.orderNo) {
         throw new Error('订单信息不完整');
     }
+    if (!String(memberOpenid || '').trim()) {
+        console.warn('[WechatOrderSync] upload_shipping_info: 会员 openid 为空，微信侧可能拒绝或无法关联订单', order.orderNo);
+    }
     await warnIfTradeManagedOff('upload_shipping_info');
     const accessToken = await getAccessToken();
 
