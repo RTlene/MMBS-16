@@ -374,10 +374,7 @@ class OrderManagement {
             }
         }
 
-        // 确认收货（已发货状态）
-        if (order.status === 'shipped') {
-            buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.deliverOrder(${order.id})" title="确认收货"><i class="fas fa-check"></i> 确认收货</button>`;
-        }
+        // 确认收货：仅用户可在小程序内完成（微信确认收货组件），已发货待用户确认，后台不提供代点
 
         // 处理退货申请
         if (order.returnStatus === 'requested') {
@@ -1511,30 +1508,6 @@ class OrderManagement {
         } catch (error) {
             console.error('变更订单类型失败:', error);
             showAlert('变更订单类型失败', 'error');
-        }
-    }
-
-    // 确认收货
-    async deliverOrder(orderId) {
-        if (!confirm('确认收货？')) return;
-
-        try {
-            const response = await fetch(`/api/orders/${orderId}/deliver`, {
-                method: 'PUT',
-                headers: getAuthHeaders()
-            });
-
-            const result = await response.json();
-            
-            if (result.code === 0) {
-                showAlert('确认收货成功', 'success');
-                this.loadOrders();
-            } else {
-                showAlert('确认收货失败: ' + result.message, 'error');
-            }
-        } catch (error) {
-            console.error('确认收货失败:', error);
-            showAlert('确认收货失败', 'error');
         }
     }
 

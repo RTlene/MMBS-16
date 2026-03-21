@@ -269,7 +269,7 @@ Authorization: Bearer {你的Token}
 1. 创建测试订单（已支付）
 2. 查询订单详情
 3. 发货：`PUT /api/orders/:id/ship`
-4. 确认收货：`PUT /api/orders/:id/deliver`
+4. 确认收货：用户在小程序完成（或 `PUT /api/miniapp/orders/:id/status` 置为 `delivered`）；后台不再提供 `PUT /api/orders/:id/deliver`
 5. 验证佣金是否到账
 
 ### 场景2：测试不同支付方式

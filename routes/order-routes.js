@@ -1155,73 +1155,7 @@ router.put('/:id/pickup-confirm', async (req, res) => {
     }
 });
 
-// 确认收货
-router.put('/:id/deliver', async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const order = await Order.findByPk(id);
-        if (!order) {
-            return res.status(404).json({
-                code: 1,
-                message: '订单不存在'
-            });
-        }
-
-        if (order.status !== 'shipped') {
-            return res.status(400).json({
-                code: 1,
-                message: '只有已发货状态的订单才能确认收货'
-            });
-        }
-
-        await order.update({
-            status: 'delivered',
-            deliveredAt: new Date(),
-            updatedBy: req.user?.id
-        });
-
-        // 记录操作日志
-        await OrderOperationLog.create({
-            orderId: order.id,
-            operation: 'deliver',
-            operatorId: req.user?.id,
-            operatorType: req.user ? 'admin' : 'member',
-            oldStatus: 'shipped',
-            newStatus: 'delivered',
-            description: '订单已确认收货'
-        });
-
-        try {
-            if (!isOrderPickupDelivery(order)) {
-                await wechatMiniappOrderService.notifyConfirmReceive({ order });
-            }
-            console.log('[OrderSync] 收货确认已同步到微信小程序订单:', order.orderNo);
-        } catch (syncErr) {
-            console.warn('[OrderSync] 收货确认同步微信失败:', order.orderNo, syncErr.message);
-        }
-
-        // 订单完成时触发佣金计算
-        try {
-            await CommissionService.calculateOrderCommission(order.id);
-        } catch (error) {
-            console.error('订单完成佣金计算失败:', error);
-        }
-
-        res.json({
-            code: 0,
-            message: '确认收货成功',
-            data: { order }
-        });
-    } catch (error) {
-        console.error('确认收货失败:', error);
-        res.status(500).json({
-            code: 1,
-            message: '确认收货失败',
-            error: error.message
-        });
-    }
-});
+// 快递订单「确认收货」已由小程序用户在微信侧完成（weappOrderConfirm），后台不再提供代点收货，避免与公众平台结算不一致。见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md
 
 // 申请退货
 router.post('/:id/return', async (req, res) => {
