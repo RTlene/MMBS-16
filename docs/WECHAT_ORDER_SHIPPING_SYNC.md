@@ -43,6 +43,7 @@
 |--------|------|------|
 | **40097** | invalid args | **`is_trade_managed`** 等接口 POST body 须带 **`appid`**（与 `WX_APPID` 一致），空 body 会报此错。 |
 | **47001** | data format error | 多为 JSON 与文档不一致：例如误在 **`upload_shipping_info` 根级**传 **`receiver_contact`**（非官方示例字段）。收件人联系方式应放在 **`shipping_list[].contact.receiver_contact`**（如顺丰必填场景）。 |
+| **10060001** | 支付单不存在 | 常见于**支付成功回调后立即**调用发货接口，微信侧订单尚未同步；本项目会对 **`transaction_id`（type=2）**自动间隔重试，仍失败则改用 **`mchid` + `out_trade_no`（type=1）**与统一下单一致。请确认 **`WX_MCHID`** 与支付商户号一致、**`orderNo`** 与微信侧商户订单号一致。 |
 
 ## 公众平台仍不同步时的排查清单
 

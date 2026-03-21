@@ -149,6 +149,11 @@ function buildOrderKey(order) {
     if (tid) {
         return { order_number_type: 2, transaction_id: tid };
     }
+    return buildOrderKeyMerchantOnly(order);
+}
+
+/** 仅商户单号形式（与 JSAPI 下单 out_trade_no 一致），用于无 transactionId 或 type2 返回 10060001 时回退 */
+function buildOrderKeyMerchantOnly(order) {
     const mchid = String(process.env.WX_MCHID || '').trim();
     const out = String(order.orderNo || '').trim();
     if (!mchid || !out) {
@@ -156,6 +161,14 @@ function buildOrderKey(order) {
     }
     return { order_number_type: 1, mchid, out_trade_no: out };
 }
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 支付回调后立即发货时，微信侧可能尚未可查支付单，会返回 10060001；间隔重试 */
+const UPLOAD_RETRY_GAPS_MS = [2000, 3500, 5500];
+const UPLOAD_MAX_ATTEMPTS_TYPE2 = 4;
 
 function isEnabled() {
     return !!(process.env.WX_APPID && process.env.WX_APPSECRET);
@@ -232,8 +245,8 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
         return line;
     })();
 
-    const payload = {
-        order_key: buildOrderKey(order),
+    const buildPayload = (orderKey) => ({
+        order_key: orderKey,
         logistics_type: isPickup ? 4 : 1,
         delivery_mode: 1,
         upload_time: formatUploadTimeRfc3339(),
@@ -241,18 +254,21 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
             openid: String(memberOpenid || '')
         },
         shipping_list: isPickup ? [{ item_desc: itemDesc }] : [expressLine]
+    });
+
+    const postOnce = async (payload) => {
+        const res = await axios.post(
+            `${UPLOAD_SHIPPING_URL}?access_token=${encodeURIComponent(accessToken)}`,
+            payload,
+            mergeAxiosHttpsOpts({
+                timeout: 12000,
+                headers: { 'Content-Type': 'application/json' }
+            })
+        );
+        return res.data || {};
     };
 
-    const res = await axios.post(
-        `${UPLOAD_SHIPPING_URL}?access_token=${encodeURIComponent(accessToken)}`,
-        payload,
-        mergeAxiosHttpsOpts({
-            timeout: 12000,
-            headers: { 'Content-Type': 'application/json' }
-        })
-    );
-    const data = res.data || {};
-    if (data.errcode !== 0) {
+    const logFail = (data, payload) => {
         console.error('[WechatOrderSync] upload_shipping_info 失败', {
             errcode: data.errcode,
             errmsg: data.errmsg,
@@ -261,8 +277,49 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
             payerOpenid: String(memberOpenid || '').slice(0, 8) + '…',
             payloadKeys: Object.keys(payload),
             logistics_type: payload.logistics_type,
-            shipping_list_len: Array.isArray(payload.shipping_list) ? payload.shipping_list.length : 0
+            shipping_list_len: Array.isArray(payload.shipping_list) ? payload.shipping_list.length : 0,
+            order_key_type: payload.order_key && payload.order_key.order_number_type
         });
+    };
+
+    const tid = String(order.transactionId || '').trim();
+    let data;
+
+    if (tid) {
+        for (let attempt = 0; attempt < UPLOAD_MAX_ATTEMPTS_TYPE2; attempt++) {
+            if (attempt > 0) {
+                await sleep(UPLOAD_RETRY_GAPS_MS[attempt - 1]);
+                console.warn('[WechatOrderSync] upload_shipping_info 重试（支付单可能尚未同步）', {
+                    attempt: attempt + 1,
+                    orderNo: order.orderNo,
+                    transactionIdTail: tid.slice(-8)
+                });
+            }
+            data = await postOnce(buildPayload({ order_number_type: 2, transaction_id: tid }));
+            if (data.errcode === 0) return data;
+            if (data.errcode !== 10060001) {
+                logFail(data, buildPayload({ order_number_type: 2, transaction_id: tid }));
+                throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
+            }
+        }
+        console.warn(
+            '[WechatOrderSync] upload_shipping_info 多次 10060001，改用商户单号 order_key（type=1）重试',
+            order.orderNo
+        );
+        const payloadM = buildPayload(buildOrderKeyMerchantOnly(order));
+        data = await postOnce(payloadM);
+        if (data.errcode === 0) {
+            console.log('[WechatOrderSync] upload_shipping_info 使用商户单号 order_key 成功', order.orderNo);
+            return data;
+        }
+        logFail(data, payloadM);
+        throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
+    }
+
+    const payload = buildPayload(buildOrderKey(order));
+    data = await postOnce(payload);
+    if (data.errcode !== 0) {
+        logFail(data, payload);
         throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
     }
     return data;
