@@ -29,6 +29,16 @@ function normalizeMiniappDeliveryType(raw) {
     return 'delivery';
 }
 
+/** 订单是否门店自提（列表筛选 / 文案展示） */
+function isPickupOrderRow(order) {
+    if (!order) return false;
+    const dt = String(order.deliveryType || '').toLowerCase();
+    const sm = String(order.shippingMethod || '').toLowerCase();
+    if (dt === 'pickup') return true;
+    if (sm === 'pickup' || order.shippingMethod === '自提') return true;
+    return false;
+}
+
 /**
  * 解析创建订单请求体：兼容云托管/网关将 JSON 转为 snake_case，或包一层 { data: {...} }
  */
@@ -682,9 +692,9 @@ router.get('/orders', authenticateMiniappUser, async (req, res) => {
                 // 已完成：包含已收货(delivered)与已完成(completed)，用户端「已完成」tab 应看到这两类
                 where.status = { [Op.in]: ['delivered', 'completed'] };
             } else if (status === 'paid') {
-                // 待发货：仅需发货的订单（至少包含一件实物商品），纯服务订单只出现在「待使用」
+                // 待发货：实物已支付且需快递发货；自提已支付在「待收货」tab
                 const [paidPhysicalRows] = await sequelize.query(
-                    `SELECT DISTINCT o.id FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical'`,
+                    `SELECT DISTINCT o.id FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical' AND NOT (LOWER(IFNULL(o.deliveryType,'')) = 'pickup' OR LOWER(IFNULL(o.shippingMethod,'')) = 'pickup' OR o.shippingMethod = '自提')`,
                     { replacements: { memberId: member.id } }
                 );
                 const orderIds = (paidPhysicalRows || []).map(r => r.id);
@@ -697,6 +707,19 @@ router.get('/orders', authenticateMiniappUser, async (req, res) => {
                 }
                 where.id = { [Op.in]: orderIds };
                 where.status = 'paid';
+            } else if (status === 'shipped') {
+                // 待收货：快递已发货 + 自提已支付（待到店/确认自提）
+                where[Op.or] = [
+                    { status: 'shipped' },
+                    {
+                        status: 'paid',
+                        [Op.or]: [
+                            { deliveryType: 'pickup' },
+                            { shippingMethod: 'pickup' },
+                            { shippingMethod: '自提' }
+                        ]
+                    }
+                ];
             } else {
                 where.status = status;
             }
@@ -771,7 +794,14 @@ router.get('/orders', authenticateMiniappUser, async (req, res) => {
                 unitPrice: order.unitPrice,
                 totalAmount: order.totalAmount,
                 status: order.status,
-                statusText: hasServiceProduct && order.status === 'paid' && hasUnusedCodes ? '待使用' : getOrderStatusText(order.status),
+                deliveryType: order.deliveryType || null,
+                shippingMethod: order.shippingMethod || null,
+                statusText:
+                    hasServiceProduct && order.status === 'paid' && hasUnusedCodes
+                        ? '待使用'
+                        : order.status === 'paid' && isPickupOrderRow(order)
+                          ? '待收货'
+                          : getOrderStatusText(order.status),
                 isServiceOrder: hasServiceProduct,
                 hasUnusedCodes: hasUnusedCodes,
                 paymentMethod: order.paymentMethod,
@@ -853,16 +883,28 @@ router.get('/orders/stats', authenticateMiniappUser, async (req, res) => {
             }
         }
 
-        // 待发货（仅需发货的 paid 订单，排除纯服务订单），与订单列表「待发货」tab 一致（表名与 db.js 一致：Products）
+        // 待发货（仅需发货的 paid 订单，排除纯服务订单与自提），与订单列表「待发货」tab 一致
         try {
             const [paidShipRows] = await sequelize.query(
-                `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical'`,
+                `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND o.status = 'paid' AND p.productType = 'physical' AND NOT (LOWER(IFNULL(o.deliveryType,'')) = 'pickup' OR LOWER(IFNULL(o.shippingMethod,'')) = 'pickup' OR o.shippingMethod = '自提')`,
                 { replacements: { memberId: member.id } }
             );
             statusCounts.paidNeedShip = (paidShipRows && paidShipRows[0] && parseInt(paidShipRows[0].cnt, 10)) || 0;
         } catch (err) {
             console.error('统计待发货(需发货)失败:', err.message || err);
             statusCounts.paidNeedShip = 0;
+        }
+
+        // 待收货 tab：已发货 + 自提已支付（与小程序「待收货」一致）
+        try {
+            const [recvRows] = await sequelize.query(
+                `SELECT COUNT(DISTINCT o.id) AS cnt FROM orders o INNER JOIN order_items oi ON o.id = oi.orderId INNER JOIN Products p ON oi.productId = p.id WHERE o.memberId = :memberId AND p.productType = 'physical' AND (o.status = 'shipped' OR (o.status = 'paid' AND (LOWER(IFNULL(o.deliveryType,'')) = 'pickup' OR LOWER(IFNULL(o.shippingMethod,'')) = 'pickup' OR o.shippingMethod = '自提')))`,
+                { replacements: { memberId: member.id } }
+            );
+            statusCounts.shippedTab = (recvRows && recvRows[0] && parseInt(recvRows[0].cnt, 10)) || 0;
+        } catch (err) {
+            console.error('统计待收货失败:', err.message || err);
+            statusCounts.shippedTab = statusCounts.shipped;
         }
 
         res.json({
@@ -1007,6 +1049,16 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             }));
         }
 
+        const wxMchId = String(process.env.WX_MCHID || '').trim();
+        const wechatOrderConfirm =
+            order.paymentMethod === 'wechat' && (order.transactionId || (wxMchId && order.orderNo))
+                ? {
+                      transactionId: order.transactionId || '',
+                      merchantId: wxMchId,
+                      merchantTradeNo: order.orderNo || ''
+                  }
+                : null;
+
         const orderDetail = {
             id: order.id,
             orderNo: order.orderNo,
@@ -1066,7 +1118,9 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
                 description: log.description,
                 createdAt: log.createdAt,
                 data: log.data
-            }))
+            })),
+            /** 供小程序 wx.openBusinessView weappOrderConfirm 的 extraData（仅微信支付单） */
+            wechatOrderConfirm
         };
 
         // 退货已通过时返回平台退货地址，供用户邮寄
@@ -1182,16 +1236,21 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
                 console.error('订单完成佣金计算失败:', e);
             }
             try {
-                const isPickupOrder = String(order.deliveryType || '') === 'pickup' || String(order.shippingMethod || '') === 'pickup' || String(order.shippingMethod || '') === '自提';
+                const isPickupOrder =
+                    String(order.deliveryType || '') === 'pickup' ||
+                    String(order.shippingMethod || '') === 'pickup' ||
+                    String(order.shippingMethod || '') === '自提';
                 if (isPickupOrder) {
                     await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
                         isPickup: true,
                         shippingCompany: '',
                         trackingNumber: ''
                     });
+                    // 自提不适用「确认收货提醒」notify_confirm_receive（仅快递签收提醒），见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md
+                } else {
+                    const orderForNotify = await Order.findByPk(order.id);
+                    await wechatMiniappOrderService.notifyConfirmReceive({ order: orderForNotify });
                 }
-                const orderForNotify = await Order.findByPk(order.id);
-                await wechatMiniappOrderService.notifyConfirmReceive({ order: orderForNotify });
                 console.log('[OrderSync] 用户确认收货/自提已同步微信小程序订单:', order.orderNo);
             } catch (syncErr) {
                 console.warn('[OrderSync] 用户确认收货/自提同步微信失败:', order.orderNo, syncErr.message);

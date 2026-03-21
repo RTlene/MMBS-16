@@ -256,6 +256,9 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
         shipping_list: isPickup ? [{ item_desc: itemDesc }] : [expressLine]
     });
 
+    /** 与上次发货内容一致时微信返回 10060023，属幂等成功（常见于支付回调已传自提，用户确认自提再次调用） */
+    const isUploadShippingUnchangedOk = (d) => d && Number(d.errcode) === 10060023;
+
     const postOnce = async (payload) => {
         const res = await axios.post(
             `${UPLOAD_SHIPPING_URL}?access_token=${encodeURIComponent(accessToken)}`,
@@ -297,6 +300,10 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
             }
             data = await postOnce(buildPayload({ order_number_type: 2, transaction_id: tid }));
             if (data.errcode === 0) return data;
+            if (isUploadShippingUnchangedOk(data)) {
+                console.log('[WechatOrderSync] upload_shipping_info 10060023 发货信息与微信一致，跳过', order.orderNo);
+                return { ...data, errcode: 0, noop: true };
+            }
             if (data.errcode !== 10060001) {
                 logFail(data, buildPayload({ order_number_type: 2, transaction_id: tid }));
                 throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
@@ -312,17 +319,23 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
             console.log('[WechatOrderSync] upload_shipping_info 使用商户单号 order_key 成功', order.orderNo);
             return data;
         }
+        if (isUploadShippingUnchangedOk(data)) {
+            console.log('[WechatOrderSync] upload_shipping_info 10060023 发货信息与微信一致（商户单号 key）', order.orderNo);
+            return { ...data, errcode: 0, noop: true };
+        }
         logFail(data, payloadM);
         throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
     }
 
     const payload = buildPayload(buildOrderKey(order));
     data = await postOnce(payload);
-    if (data.errcode !== 0) {
-        logFail(data, payload);
-        throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
+    if (data.errcode === 0) return data;
+    if (isUploadShippingUnchangedOk(data)) {
+        console.log('[WechatOrderSync] upload_shipping_info 10060023 发货信息与微信一致', order.orderNo);
+        return { ...data, errcode: 0, noop: true };
     }
-    return data;
+    logFail(data, payload);
+    throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
 }
 
 /** 后台发货后：带订单明细拼 item_desc */
@@ -343,7 +356,7 @@ async function syncAdminOrderShippingToWechat(orderId, { isPickup, shippingCompa
     });
 }
 
-async function notifyConfirmReceive({ order }) {
+async function notifyConfirmReceive({ order, receivedTimeSec }) {
     if (!isEnabled()) {
         return { skipped: true, reason: 'miniapp-config-missing' };
     }
@@ -352,8 +365,16 @@ async function notifyConfirmReceive({ order }) {
     }
     await warnIfTradeManagedOff('notify_confirm_receive');
     const accessToken = await getAccessToken();
+    /** 快递签收时间（秒）；官方文档要求，用于「确认收货提醒」 */
+    const received_time =
+        typeof receivedTimeSec === 'number' && receivedTimeSec > 0
+            ? Math.floor(receivedTimeSec)
+            : Math.floor(
+                  (order.deliveredAt ? new Date(order.deliveredAt).getTime() : Date.now()) / 1000
+              );
     const payload = {
-        order_key: buildOrderKey(order)
+        order_key: buildOrderKey(order),
+        received_time
     };
     const res = await axios.post(
         `${CONFIRM_RECEIVE_URL}?access_token=${encodeURIComponent(accessToken)}`,
@@ -363,6 +384,11 @@ async function notifyConfirmReceive({ order }) {
     const data = res.data || {};
     if (data.errcode !== 0) {
         const msg = `${data.errcode} ${data.errmsg || ''}`.trim();
+        // 非快递发货不可提醒（自提/同城等）
+        if (data.errcode === 10060032) {
+            console.warn('[WechatOrderSync] notify_confirm_receive 非快递场景不可用，忽略:', msg, order.orderNo);
+            return { ...data, ignored: true };
+        }
         // 常见：重复调用「确认收货提醒」仅允许一次
         if (String(data.errmsg || '').includes('已调用') || String(data.errmsg || '').includes('重复') || String(data.errmsg || '').includes('无需')) {
             console.warn('[WechatOrderSync] notify_confirm_receive 已处理或重复调用，忽略:', msg, order.orderNo);

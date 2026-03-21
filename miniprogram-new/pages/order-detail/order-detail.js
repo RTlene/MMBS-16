@@ -48,6 +48,41 @@ Page({
     this.loadOrderDetail();
   },
 
+  /**
+   * 从微信确认收货组件返回后，App 会写入 globalData.wechatOrderConfirmResult
+   */
+  onShow() {
+    const app = getApp();
+    const pending = app.globalData.pendingWechatConfirmOrderId;
+    const ed = app.globalData.wechatOrderConfirmResult;
+    if (!pending || !this.data.orderId) return;
+    if (String(pending) !== String(this.data.orderId)) return;
+    if (!ed || !ed.status) return;
+
+    app.globalData.pendingWechatConfirmOrderId = null;
+    app.globalData.wechatOrderConfirmResult = null;
+
+    if (ed.status === 'success') {
+      wx.showLoading({ title: '同步订单...' });
+      this.submitConfirmReceivePut()
+        .then(() => {
+          wx.hideLoading();
+        })
+        .catch(() => {
+          wx.hideLoading();
+        });
+      return;
+    }
+    if (ed.status === 'cancel') {
+      wx.showToast({ title: '已取消', icon: 'none' });
+      return;
+    }
+    wx.showToast({
+      title: ed.errormsg || '未完成确认',
+      icon: 'none'
+    });
+  },
+
   async resolveOrderIdByOrderNo(orderNo) {
     const url = `/api/miniapp/orders/by-order-no/${encodeURIComponent(orderNo)}`;
     const result = await request.get(url, {}, { showLoading: false, needAuth: true, showError: false });
@@ -448,7 +483,7 @@ Page({
   },
 
   /**
-   * 确认收货
+   * 确认收货（微信支付单优先拉起官方确认收货组件，驱动公众平台订单进入结算相关流程）
    */
   async onConfirmReceive() {
     const { order } = this.data;
@@ -462,34 +497,88 @@ Page({
       title: isPickup ? '确认自提' : '确认收货',
       content: isPickup ? '确认已完成到店自提吗？' : '确认已收到商品吗？',
       success: async (res) => {
-        if (res.confirm) {
-          try {
-            wx.showLoading({ title: '处理中...' });
-            
-            const url = API.ORDER.UPDATE_STATUS.replace(':id', order.id);
-            const result = await request.put(url, { status: 'delivered' });
-            
-            wx.hideLoading();
-            
-            if (result.code === 0) {
+        if (!res.confirm) return;
+
+        const wc = order.wechatOrderConfirm;
+        const canWechatConfirm =
+          order.paymentMethod === 'wechat' &&
+          wx.openBusinessView &&
+          wc &&
+          (wc.transactionId || (wc.merchantId && wc.merchantTradeNo));
+
+        if (canWechatConfirm) {
+          const app = getApp();
+          app.globalData.pendingWechatConfirmOrderId = order.id;
+          app.globalData.wechatOrderConfirmResult = null;
+
+          wx.openBusinessView({
+            businessType: 'weappOrderConfirm',
+            extraData: {
+              transaction_id: wc.transactionId || '',
+              merchant_id: wc.merchantId || '',
+              merchant_trade_no: wc.merchantTradeNo || ''
+            },
+            success: () => {
               wx.showToast({
-                title: '确认成功',
-                icon: 'success'
+                title: '请在微信内完成确认',
+                icon: 'none',
+                duration: 2500
               });
-              this.loadOrderDetail();
-            } else {
-              throw new Error(result.message || '确认失败');
+            },
+            fail: (err) => {
+              console.warn('[OrderDetail] openBusinessView fail', err);
+              app.globalData.pendingWechatConfirmOrderId = null;
+              wx.showModal({
+                title: '提示',
+                content: '无法拉起微信确认收货页，将仅更新本店订单状态（可能影响公众平台结算同步）。是否继续？',
+                success: (m) => {
+                  if (m.confirm) {
+                    wx.showLoading({ title: '处理中...' });
+                    this.submitConfirmReceivePut()
+                      .then(() => wx.hideLoading())
+                      .catch(() => wx.hideLoading());
+                  }
+                }
+              });
             }
-          } catch (error) {
-            wx.hideLoading();
-            wx.showToast({
-              title: error.message || '确认失败',
-              icon: 'none'
-            });
-          }
+          });
+          return;
+        }
+
+        try {
+          wx.showLoading({ title: '处理中...' });
+          await this.submitConfirmReceivePut();
+          wx.hideLoading();
+        } catch (error) {
+          wx.hideLoading();
+          wx.showToast({
+            title: error.message || '确认失败',
+            icon: 'none'
+          });
         }
       }
     });
+  },
+
+  /**
+   * 调用后端将订单置为已收货（与佣金、本系统展示一致）
+   */
+  async submitConfirmReceivePut() {
+    const { order } = this.data;
+    if (!order || !order.id) {
+      throw new Error('订单信息缺失');
+    }
+    const url = API.ORDER.UPDATE_STATUS.replace(':id', order.id);
+    const result = await request.put(url, { status: 'delivered' });
+    if (result.code === 0) {
+      wx.showToast({
+        title: '确认成功',
+        icon: 'success'
+      });
+      await this.loadOrderDetail();
+      return;
+    }
+    throw new Error(result.message || '确认失败');
   },
 
   /**

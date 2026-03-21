@@ -18,6 +18,8 @@ Page({
     hasMore: true,
     loading: false,
     refreshing: false,
+    /** 仅当列表在顶部才允许下拉刷新，避免下滑浏览时误触 refresher */
+    refresherEnabled: true,
     
     // 状态筛选
     currentStatus: '', // ''表示全部
@@ -507,10 +509,21 @@ Page({
   },
 
   /**
-   * 下拉刷新
+   * 下拉刷新（仅 scrollTop≈0 时 refresher-enabled 为 true）
    */
   onPullDownRefresh() {
     this.refreshOrders();
+  },
+
+  /**
+   * 记录滚动位置：非顶部时关闭下拉刷新，避免与向上滑动冲突
+   */
+  onScroll(e) {
+    const top = (e && e.detail && e.detail.scrollTop) || 0;
+    const nearTop = top <= 8;
+    if (nearTop !== this.data.refresherEnabled) {
+      this.setData({ refresherEnabled: nearTop });
+    }
   },
 
   /**

@@ -7,13 +7,15 @@
 | 接口 | 路径 | 说明 |
 |------|------|------|
 | 发货信息录入 | [`/wxa/sec/order/upload_shipping_info`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_uploadshippinginfo.html) | 支付后资金默认冻结，商家发货后需调用该接口录入发货信息，平台会向用户推送消息 |
-| 确认收货提醒 | [`/wxa/sec/order/notify_confirm_receive`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_notifyconfirmreceive.html) | 商家确认用户已签收时调用，**每个订单仅可成功调用一次** |
+| 确认收货提醒 | [`/wxa/sec/order/notify_confirm_receive`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_notifyconfirmreceive.html) | **仅物流快递**场景下，商家从物流侧获知签收后提醒用户去微信内确认；**自提不适用**；**每个订单仅可成功调用一次** |
 | 是否开通发货管理 | [`/wxa/sec/order/is_trade_managed`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_istrademanaged.html) | 未开通时，上述接口往往无法在公众平台侧形成一致展示 |
 
 其他相关能力（按需在微信公众平台配置）：
 
 - **消息跳转路径**：[`set_msg_jump_path`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_setmsgjumppath.html) — 用户点击发货/确认收货消息时进入小程序订单页。
 - **交易结算管理确认**：[`is_trade_management_confirmation_completed`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_istrademanagementconfirmationcompleted.html) — 商户号需完成订单管理授权等，否则可能影响结算与订单能力。
+
+**结算前提、用户侧「确认收货组件」与 `notify_confirm_receive` 分工**（必读）：见 **`docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md`**。
 
 ## 本项目中的实现
 
@@ -51,6 +53,7 @@
 | **40097** | invalid args | **`is_trade_managed`** 等接口 POST body 须带 **`appid`**（与 `WX_APPID` 一致），空 body 会报此错。 |
 | **47001** | data format error | 多为 JSON 与文档不一致：例如误在 **`upload_shipping_info` 根级**传 **`receiver_contact`**（非官方示例字段）。收件人联系方式应放在 **`shipping_list[].contact.receiver_contact`**（如顺丰必填场景）。 |
 | **10060001** | 支付单不存在 | 常见于**支付成功回调后立即**调用发货接口，微信侧订单尚未同步；本项目会对 **`transaction_id`（type=2）**自动间隔重试，仍失败则改用 **`mchid` + `out_trade_no`（type=1）**与统一下单一致。请确认 **`WX_MCHID`** 与支付商户号一致、**`orderNo`** 与微信侧商户订单号一致。 |
+| **10060023** | 发货信息未更新 | 与**上次成功上传**的发货内容一致，微信认为无变更。常见于**支付回调已上传自提发货**后，用户在小程序再次「确认自提」又调 `upload_shipping_info`。**代码已按幂等成功处理**，不视为失败。 |
 
 ## 公众平台仍不同步时的排查清单
 

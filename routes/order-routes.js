@@ -1132,7 +1132,7 @@ router.put('/:id/pickup-confirm', async (req, res) => {
                 trackingNumber: '',
                 receiverPhone: order.receiverPhone || memberWx?.phone || ''
             });
-            await wechatMiniappOrderService.notifyConfirmReceive({ order: orderForWx });
+            // 自提不适用 notify_confirm_receive（见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md）
             console.log('[OrderSync] 自提确认已同步到微信小程序订单:', order.orderNo);
         } catch (syncErr) {
             console.warn('[OrderSync] 自提确认同步微信失败:', order.orderNo, syncErr.message);
@@ -1193,7 +1193,9 @@ router.put('/:id/deliver', async (req, res) => {
         });
 
         try {
-            await wechatMiniappOrderService.notifyConfirmReceive({ order });
+            if (!isOrderPickupDelivery(order)) {
+                await wechatMiniappOrderService.notifyConfirmReceive({ order });
+            }
             console.log('[OrderSync] 收货确认已同步到微信小程序订单:', order.orderNo);
         } catch (syncErr) {
             console.warn('[OrderSync] 收货确认同步微信失败:', order.orderNo, syncErr.message);

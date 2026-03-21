@@ -81,6 +81,16 @@ App({
     // 关键：用户可能从任意页面/场景进入小程序（含从后台切回、扫码/分享直达）。
     // 在 onShow 也触发一次自动登录（内部有去重/校验缓存逻辑），确保任意入口都能完成自动注册/登录。
     this.autoLogin();
+
+    // 从微信确认收货组件返回时，referrerInfo.extraData 带 status（见官方文档 order-shipping-half）
+    try {
+      const ri = options && options.referrerInfo;
+      if (ri && ri.extraData && ri.extraData.status) {
+        this.globalData.wechatOrderConfirmResult = ri.extraData;
+      }
+    } catch (e) {
+      console.warn('[App] 解析确认收货回调失败', e);
+    }
   },
 
   /**
@@ -122,6 +132,11 @@ App({
       // 场景信息
       scene: null,             // 启动场景值
       referrerId: null,        // 分享人ID
+
+      /** 微信确认收货组件 weappOrderConfirm：待处理的订单 ID（与 order-detail 配合） */
+      pendingWechatConfirmOrderId: null,
+      /** 从 App.onShow referrerInfo.extraData 写入，含 status: success|fail|cancel */
+      wechatOrderConfirmResult: null,
       
       // 系统信息
       systemInfo: null,        // 设备信息

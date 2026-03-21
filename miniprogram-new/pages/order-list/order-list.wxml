@@ -17,9 +17,10 @@
   <scroll-view 
     class="order-list" 
     scroll-y
-    refresher-enabled
+    refresher-enabled="{{refresherEnabled}}"
     refresher-triggered="{{refreshing}}"
     bindrefresherrefresh="onPullDownRefresh"
+    bindscroll="onScroll"
     bindscrolltolower="onReachBottom"
   >
     <!-- 订单卡片 -->

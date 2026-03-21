@@ -146,7 +146,8 @@ Page({
         const orderStats = {
           ...stats,
           completed: (stats.delivered || 0) + (stats.completed || 0),
-          paid: stats.paidNeedShip !== undefined ? stats.paidNeedShip : (stats.paid || 0)
+          paid: stats.paidNeedShip !== undefined ? stats.paidNeedShip : (stats.paid || 0),
+          shipped: stats.shippedTab !== undefined ? stats.shippedTab : (stats.shipped || 0)
         };
         this.setData({ orderStats });
       }
