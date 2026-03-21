@@ -3,11 +3,57 @@ const axios = require('axios');
 const TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/token';
 const UPLOAD_SHIPPING_URL = 'https://api.weixin.qq.com/wxa/sec/order/upload_shipping_info';
 const CONFIRM_RECEIVE_URL = 'https://api.weixin.qq.com/wxa/sec/order/notify_confirm_receive';
+/** 查询是否已开通「小程序发货信息管理服务」，未开通时发货/确认收货 API 往往无法与公众平台订单对齐 */
+const IS_TRADE_MANAGED_URL = 'https://api.weixin.qq.com/wxa/sec/order/is_trade_managed';
 
 let tokenCache = {
     token: '',
     expireAt: 0
 };
+
+/** 缓存「是否已开通发货信息管理服务」探测结果，避免每次发货都打微信 */
+let tradeManagedCache = { checked: false, ok: null, detail: null, at: 0 };
+const TRADE_MANAGED_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * 官方文档：需先开通小程序发货信息管理服务，否则发货信息录入等接口无法正常用于平台订单展示。
+ * @see https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_istrademanaged.html
+ */
+async function fetchIsTradeManaged() {
+    if (!isEnabled()) return { ok: false, reason: 'miniapp-config-missing' };
+    const now = Date.now();
+    if (tradeManagedCache.checked && now - tradeManagedCache.at < TRADE_MANAGED_TTL_MS) {
+        return { ok: tradeManagedCache.ok, detail: tradeManagedCache.detail };
+    }
+    const accessToken = await getAccessToken();
+    const res = await axios.post(
+        `${IS_TRADE_MANAGED_URL}?access_token=${encodeURIComponent(accessToken)}`,
+        {},
+        { timeout: 10000 }
+    );
+    const data = res.data || {};
+    if (data.errcode !== 0) {
+        tradeManagedCache = { checked: true, ok: false, detail: data, at: now };
+        return { ok: false, detail: data };
+    }
+    const managed = data.trade_managed === true || data.trade_managed === 1 || data.is_trade_managed === true;
+    tradeManagedCache = { checked: true, ok: managed, detail: data, at: now };
+    return { ok: managed, detail: data };
+}
+
+async function warnIfTradeManagedOff(context) {
+    try {
+        const r = await fetchIsTradeManaged();
+        if (r.ok === true) return;
+        console.warn(
+            `[WechatOrderSync] ${context}: 小程序可能未开通「发货信息管理服务」或接口返回异常，公众平台订单可能与后台不一致。`,
+            '请登录微信公众平台 → 功能 → 发货信息管理服务 完成开通；并完成交易结算管理相关确认。',
+            r.detail || r
+        );
+    } catch (e) {
+        console.warn(`[WechatOrderSync] ${context}: 检测 is_trade_managed 失败`, e.message);
+    }
+}
 
 /** 微信「获取运力 id 列表」中的快递公司编码，中文名称需映射，否则易报错或无法同步 */
 const EXPRESS_COMPANY_MAP = {
@@ -148,6 +194,7 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
     if (!order || !order.orderNo) {
         throw new Error('订单信息不完整');
     }
+    await warnIfTradeManagedOff('upload_shipping_info');
     const accessToken = await getAccessToken();
 
     const itemDesc = isPickup ? buildItemDesc(order, '门店自提-订单商品') : buildItemDesc(order);
@@ -182,6 +229,13 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
     });
     const data = res.data || {};
     if (data.errcode !== 0) {
+        console.error('[WechatOrderSync] upload_shipping_info 失败', {
+            errcode: data.errcode,
+            errmsg: data.errmsg,
+            orderNo: order.orderNo,
+            hasTransactionId: !!order.transactionId,
+            payerOpenid: String(memberOpenid || '').slice(0, 8) + '…'
+        });
         throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
     }
     return data;
@@ -212,6 +266,7 @@ async function notifyConfirmReceive({ order }) {
     if (!order || !order.orderNo) {
         throw new Error('订单信息不完整');
     }
+    await warnIfTradeManagedOff('notify_confirm_receive');
     const accessToken = await getAccessToken();
     const payload = {
         order_key: buildOrderKey(order)
@@ -221,7 +276,19 @@ async function notifyConfirmReceive({ order }) {
     });
     const data = res.data || {};
     if (data.errcode !== 0) {
-        throw new Error(`notify_confirm_receive 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
+        const msg = `${data.errcode} ${data.errmsg || ''}`.trim();
+        // 常见：重复调用「确认收货提醒」仅允许一次
+        if (String(data.errmsg || '').includes('已调用') || String(data.errmsg || '').includes('重复') || String(data.errmsg || '').includes('无需')) {
+            console.warn('[WechatOrderSync] notify_confirm_receive 已处理或重复调用，忽略:', msg, order.orderNo);
+            return { ...data, ignored: true };
+        }
+        console.error('[WechatOrderSync] notify_confirm_receive 失败', {
+            errcode: data.errcode,
+            errmsg: data.errmsg,
+            orderNo: order.orderNo,
+            hasTransactionId: !!order.transactionId
+        });
+        throw new Error(`notify_confirm_receive 失败: ${msg}`);
     }
     return data;
 }
@@ -232,5 +299,7 @@ module.exports = {
     syncAdminOrderShippingToWechat,
     notifyConfirmReceive,
     normalizeExpressCompany,
-    buildOrderKey
+    buildOrderKey,
+    fetchIsTradeManaged,
+    warnIfTradeManagedOff
 };

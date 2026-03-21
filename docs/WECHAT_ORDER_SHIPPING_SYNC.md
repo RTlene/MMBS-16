@@ -1,0 +1,52 @@
+# 微信小程序：后台发货 / 确认收货 与公众平台订单同步说明
+
+## 官方能力说明
+
+微信将「小程序内支付订单」的发货与确认收货，纳入 **小程序发货信息管理服务**（又称订单与物流、交易管理服务）：
+
+| 接口 | 路径 | 说明 |
+|------|------|------|
+| 发货信息录入 | [`/wxa/sec/order/upload_shipping_info`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_uploadshippinginfo.html) | 支付后资金默认冻结，商家发货后需调用该接口录入发货信息，平台会向用户推送消息 |
+| 确认收货提醒 | [`/wxa/sec/order/notify_confirm_receive`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_notifyconfirmreceive.html) | 商家确认用户已签收时调用，**每个订单仅可成功调用一次** |
+| 是否开通发货管理 | [`/wxa/sec/order/is_trade_managed`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_istrademanaged.html) | 未开通时，上述接口往往无法在公众平台侧形成一致展示 |
+
+其他相关能力（按需在微信公众平台配置）：
+
+- **消息跳转路径**：[`set_msg_jump_path`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_setmsgjumppath.html) — 用户点击发货/确认收货消息时进入小程序订单页。
+- **交易结算管理确认**：[`is_trade_management_confirmation_completed`](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/order-shipping/order_shipping/order_shipping/api_istrademanagementconfirmationcompleted.html) — 商户号需完成订单管理授权等，否则可能影响结算与订单能力。
+
+## 本项目中的实现
+
+- 服务代码：`services/wechatMiniappOrderService.js`
+  - 使用 **微信支付单号** `transaction_id` 构造 `order_key`（`order_number_type: 2`），与微信侧支付单对齐。
+  - 发货：快递 `logistics_type=1`，自提 `logistics_type=4`。
+  - 调用发货/确认收货前会探测 **`is_trade_managed`**，未开通时在服务器日志中输出 **WARN**（关键词：`[WechatOrderSync]`）。
+
+## 环境变量（必填）
+
+| 变量 | 说明 |
+|------|------|
+| `WX_APPID` | 小程序 AppID（须与发起支付的 appid 一致） |
+| `WX_APPSECRET` | 小程序 AppSecret，用于 `access_token` |
+| `WX_MCHID` | 商户号；当订单上无 `transactionId` 时，用于 `order_key` 类型 1（商户订单号）回退 |
+
+## 公众平台仍不同步时的排查清单
+
+1. **是否已开通「发货信息管理服务」**  
+   登录 [微信公众平台](https://mp.weixin.qq.com/) → 小程序 → **功能** → **发货信息管理服务**（或订单管理相关入口）完成开通。
+
+2. **`WX_APPID` / `WX_APPSECRET` 是否对应正在使用的小程序**  
+   若云托管与支付使用不同小程序或误配测试号，接口会成功但不对当前小程序订单生效。
+
+3. **订单是否保存了微信支付 `transaction_id`**  
+   支付回调需写入 `orders.transactionId`。无交易单号时，会使用 `WX_MCHID + orderNo` 作为 `order_key`，需与微信支付侧商户单号一致。
+
+4. **确认收货提醒仅一次**  
+   重复调用 `notify_confirm_receive` 会失败；日志中若提示重复，属预期，可忽略。
+
+5. **查看云日志**  
+   搜索 `[WechatOrderSync]`、`upload_shipping_info`、`notify_confirm_receive`、`is_trade_managed`，根据 `errcode` / `errmsg` 对照[微信全局返回码](https://developers.weixin.qq.com/miniprogram/dev/framework/server-ability/message-push.html)与接口文档排查。
+
+## 门店自提（订单详情无门店名）
+
+若 `orders` 表中门店外键列与 Sequelize 模型字段不一致（如列为 `store_id`），仅 `toJSON()` 可能拿不到 `storeId`。本项目通过 `utils/orderStoreEnrich.js` 按真实列名 **raw 查询** 补全 `storeId` 与门店信息，后台与小程序订单详情均应能显示自提门店。

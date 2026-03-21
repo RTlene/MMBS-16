@@ -8,6 +8,7 @@ const wechatPayService = require('../services/wechatPayService');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
+const { enrichPickupStoreOnOrderJson, enrichPickupStoresOnOrderJsonList } = require('../utils/orderStoreEnrich');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -30,40 +31,6 @@ async function shouldJoinOrderStore() {
         ordersTableHasStoreIdCache = false;
     }
     return ordersTableHasStoreIdCache;
-}
-
-/** 订单 JSON 上补全自提门店（避免未 join 或 join 失败时详情/列表无门店名） */
-async function enrichPickupStoreOnOrderJson(orderJson) {
-    if (!orderJson) return;
-    const sid = orderJson.storeId != null ? parseInt(orderJson.storeId, 10) : NaN;
-    if (!Number.isFinite(sid) || sid <= 0) return;
-    if (orderJson.store && orderJson.store.id) return;
-    const st = await Store.findByPk(sid, { attributes: ['id', 'name', 'address', 'phone'] });
-    if (st) orderJson.store = st.toJSON();
-}
-
-async function enrichPickupStoresOnOrderJsonList(orderJsonList) {
-    if (!Array.isArray(orderJsonList) || orderJsonList.length === 0) return;
-    const ids = [
-        ...new Set(
-            orderJsonList
-                .map((o) => (o.storeId != null ? parseInt(o.storeId, 10) : NaN))
-                .filter((n) => Number.isFinite(n) && n > 0)
-        )
-    ];
-    if (ids.length === 0) return;
-    const stores = await Store.findAll({
-        where: { id: ids },
-        attributes: ['id', 'name', 'address', 'phone']
-    });
-    const map = new Map(stores.map((s) => [s.id, s.toJSON()]));
-    for (const o of orderJsonList) {
-        const sid = o.storeId != null ? parseInt(o.storeId, 10) : NaN;
-        if (!Number.isFinite(sid) || sid <= 0) continue;
-        if (o.store && o.store.id) continue;
-        const st = map.get(sid);
-        if (st) o.store = st;
-    }
 }
 
 /** 是否门店自提（deliveryType / shippingMethod / storeId，与后台列表逻辑一致） */

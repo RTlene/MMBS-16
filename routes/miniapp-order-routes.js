@@ -4,6 +4,7 @@ const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, Order
 const CommissionService = require('../services/commissionService');
 const configStore = require('../services/configStore');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
+const { enrichPickupStoreOnOrderJson } = require('../utils/orderStoreEnrich');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
 // 尝试加载 PromotionService，如果失败则设为 null
@@ -941,17 +942,6 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        /** 自提门店：join 未带上时按 storeId 补查（避免后台/小程序详情无门店名） */
-        let storeForDetail = order.store || null;
-        if (!storeForDetail) {
-            const sid = order.storeId != null ? parseInt(order.storeId, 10) : NaN;
-            if (Number.isFinite(sid) && sid > 0) {
-                storeForDetail = await Store.findByPk(sid, {
-                    attributes: ['id', 'name', 'address', 'region', 'latitude', 'longitude', 'phone', 'businessHours']
-                });
-            }
-        }
-
         const items = formatOrderItems(order.items);
         const primaryItem = getPrimaryItem(items, order.product);
 
@@ -1018,16 +1008,18 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             paymentTime: order.paymentTime,
             deliveryType: order.deliveryType || 'delivery',
             storeId: order.storeId,
-            store: storeForDetail ? {
-                id: storeForDetail.id,
-                name: storeForDetail.name,
-                address: storeForDetail.address,
-                region: storeForDetail.region,
-                latitude: storeForDetail.latitude,
-                longitude: storeForDetail.longitude,
-                phone: storeForDetail.phone,
-                businessHours: storeForDetail.businessHours
-            } : null,
+            store: order.store
+                ? {
+                    id: order.store.id,
+                    name: order.store.name,
+                    address: order.store.address,
+                    region: order.store.region,
+                    latitude: order.store.latitude,
+                    longitude: order.store.longitude,
+                    phone: order.store.phone,
+                    businessHours: order.store.businessHours
+                }
+                : null,
             shippingAddress: order.shippingAddress,
             receiverName: order.receiverName,
             receiverPhone: order.receiverPhone,
@@ -1069,6 +1061,8 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             const systemSettings = configStore.getSection('system') || {};
             orderDetail.returnAddress = systemSettings.returnAddress || '';
         }
+
+        await enrichPickupStoreOnOrderJson(orderDetail);
 
         res.json({
             code: 0,
