@@ -37,6 +37,13 @@
 
 若日志出现 **`self-signed certificate`**（访问 `api.weixin.qq.com` 失败），多为云托管出网经代理导致 TLS 校验不通过。项目已通过 `utils/wechatHttpsAgent.js` 与登录接口一致，对微信 API 默认使用 **`rejectUnauthorized: false`**。若在可直连公网的环境希望严格校验证书，可设置 **`WX_HTTPS_STRICT=1`**。
 
+### 常见 errcode
+
+| errcode | 含义 | 处理 |
+|--------|------|------|
+| **40097** | invalid args | **`is_trade_managed`** 等接口 POST body 须带 **`appid`**（与 `WX_APPID` 一致），空 body 会报此错。 |
+| **47001** | data format error | 多为 JSON 与文档不一致：例如误在 **`upload_shipping_info` 根级**传 **`receiver_contact`**（非官方示例字段）。收件人联系方式应放在 **`shipping_list[].contact.receiver_contact`**（如顺丰必填场景）。 |
+
 ## 公众平台仍不同步时的排查清单
 
 1. **是否已开通「发货信息管理服务」**  

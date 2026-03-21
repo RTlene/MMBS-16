@@ -27,17 +27,26 @@ async function fetchIsTradeManaged() {
         return { ok: tradeManagedCache.ok, detail: tradeManagedCache.detail };
     }
     const accessToken = await getAccessToken();
+    const appid = String(process.env.WX_APPID || '').trim();
+    if (!appid) {
+        return { ok: false, reason: 'missing-appid', detail: { errmsg: 'WX_APPID 未配置' } };
+    }
+    // 官方要求 POST body 带 appid，否则 errcode 40097 invalid args
     const res = await axios.post(
         `${IS_TRADE_MANAGED_URL}?access_token=${encodeURIComponent(accessToken)}`,
-        {},
-        mergeAxiosHttpsOpts({ timeout: 10000 })
+        { appid },
+        mergeAxiosHttpsOpts({ timeout: 10000, headers: { 'Content-Type': 'application/json' } })
     );
     const data = res.data || {};
     if (data.errcode !== 0) {
         tradeManagedCache = { checked: true, ok: false, detail: data, at: now };
         return { ok: false, detail: data };
     }
-    const managed = data.trade_managed === true || data.trade_managed === 1 || data.is_trade_managed === true;
+    const managed =
+        data.is_trade_managed === true ||
+        data.is_trade_managed === 1 ||
+        data.trade_managed === true ||
+        data.trade_managed === 1;
     tradeManagedCache = { checked: true, ok: managed, detail: data, at: now };
     return { ok: managed, detail: data };
 }
@@ -207,6 +216,22 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
     const itemDesc = isPickup ? buildItemDesc(order, '门店自提-订单商品') : buildItemDesc(order);
 
     /** delivery_mode：1=统一发货，2=分拆发货。自提/快递统一发货均填 1（原先误将自提填 2 会触发「发货模式非法」） */
+    const expressCode = normalizeExpressCompany(shippingCompany);
+    const phone = String(receiverPhone || '').trim();
+
+    /** 顶层 receiver_contact 非官方示例字段，易导致 errcode 47001 data format error；联系方式放在 shipping_list[].contact */
+    const expressLine = (() => {
+        const line = {
+            tracking_no: String(trackingNumber || '').trim(),
+            express_company: expressCode,
+            item_desc: itemDesc
+        };
+        if (expressCode === 'SF' && phone) {
+            line.contact = { receiver_contact: phone };
+        }
+        return line;
+    })();
+
     const payload = {
         order_key: buildOrderKey(order),
         logistics_type: isPickup ? 4 : 1,
@@ -215,26 +240,16 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
         payer: {
             openid: String(memberOpenid || '')
         },
-        shipping_list: isPickup
-            ? [{ item_desc: itemDesc }]
-            : [
-                  {
-                      tracking_no: String(trackingNumber || '').trim(),
-                      express_company: normalizeExpressCompany(shippingCompany),
-                      item_desc: itemDesc
-                  }
-              ]
+        shipping_list: isPickup ? [{ item_desc: itemDesc }] : [expressLine]
     };
-
-    const phone = String(receiverPhone || '').trim();
-    if (phone) {
-        payload.receiver_contact = phone;
-    }
 
     const res = await axios.post(
         `${UPLOAD_SHIPPING_URL}?access_token=${encodeURIComponent(accessToken)}`,
         payload,
-        mergeAxiosHttpsOpts({ timeout: 12000 })
+        mergeAxiosHttpsOpts({
+            timeout: 12000,
+            headers: { 'Content-Type': 'application/json' }
+        })
     );
     const data = res.data || {};
     if (data.errcode !== 0) {
@@ -243,7 +258,10 @@ async function uploadShippingInfo({ order, memberOpenid, isPickup, shippingCompa
             errmsg: data.errmsg,
             orderNo: order.orderNo,
             hasTransactionId: !!order.transactionId,
-            payerOpenid: String(memberOpenid || '').slice(0, 8) + '…'
+            payerOpenid: String(memberOpenid || '').slice(0, 8) + '…',
+            payloadKeys: Object.keys(payload),
+            logistics_type: payload.logistics_type,
+            shipping_list_len: Array.isArray(payload.shipping_list) ? payload.shipping_list.length : 0
         });
         throw new Error(`upload_shipping_info 失败: ${data.errcode} ${data.errmsg || ''}`.trim());
     }
