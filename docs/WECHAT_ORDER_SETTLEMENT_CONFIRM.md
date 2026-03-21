@@ -43,13 +43,21 @@
 - **不要**对自提单调用 `notify_confirm_receive` 作为「用户已确认」的替代。
 - 结算侧：依赖用户在微信内通过**确认收货组件**完成确认，或平台**超时自动确认**（周期以最新运营规范/文档为准）。
 
-## 5. 与本项目代码的对应关系
+## 5. 快递发货订单
+
+- **发货**：后台/店员「发货」时已调用 `upload_shipping_info`（`logistics_type=1`），写入物流公司与单号。
+- **用户确认收货**：小程序内先拉起 **`weappOrderConfirm`**，再在服务端将订单置为 `delivered`。
+- **服务端在用户确认时的同步**：对快递单再次调用 **`upload_shipping_info`（与发货参数一致，幂等）**，用于**补救**发货当时同步失败、公众平台长期显示不一致的情况；**不在此处**调用 `notify_confirm_receive`（该接口语义是「物流已签收 → 提醒用户去点确认」，用户已在组件内确认则无需再提醒）。
+- **若需「签收后提醒用户确认」**：应在获知**物流签收**的业务时机单独调用 `notify_confirm_receive`（每单一次），与「用户已点确认收货」的接口分离。
+
+## 6. 与本项目代码的对应关系
 
 | 环节 | 说明 |
 |------|------|
 | 订单详情 API | 对微信支付订单下发 `wechatOrderConfirm`（`transactionId` / `merchantId` / `merchantTradeNo`），供小程序 `wx.openBusinessView` 使用 |
 | 用户点击确认收货 | 优先拉起 `weappOrderConfirm`；成功回调后再更新本系统订单状态（`PUT .../status`） |
 | 自提确认 | 仅同步发货等必要接口；**不调用** `notify_confirm_receive` |
-| 快递场景 | 若需「签收提醒」，在合适时机调用 `notify_confirm_receive` 并传 `received_time` |
+| 快递确认（小程序用户） | 再次 **`upload_shipping_info`（幂等）**；**不**在用户确认后调 `notify_confirm_receive` |
+| 快递「签收提醒」 | 仅在**物流签收后、用户尚未确认前**按需调用 `notify_confirm_receive` 并传 `received_time`（需单独业务入口，非用户确认接口内） |
 
 更多发货同步细节见：`docs/WECHAT_ORDER_SHIPPING_SYNC.md`。

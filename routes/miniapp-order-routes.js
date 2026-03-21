@@ -1248,8 +1248,14 @@ router.put('/orders/:id/status', authenticateMiniappUser, async (req, res) => {
                     });
                     // 自提不适用「确认收货提醒」notify_confirm_receive（仅快递签收提醒），见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md
                 } else {
-                    const orderForNotify = await Order.findByPk(order.id);
-                    await wechatMiniappOrderService.notifyConfirmReceive({ order: orderForNotify });
+                    // 快递：发货时已 upload_shipping_info；此处再同步一次（幂等，10060023 视为成功），补救发货时同步失败导致的公众平台长期「待发货」
+                    const orderForWx = await Order.findByPk(order.id);
+                    await wechatMiniappOrderService.syncAdminOrderShippingToWechat(order.id, {
+                        isPickup: false,
+                        shippingCompany: orderForWx?.shippingCompany || '',
+                        trackingNumber: orderForWx?.trackingNumber || ''
+                    });
+                    // 用户侧确认收货应以 weappOrderConfirm + 本接口落库为主；notify_confirm_receive 用于「物流签收后提醒用户去点确认」，不在用户已点确认后重复调用（见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md）
                 }
                 console.log('[OrderSync] 用户确认收货/自提已同步微信小程序订单:', order.orderNo);
             } catch (syncErr) {
