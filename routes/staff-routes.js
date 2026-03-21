@@ -305,7 +305,7 @@ router.put('/staff/orders/:id/ship', authenticateStaff, async (req, res) => {
         if (isOrderPickupDelivery(order)) {
             return res.status(400).json({
                 code: 1,
-                message: '自提订单请使用后台「确认用户自提」，勿走快递发货'
+                message: '自提订单请用户在小程序内确认自提，勿走快递发货'
             });
         }
 

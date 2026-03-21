@@ -368,7 +368,7 @@ class OrderManagement {
             if (isServiceOrder) {
                 buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.verifyOrder(${order.id})" title="核销"><i class="fas fa-check-circle"></i> 核销</button>`;
             } else if (isPickupOrder) {
-                buttons += `<button class="btn btn-action btn-success" onclick="orderManagement.confirmPickupOrder(${order.id})" title="确认用户自提"><i class="fas fa-store"></i> 确认用户自提</button>`;
+                // 自提待用户在小程序内确认，后台不提供代点（与微信结算一致）
             } else {
                 buttons += `<button class="btn btn-action btn-primary" onclick="orderManagement.shipOrder(${order.id})" title="发货"><i class="fas fa-truck"></i> 发货</button>`;
             }
@@ -1236,7 +1236,7 @@ class OrderManagement {
             const order = this.orders.find(o => o.id === parseInt(orderId));
             if (order) {
                 if (this.isPickupDeliveryOrder(order)) {
-                    showAlert('该订单为门店自提，请点击「确认用户自提」，无需填写快递单号。', 'info');
+                    showAlert('该订单为门店自提，请勿在此填写快递发货；请用户在小程序内确认自提。', 'info');
                     return;
                 }
             }
@@ -1508,27 +1508,6 @@ class OrderManagement {
         } catch (error) {
             console.error('变更订单类型失败:', error);
             showAlert('变更订单类型失败', 'error');
-        }
-    }
-
-    // 确认用户自提（后台）
-    async confirmPickupOrder(orderId) {
-        if (!confirm('确认该订单已由用户自提完成？')) return;
-        try {
-            const response = await fetch(`/api/orders/${orderId}/pickup-confirm`, {
-                method: 'PUT',
-                headers: getAuthHeaders()
-            });
-            const result = await response.json();
-            if (result.code === 0) {
-                showAlert('确认用户自提成功', 'success');
-                this.loadOrders();
-            } else {
-                showAlert('确认用户自提失败: ' + result.message, 'error');
-            }
-        } catch (error) {
-            console.error('确认用户自提失败:', error);
-            showAlert('确认用户自提失败', 'error');
         }
     }
 

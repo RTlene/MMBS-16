@@ -238,9 +238,8 @@ Content-Type: application/json
 }
 ```
 
-#### 6. 确认收货（快递）
-- 管理员后台**不再提供**代点确认收货；快递单由用户在小程序内确认后，调用 **`PUT /api/miniapp/orders/:id/status`**（`{ "status": "delivered" }`）。
-- 自提订单由后台 **`PUT /api/orders/:id/pickup-confirm`** 确认用户自提。
+#### 6. 确认收货（快递 / 自提）
+- 管理员后台**不提供**代点确认；均由用户在小程序内确认后，调用 **`PUT /api/miniapp/orders/:id/status`**（`{ "status": "delivered" }`）。
 
 ---
 
@@ -459,7 +458,7 @@ Content-Type: application/json
 - [ ] 获取订单详情 `/api/orders/:id`
 - [ ] 更新订单状态 `/api/orders/:id/status`
 - [ ] 发货 `/api/orders/:id/ship`
-- [ ] 用户确认收货（小程序）`PUT /api/miniapp/orders/:id/status` 或自提 `PUT /api/orders/:id/pickup-confirm`
+- [ ] 用户确认收货（小程序）`PUT /api/miniapp/orders/:id/status`
 
 ### 会员管理测试
 - [ ] 获取会员列表 `/api/members`

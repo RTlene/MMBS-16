@@ -637,7 +637,7 @@ router.post('/import-shipping', upload.single('file'), async (req, res) => {
 
             if (isOrderPickupDelivery(order)) {
                 results.skipped += 1;
-                results.errors.push({ line, orderNo, reason: '自提订单不能使用导入发货，请在后台点击「确认用户自提」' });
+                results.errors.push({ line, orderNo, reason: '自提订单不能使用导入发货，请用户在小程序内确认自提' });
                 continue;
             }
 
@@ -1030,7 +1030,7 @@ router.put('/:id/ship', async (req, res) => {
         if (isOrderPickupDelivery(order)) {
             return res.status(400).json({
                 code: 1,
-                message: '该订单为门店自提，请勿使用「快递发货」。请在列表中点击「确认用户自提」，系统会向微信同步自提发货信息。'
+                message: '该订单为门店自提，请勿使用「快递发货」。用户需在小程序内确认自提，系统会同步微信发货与结算相关状态。'
             });
         }
 
@@ -1082,80 +1082,7 @@ router.put('/:id/ship', async (req, res) => {
     }
 });
 
-// 自提确认（后台）
-router.put('/:id/pickup-confirm', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const order = await Order.findByPk(id);
-        if (!order) {
-            return res.status(404).json({ code: 1, message: '订单不存在' });
-        }
-
-        if (!isOrderPickupDelivery(order)) {
-            return res.status(400).json({ code: 1, message: '仅自提订单可确认用户自提' });
-        }
-        if (order.status !== 'paid') {
-            return res.status(400).json({ code: 1, message: '仅已支付待自提订单可确认' });
-        }
-
-        const pickupUpdate = {
-            status: 'delivered',
-            deliveredAt: new Date(),
-            shippingMethod: order.shippingMethod || 'pickup',
-            updatedBy: req.user?.id
-        };
-        if (Order.rawAttributes.deliveryType) {
-            pickupUpdate.deliveryType = 'pickup';
-        }
-        await order.update(pickupUpdate);
-
-        await OrderOperationLog.create({
-            orderId: order.id,
-            operation: 'deliver',
-            operatorId: req.user?.id,
-            operatorType: 'admin',
-            oldStatus: 'paid',
-            newStatus: 'delivered',
-            description: '后台确认用户自提完成'
-        });
-
-        try {
-            const orderForWx = await Order.findByPk(order.id, {
-                include: [{ model: OrderItem, as: 'items', attributes: ['productName', 'skuName', 'quantity'], required: false }]
-            });
-            const memberWx = await Member.findByPk(order.memberId, { attributes: ['openid', 'phone'] });
-            await wechatMiniappOrderService.uploadShippingInfo({
-                order: orderForWx,
-                memberOpenid: memberWx?.openid,
-                isPickup: true,
-                shippingCompany: '',
-                trackingNumber: '',
-                receiverPhone: order.receiverPhone || memberWx?.phone || ''
-            });
-            // 自提不适用 notify_confirm_receive（见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md）
-            console.log('[OrderSync] 自提确认已同步到微信小程序订单:', order.orderNo);
-        } catch (syncErr) {
-            console.warn('[OrderSync] 自提确认同步微信失败:', order.orderNo, syncErr.message);
-        }
-
-        try {
-            await CommissionService.calculateOrderCommission(order.id);
-        } catch (error) {
-            console.error('订单完成佣金计算失败:', error);
-        }
-
-        res.json({
-            code: 0,
-            message: '确认用户自提成功',
-            data: { order }
-        });
-    } catch (error) {
-        console.error('确认用户自提失败:', error);
-        res.status(500).json({ code: 1, message: '确认用户自提失败', error: error.message });
-    }
-});
-
-// 快递订单「确认收货」已由小程序用户在微信侧完成（weappOrderConfirm），后台不再提供代点收货，避免与公众平台结算不一致。见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md
+// 快递/自提的「确认收货」均应由用户在小程序内完成（weappOrderConfirm 等），后台不再提供「代点确认收货 / 确认用户自提」，避免与公众平台结算不一致。见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md
 
 // 申请退货
 router.post('/:id/return', async (req, res) => {

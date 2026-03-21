@@ -14,7 +14,7 @@
    接口要求 `express_company` 为微信文档中的编码（如 `SF`、`YTO`、`ZTO`）。后台中文名称会映射为编码；无法识别时用 `OTHER`。
 
 4. **自提订单**  
-   应使用 `logistics_type = 4`（用户自提），`shipping_list` 仅 **1 条**且只需 **`item_desc`**，不要填快递单号。后台请点 **「确认用户自提」**，不要走「快递发货」。
+   应使用 `logistics_type = 4`（用户自提），`shipping_list` 仅 **1 条**且只需 **`item_desc`**，不要填快递单号。自提履约与确认收货由**用户在小程序内**完成，后台勿用「快递发货」。
 
 官方文档：  
 [小程序发货信息管理服务](https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/business-capabilities/order-shipping/order-shipping.html)
@@ -24,7 +24,7 @@
 | 订单类型 | 后台操作 | 微信侧 |
 |----------|----------|--------|
 | 快递配送 | 「发货」填写物流公司与单号 | `logistics_type=1`，录入快递信息 |
-| 门店自提 | 「确认用户自提」 | `logistics_type=4` + 随后确认收货通知 |
+| 门店自提 | 支付回调/用户确认等环节同步 | `logistics_type=4`；确认收货在小程序内完成 |
 
 ## 环境变量
 

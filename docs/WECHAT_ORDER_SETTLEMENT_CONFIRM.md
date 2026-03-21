@@ -59,6 +59,6 @@
 | 自提确认 | 仅同步发货等必要接口；**不调用** `notify_confirm_receive` |
 | 快递确认（小程序用户） | 再次 **`upload_shipping_info`（幂等）**；**不**在用户确认后调 `notify_confirm_receive` |
 | 快递「签收提醒」 | 仅在**物流签收后、用户尚未确认前**按需调用 `notify_confirm_receive` 并传 `received_time`（需单独业务入口，非用户确认接口内） |
-| **后台订单管理** | **已移除**管理员「代点确认收货」接口（原 `PUT /api/orders/:id/deliver`）。快递单请用户在**小程序**内完成确认；自提仍可使用 **`PUT /api/orders/:id/pickup-confirm`**（确认用户自提） |
+| **后台订单管理** | **已移除**管理员「代点确认收货」及「确认用户自提」（原 `PUT /api/orders/:id/deliver`、`pickup-confirm`）。快递/自提均请用户在**小程序**内完成确认，与公众平台结算一致 |
 
 更多发货同步细节见：`docs/WECHAT_ORDER_SHIPPING_SYNC.md`。
