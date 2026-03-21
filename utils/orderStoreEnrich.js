@@ -6,6 +6,11 @@ const { Store, sequelize } = require('../db');
 
 let _ordersDescCache = null;
 
+/** db 启动时 ALTER 增加列后需清空，否则会一直认为无 storeId 列 */
+function invalidateOrdersTableDescCache() {
+    _ordersDescCache = null;
+}
+
 async function getOrdersTableDesc() {
     if (!_ordersDescCache) {
         try {
@@ -177,6 +182,7 @@ async function enrichPickupStoresOnOrderJsonList(orderJsonList) {
 }
 
 module.exports = {
+    invalidateOrdersTableDescCache,
     getOrdersStoreIdColumnName,
     getOrdersDeliveryTypeColumnName,
     getOrdersShippingMethodColumnName,

@@ -25,6 +25,13 @@
 - **支付成功回调**（`routes/payment-routes.js`）：若订单为 **门店自提**（`utils/orderStoreEnrich.js` 中 `isPickupOrderByRaw`：按库表 raw 读取 `deliveryType` / `storeId` / **`shippingMethod`**），会在写入 `transactionId` 后自动调用 **`upload_shipping_info`**（自提模式），便于公众平台与订单资金状态对齐。快递订单仍仅在后台「发货」时同步。
 - **若公众平台仍显示「待发货」**：先看云日志是否出现 `[WechatOrderSync] 支付回调：未识别为自提`（说明库中未写入自提标记）；或 `upload_shipping_info 失败` 的 `errcode`；或 `会员 openid 为空`。历史库若仅有 `shippingMethod=pickup` 而无 `deliveryType`/`storeId` 列，旧逻辑会跳过同步，已改为同时识别 `shippingMethod`。
 
+### 小程序订单详情里的「自提门店」
+
+- 依赖 **`orders.storeId`** + **`orders.deliveryType`**（或与 `shippingMethod=pickup` 配合），并由 **`GET /api/miniapp/orders/:id`** JOIN **`Store`** 返回 `order.store`。
+- 若云日志里 **`[OrderStore] persist pickup fields OK`** 出现 **`storeCol: null`**，说明库里**没有 `storeId` 列**，无法写入门店 ID，详情会一直无门店。
+- **处理**：部署后 **`db.js` 启动会自动**为 `orders` 表补充 `storeId`、`deliveryType` 列（与 `scripts/add-orders-delivery-store-columns.js` 一致）。也可手动执行该脚本。
+- **已产生的老订单**在加列前若只写了 `shippingMethod`，可酌情 SQL 补 `storeId` / `deliveryType`，或让用户重新下单验证。
+
 ## 环境变量（必填）
 
 | 变量 | 说明 |

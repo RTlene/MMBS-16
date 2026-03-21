@@ -3401,6 +3401,51 @@ async function init() {
       console.warn('[DB] product_member_prices 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
+    // ===== 自动迁移：orders 增加 storeId / deliveryType（小程序自提门店详情依赖）=====
+    // 历史库可能仅有 shippingMethod，无 storeId 列，persist 无法写入门店 ID，详情无 store。
+    try {
+      const qi = sequelize.getQueryInterface();
+      const hasCol = (desc, name) =>
+        desc &&
+        Object.keys(desc).some(
+          (k) => k.toLowerCase().replace(/_/g, '') === name.toLowerCase().replace(/_/g, '')
+        );
+      let orderDesc = await qi.describeTable('orders').catch(() => ({}));
+      if (orderDesc && Object.keys(orderDesc).length > 0) {
+        let changed = false;
+        if (!hasCol(orderDesc, 'storeId')) {
+          console.log('[DB] orders 表缺少 storeId，开始自动迁移(加列)...');
+          await qi.addColumn('orders', 'storeId', {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            comment: '门店自提时的门店ID'
+          });
+          changed = true;
+        }
+        if (!hasCol(orderDesc, 'deliveryType')) {
+          console.log('[DB] orders 表缺少 deliveryType，开始自动迁移(加列)...');
+          await qi.addColumn('orders', 'deliveryType', {
+            type: DataTypes.ENUM('delivery', 'pickup'),
+            allowNull: true,
+            defaultValue: 'delivery',
+            comment: '配送方式：delivery-配送上门，pickup-门店自提'
+          });
+          changed = true;
+        }
+        if (changed) {
+          console.log('[DB] orders 自提相关列迁移完成');
+          try {
+            const { invalidateOrdersTableDescCache } = require('./utils/orderStoreEnrich');
+            invalidateOrdersTableDescCache();
+          } catch (e2) {
+            console.warn('[DB] invalidateOrdersTableDescCache:', e2 && e2.message);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] orders 自提列自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
     // 若 orders 表缺少某列，仅从 Order 模型移除对应属性（describeTable 列名可能是 storeId / store_id）
     try {
       const orderDesc = await sequelize.getQueryInterface().describeTable('orders');
