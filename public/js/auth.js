@@ -20,15 +20,32 @@ class Auth {
         return this.user;
     }
 
-    // 登录
-    async login(username, password) {
+    /**
+     * 拉取登录验证码（返回 { captchaToken, imageDataUrl } 或 null）
+     */
+    async fetchCaptcha() {
+        try {
+            const response = await fetch('/api/auth/captcha', { method: 'GET' });
+            const result = await response.json();
+            if (result.code === 0 && result.data) {
+                return result.data;
+            }
+            return null;
+        } catch (e) {
+            console.error('获取验证码失败:', e);
+            return null;
+        }
+    }
+
+    // 登录（需传入 captchaToken 与 captcha 文本）
+    async login(username, password, captchaToken, captcha) {
         try {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password, captchaToken, captcha })
             });
 
             const result = await response.json();
@@ -96,21 +113,55 @@ class Auth {
 window.auth = new Auth();
 
 // 登录页面逻辑
-if (window.location.pathname === '/login.html') {
+if (window.location.pathname === '/login.html' || window.location.pathname.endsWith('/login.html')) {
     document.addEventListener('DOMContentLoaded', function() {
         const loginForm = document.getElementById('loginForm');
         const errorMessage = document.getElementById('errorMessage');
         const loading = document.getElementById('loading');
         const loginBtn = document.getElementById('loginBtn');
+        const captchaImg = document.getElementById('captchaImg');
+        const captchaRefresh = document.getElementById('captchaRefresh');
+        const captchaInput = document.getElementById('captcha');
+
+        let currentCaptchaToken = '';
+
+        async function refreshCaptcha() {
+            if (captchaInput) captchaInput.value = '';
+            const data = await window.auth.fetchCaptcha();
+            if (data && data.captchaToken && data.imageDataUrl && captchaImg) {
+                currentCaptchaToken = data.captchaToken;
+                captchaImg.src = data.imageDataUrl;
+            } else if (captchaImg) {
+                currentCaptchaToken = '';
+                captchaImg.removeAttribute('src');
+                showError('无法加载验证码，请刷新页面重试');
+            }
+        }
+
+        if (captchaImg) {
+            captchaImg.addEventListener('click', refreshCaptcha);
+        }
+        if (captchaRefresh) {
+            captchaRefresh.addEventListener('click', refreshCaptcha);
+        }
+
+        refreshCaptcha();
 
         loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            const captcha = captchaInput ? captchaInput.value : '';
 
             if (!username || !password) {
                 showError('请输入用户名和密码');
+                return;
+            }
+
+            if (!currentCaptchaToken || !String(captcha).trim()) {
+                showError('请输入验证码');
+                await refreshCaptcha();
                 return;
             }
 
@@ -119,7 +170,7 @@ if (window.location.pathname === '/login.html') {
             loginBtn.disabled = true;
             hideError();
 
-            const result = await window.auth.login(username, password);
+            const result = await window.auth.login(username, password, currentCaptchaToken, captcha);
 
             // 隐藏加载状态
             loading.style.display = 'none';
@@ -130,6 +181,7 @@ if (window.location.pathname === '/login.html') {
                 window.location.href = '/';
             } else {
                 showError(result.message);
+                await refreshCaptcha();
             }
         });
 

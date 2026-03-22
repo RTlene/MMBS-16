@@ -70,6 +70,48 @@
             border-color: #667eea;
         }
 
+        .captcha-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+
+        .captcha-row input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .captcha-img-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .captcha-img-wrap img {
+            height: 40px;
+            width: 120px;
+            border: 2px solid #e1e5e9;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #f4f4f5;
+            object-fit: contain;
+        }
+
+        .captcha-refresh {
+            font-size: 0.75rem;
+            color: #667eea;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            text-align: center;
+        }
+
+        .captcha-refresh:hover {
+            text-decoration: underline;
+        }
+
         .login-btn {
             width: 100%;
             padding: 0.75rem;
@@ -127,6 +169,16 @@
             <div class="form-group">
                 <label for="password">密码</label>
                 <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="captcha">验证码</label>
+                <div class="captcha-row">
+                    <input type="text" id="captcha" name="captcha" autocomplete="off" placeholder="请输入右侧字符" maxlength="6" required>
+                    <div class="captcha-img-wrap">
+                        <img id="captchaImg" alt="验证码" title="点击换一张">
+                        <button type="button" class="captcha-refresh" id="captchaRefresh">换一张</button>
+                    </div>
+                </div>
             </div>
             <button type="submit" class="login-btn" id="loginBtn">登录</button>
         </form>

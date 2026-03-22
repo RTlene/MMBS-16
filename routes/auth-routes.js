@@ -3,18 +3,65 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { User } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const captchaService = require('../services/captchaService');
 
 const router = express.Router();
+
+// 获取登录验证码图片
+router.get('/captcha', (req, res) => {
+  try {
+    if (!captchaService.isAvailable()) {
+      return res.status(503).json({
+        code: 1,
+        message: '验证码服务未就绪'
+      });
+    }
+    const data = captchaService.createCaptcha();
+    res.json({
+      code: 0,
+      data
+    });
+  } catch (error) {
+    console.error('生成验证码失败:', error);
+    res.status(500).json({
+      code: 1,
+      message: '生成验证码失败'
+    });
+  }
+});
 
 // 登录
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
-    
+    const { username, password, captcha, captchaToken } = req.body;
+    // 兼容旧字段名 captchaId（曾用于内存版；现为 JWT 字符串）
+    const token = captchaToken || req.body.captchaId;
+
     if (!username || !password) {
       return res.status(400).json({
         code: 1,
         message: '用户名和密码不能为空'
+      });
+    }
+
+    if (!captchaService.isAvailable()) {
+      return res.status(503).json({
+        code: 1,
+        message: '验证码服务未就绪'
+      });
+    }
+
+    if (!token || captcha == null || String(captcha).trim() === '') {
+      return res.status(400).json({
+        code: 1,
+        message: '请输入验证码'
+      });
+    }
+
+    if (!captchaService.verifyCaptchaToken(token, captcha)) {
+      return res.status(401).json({
+        code: 1,
+        message: '验证码错误或已过期，请刷新后重试'
       });
     }
 

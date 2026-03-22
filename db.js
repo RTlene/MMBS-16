@@ -30,6 +30,11 @@ const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USERNAME, MYSQL_PASSWORD, 
     connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
     charset: 'utf8mb4',
   },
+  // 新建表默认字符集（与 utf8mb4 迁移说明一致；已有表仍需在库内执行 ALTER）
+  define: {
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci',
+  },
   logging: process.env.DB_LOG_SQL === 'true' ? console.log : false
 });
 

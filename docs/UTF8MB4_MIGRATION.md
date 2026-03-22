@@ -37,33 +37,7 @@ ALTER TABLE popups CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 ## 3. 代码侧已做的改动
 
-- **db.js**：连接增加 `charset: 'utf8mb4'`、`collate: 'utf8mb4_unicode_ci'`，新建表会使用 utf8mb4。
+- **db.js**：`dialectOptions` 中连接字符集为 `utf8mb4`；全局 `define` 中 `charset` / `collate` 为 `utf8mb4` / `utf8mb4_unicode_ci`，**新建**表会默认 utf8mb4；已有表仍须在库内执行上文 SQL。
 - **routes/member-routes.js**：会员导入不再剥离 emoji，昵称、姓名、地址、备注等原样写入。
 
 执行完上述 SQL 并重启应用后，即可正常存储昵称等中的 emoji。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
