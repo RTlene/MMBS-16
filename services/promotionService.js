@@ -1,8 +1,19 @@
 const { Op } = require('sequelize');
-const { 
-    Product, ProductSKU, Coupon, Promotion, PointRecord, PointProduct, 
-    Member, MemberLevel, Order, OrderItem, ProductMemberPrice 
+const {
+    Product,
+    ProductSKU,
+    Coupon,
+    Promotion,
+    PointRecord,
+    PointProduct,
+    Member,
+    MemberLevel,
+    Order,
+    OrderItem,
+    ProductMemberPrice,
+    Category
 } = require('../db');
+const { enrichProductCategoryArrays } = require('../utils/productCategoryHelpers');
 const PromotionRulesService = require('./promotionRulesService');
 
 /** 解析促销 rules（DB 可能返回 JSON 字符串） */
@@ -35,10 +46,17 @@ class PromotionService {
                     exclude: ['detailContent']
                 },
                 include: [
-                    { 
-                        model: ProductSKU, 
-                        as: 'skus', 
-                        where: { status: 'active' }, 
+                    {
+                        model: Category,
+                        as: 'categories',
+                        attributes: ['id', 'name'],
+                        through: { attributes: ['sortOrder'] },
+                        required: false
+                    },
+                    {
+                        model: ProductSKU,
+                        as: 'skus',
+                        where: { status: 'active' },
                         required: false,
                         attributes: ['id', 'name', 'price', 'stock']
                     }
@@ -161,14 +179,16 @@ class PromotionService {
 
             // 确保获取 productType（优先从 dataValues，其次从直接属性）
             const productType = product.dataValues?.productType || product.productType || 'physical';
-            
+
+            const catEnriched = enrichProductCategoryArrays(product.toJSON());
+
             console.log('[PromotionService] 提取的商品类型:', {
                 productId: product.id,
                 productType: productType,
                 fromDataValues: product.dataValues?.productType,
                 fromDirect: product.productType
             });
-            
+
             // 构建返回数据
             const result = {
                 product: {
@@ -183,6 +203,8 @@ class PromotionService {
                     sales: product.sales || 0,
                     brand: product.brand || null,
                     categoryId: product.categoryId || null,
+                    categoryIds: catEnriched.categoryIds || [],
+                    categories: (catEnriched.categories || []).slice(0, 20),
                     status: product.status,
                     productType: productType // 使用提取的商品类型
                     // 移除 createdAt，减少数据量

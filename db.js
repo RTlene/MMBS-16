@@ -229,6 +229,35 @@ const Product = sequelize.define('Product', {
     timestamps: true
 });
 
+// ProductCategory - 商品与分类多对多（Products.categoryId 保留为「主分类/列表默认」）
+const ProductCategory = sequelize.define(
+    'ProductCategory',
+    {
+        productId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            primaryKey: true,
+            comment: '商品ID'
+        },
+        categoryId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            primaryKey: true,
+            comment: '分类ID'
+        },
+        sortOrder: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 0,
+            comment: '同一商品下分类展示顺序'
+        }
+    },
+    {
+        tableName: 'product_categories',
+        timestamps: false
+    }
+);
+
 // ProductSKU Model - 商品规格
 const ProductSKU = sequelize.define('ProductSKU', {
     id: {
@@ -3143,6 +3172,23 @@ Category.hasMany(Product, {
     onUpdate: 'CASCADE'
 });
 
+Product.belongsToMany(Category, {
+    through: ProductCategory,
+    foreignKey: 'productId',
+    otherKey: 'categoryId',
+    as: 'categories',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE'
+});
+Category.belongsToMany(Product, {
+    through: ProductCategory,
+    foreignKey: 'categoryId',
+    otherKey: 'productId',
+    as: 'productsInCategories',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE'
+});
+
 // 商品和SKU的关联
 Product.hasMany(ProductSKU, { 
     foreignKey: 'productId', 
@@ -3477,6 +3523,38 @@ async function init() {
       // 表不存在或无权查询时忽略
     }
 
+    // ===== 自动迁移：product_categories 多对多 + 从 Products.categoryId 回填 =====
+    try {
+      const dialect = sequelize.getDialect();
+      if (dialect === 'mysql') {
+        const [tables] = await sequelize.query(
+          "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_categories'"
+        );
+        if (!tables || tables.length === 0) {
+          console.log('[DB] 创建 product_categories 表（商品多分类）...');
+          await sequelize.query(`
+            CREATE TABLE \`product_categories\` (
+              \`productId\` INT NOT NULL,
+              \`categoryId\` INT NOT NULL,
+              \`sortOrder\` INT NOT NULL DEFAULT 0,
+              PRIMARY KEY (\`productId\`, \`categoryId\`),
+              KEY \`idx_pc_categoryId\` (\`categoryId\`),
+              KEY \`idx_pc_productId\` (\`productId\`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          `);
+        }
+        // 回填：主分类写入关联表（无则插入）
+        await sequelize.query(`
+          INSERT IGNORE INTO \`product_categories\` (\`productId\`, \`categoryId\`, \`sortOrder\`)
+          SELECT \`id\`, \`categoryId\`, 0 FROM \`Products\`
+          WHERE \`categoryId\` IS NOT NULL AND \`categoryId\` > 0
+        `);
+        console.log('[DB] product_categories 已就绪');
+      }
+    } catch (e) {
+      console.warn('[DB] product_categories 自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
     // 默认不在启动时做 alter 同步（云托管缩容后冷启动会非常慢）
     // 需要同步时显式设置：DB_SYNC=true（可选：DB_SYNC_ALTER=true 走 alter）
     const shouldSync = process.env.DB_SYNC === 'true';
@@ -3489,6 +3567,7 @@ async function init() {
       ['Users', User],
       ['Categories', Category],
       ['Products', Product],
+      ['product_categories', ProductCategory],
       ['ProductSKUs', ProductSKU],
       ['ProductAttributes', ProductAttribute],
       ['product_member_prices', ProductMemberPrice],
@@ -3595,6 +3674,7 @@ module.exports = {
   User,
   Category,
   Product,
+  ProductCategory,
   ProductSKU,
   ProductMemberPrice,
   ProductAttribute,

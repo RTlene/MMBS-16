@@ -1,6 +1,7 @@
 const express = require('express');
 const { Op, Sequelize } = require('sequelize');
 const { Product, Category, ProductSKU, ProductAttribute, sequelize } = require('../db');
+const { mergeWhereWithCategoryFilter, enrichProductCategoryArrays } = require('../utils/productCategoryHelpers');
 const { authenticateToken } = require('../middleware/auth');
 const { optionalAuthenticate } = require('../middleware/miniapp-auth');
 const PromotionService = require('../services/promotionService');
@@ -106,19 +107,11 @@ router.get('/products', async (req, res) => {
         } = req.query;
 
         const offset = (page - 1) * limit;
-        const where = { status };
+        let where = { status };
 
         // 热门商品筛选
         if (isHot === 'true' || isHot === true) {
             where.isHot = true;
-        }
-
-        // 分类筛选
-        if (categoryId) {
-            const categoryIdNum = parseInt(categoryId);
-            if (!isNaN(categoryIdNum)) {
-                where.categoryId = categoryIdNum;
-            }
         }
 
         // 关键词搜索
@@ -128,6 +121,14 @@ router.get('/products', async (req, res) => {
                 { description: { [Op.like]: `%${keyword}%` } },
                 { brand: { [Op.like]: `%${keyword}%` } }
             ];
+        }
+
+        // 分类筛选（主分类或关联表多分类）
+        if (categoryId) {
+            const categoryIdNum = parseInt(categoryId, 10);
+            if (!isNaN(categoryIdNum)) {
+                where = mergeWhereWithCategoryFilter(where, categoryIdNum, sequelize);
+            }
         }
 
         // 价格筛选（注意：Product模型没有price字段，价格在SKU中，这里暂时不处理）
@@ -156,12 +157,21 @@ router.get('/products', async (req, res) => {
         const isLite = String(lite) === '1';
         const listIncludes = [];
         if (!isLite) {
-            listIncludes.push({
-                model: Category,
-                as: 'category',
-                attributes: ['id', 'name'],
-                required: false
-            });
+            listIncludes.push(
+                {
+                    model: Category,
+                    as: 'category',
+                    attributes: ['id', 'name'],
+                    required: false
+                },
+                {
+                    model: Category,
+                    as: 'categories',
+                    attributes: ['id', 'name'],
+                    through: { attributes: ['sortOrder'] },
+                    required: false
+                }
+            );
         }
         listIncludes.push(skuIncludeForListCard(isLite));
 
@@ -174,7 +184,8 @@ router.get('/products', async (req, res) => {
             limit: parseInt(limit),
             offset: parseInt(offset),
             order,
-            distinct: true
+            distinct: true,
+            subQuery: false
         });
 
         // 处理商品数据，适配小程序展示
@@ -216,6 +227,7 @@ router.get('/products', async (req, res) => {
                 productImages = [];
             }
             
+            const pj = enrichProductCategoryArrays(product.toJSON());
             return {
                 id: product.id,
                 name: product.name,
@@ -230,6 +242,8 @@ router.get('/products', async (req, res) => {
                     id: product.category.id,
                     name: product.category.name
                 } : null,
+                categoryIds: pj.categoryIds || [],
+                categories: pj.categories || [],
                 skus: activeSkus.map(sku => ({
                     id: sku.id,
                     sku: sku.sku,
@@ -404,7 +418,7 @@ router.get('/products/search', async (req, res) => {
         }
 
         const offset = (page - 1) * limit;
-        const where = {
+        let where = {
             status: 'active',
             [Op.or]: [
                 { name: { [Op.like]: `%${keyword}%` } },
@@ -414,7 +428,10 @@ router.get('/products/search', async (req, res) => {
         };
 
         if (categoryId) {
-            where.categoryId = categoryId;
+            const cid = parseInt(categoryId, 10);
+            if (!isNaN(cid)) {
+                where = mergeWhereWithCategoryFilter(where, cid, sequelize);
+            }
         }
 
         // 排序逻辑
@@ -779,10 +796,17 @@ router.get('/products/:id', async (req, res) => {
 
         const product = await Product.findByPk(id, {
             include: [
-                { 
-                    model: Category, 
-                    as: 'category', 
+                {
+                    model: Category,
+                    as: 'category',
                     attributes: ['id', 'name', 'description']
+                },
+                {
+                    model: Category,
+                    as: 'categories',
+                    attributes: ['id', 'name', 'description'],
+                    through: { attributes: ['sortOrder'] },
+                    required: false
                 },
                 {
                     model: ProductSKU,
@@ -814,6 +838,8 @@ router.get('/products/:id', async (req, res) => {
             });
         }
 
+        const enriched = enrichProductCategoryArrays(product.toJSON());
+
         // 处理商品详情数据
         const productDetail = {
             id: product.id,
@@ -826,6 +852,8 @@ router.get('/products/:id', async (req, res) => {
             price: product.price,
             originalPrice: product.originalPrice,
             brand: product.brand,
+            categoryIds: enriched.categoryIds || [],
+            categories: enriched.categories || [],
             category: product.category ? {
                 id: product.category.id,
                 name: product.category.name,

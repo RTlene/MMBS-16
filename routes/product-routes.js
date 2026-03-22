@@ -1,5 +1,20 @@
 const express = require('express');
-const { Product, ProductSKU, ProductAttribute, Category, ProductMemberPrice, MemberLevel, sequelize } = require('../db');
+const {
+    Product,
+    ProductSKU,
+    ProductAttribute,
+    Category,
+    ProductMemberPrice,
+    MemberLevel,
+    ProductCategory,
+    sequelize
+} = require('../db');
+const {
+    normalizeCategoryIdsFromBody,
+    syncProductCategories,
+    buildAdminProductWhere,
+    enrichProductCategoryArrays
+} = require('../utils/productCategoryHelpers');
 const { Op } = require('sequelize');
 const { deleteProductFiles } = require('./product-files-routes');
 const { authenticateToken } = require('../middleware/auth');
@@ -53,6 +68,20 @@ function safeBool(v) {
   return null;
 }
 
+/** CSV：categoryIds 列用分号/逗号分隔多个 ID；可与 categoryId（主分类）二选一 */
+function parseCategoryIdsFromCsvRow(r) {
+  const raw = String(r.categoryIds || r.category_ids || '').trim();
+  if (raw) {
+    const ids = raw
+      .split(/[;,]+/)
+      .map((s) => parseInt(String(s).trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return [...new Set(ids)];
+  }
+  const single = safeInt(r.categoryId);
+  return single ? [single] : [];
+}
+
 function sortSkus(list) {
   if (!Array.isArray(list)) return [];
   return list.slice().sort((a, b) => {
@@ -73,25 +102,9 @@ router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', categoryId = '', status = '' } = req.query;
     const offset = (page - 1) * limit;
-    
-    let whereClause = {};
-    
-    // 搜索条件
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } }
-      ];
-    }
-    
-    if (categoryId) {
-      whereClause.categoryId = categoryId;
-    }
-    
-    if (status) {
-      whereClause.status = status;
-    }
-    
+
+    const whereClause = buildAdminProductWhere({ search, categoryId, status }, sequelize);
+
     const { count, rows } = await withDbRetry(() => Product.findAndCountAll({
       where: whereClause,
       include: [
@@ -99,6 +112,13 @@ router.get('/', async (req, res) => {
           model: Category,
           as: 'category',
           attributes: ['id', 'name']
+        },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id', 'name'],
+          through: { attributes: ['sortOrder'] },
+          required: false
         },
         {
           model: ProductSKU,
@@ -109,7 +129,9 @@ router.get('/', async (req, res) => {
       ],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
+      distinct: true,
+      subQuery: false
     }));
     
     // 处理商品数据，添加SKU统计信息
@@ -122,8 +144,9 @@ router.get('/', async (req, res) => {
         max: Math.max(...activeSkus.map(sku => parseFloat(sku.price)))
       } : { min: 0, max: 0 };
       
+      const pj = enrichProductCategoryArrays(product.toJSON());
       return {
-        ...product.toJSON(),
+        ...pj,
         skuCount,
         totalStock,
         priceRange: priceRange.min === priceRange.max ? 
@@ -157,19 +180,20 @@ router.get('/export', async (req, res) => {
   try {
     const { search = '', categoryId = '', status = '' } = req.query;
 
-    const whereClause = {};
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } }
-      ];
-    }
-    if (categoryId) whereClause.categoryId = categoryId;
-    if (status) whereClause.status = status;
+    const whereClause = buildAdminProductWhere({ search, categoryId, status }, sequelize);
 
     const rows = await Product.findAll({
       where: whereClause,
-      include: [{ model: Category, as: 'category', attributes: ['id', 'name'] }],
+      include: [
+        { model: Category, as: 'category', attributes: ['id', 'name'] },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id', 'name'],
+          through: { attributes: ['sortOrder'] },
+          required: false
+        }
+      ],
       order: [['createdAt', 'DESC']]
     });
 
@@ -177,6 +201,7 @@ router.get('/export', async (req, res) => {
       'id',
       'name',
       'categoryId',
+      'categoryIds',
       'brand',
       'productType',
       'price',
@@ -188,8 +213,9 @@ router.get('/export', async (req, res) => {
     ];
 
     const dataRows = rows.map(p => {
-      const j = p.toJSON();
-      return headers.map(h => j[h] ?? '');
+      const j = enrichProductCategoryArrays(p.toJSON());
+      const row = { ...j, categoryIds: (j.categoryIds || []).join(';') };
+      return headers.map(h => row[h] ?? '');
     });
 
     const csv = toCsv(headers, dataRows);
@@ -206,6 +232,7 @@ router.get('/import-template', async (req, res) => {
     'id',
     'name',
     'categoryId',
+    'categoryIds',
     'brand',
     'productType',
     'price',
@@ -215,7 +242,7 @@ router.get('/import-template', async (req, res) => {
     'status'
   ];
   const sample = [
-    ['', '示例商品', '', '示例品牌', 'physical', '9.99', '19.99', '100', '0', 'active']
+    ['', '示例商品', '1', '1;2', '示例品牌', 'physical', '9.99', '19.99', '100', '0', 'active']
   ];
   const csv = toCsv(headers, sample);
   sendCsv(res, 'products_import_template.csv', csv);
@@ -249,9 +276,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
         continue;
       }
 
+      const catIds = parseCategoryIdsFromCsvRow(r);
       const payload = {
         name,
-        categoryId: safeInt(r.categoryId),
         brand: (r.brand || '').trim() || null,
         productType,
         price: r.price !== '' ? Number(r.price) : undefined,
@@ -260,7 +287,10 @@ router.post('/import', upload.single('file'), async (req, res) => {
         isHot: safeBool(r.isHot) ?? undefined,
         status: (r.status || '').trim() || undefined
       };
-      Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+      if (catIds.length > 0) {
+        payload.categoryId = catIds[0];
+      }
+      Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
 
       const id = safeInt(r.id);
       let target = null;
@@ -268,6 +298,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
       if (target) {
         await target.update(payload);
+        if (catIds.length > 0) {
+          await syncProductCategories(sequelize, Product, ProductCategory, target.id, catIds, null);
+        }
         results.updated += 1;
       } else {
         const created = await Product.create({
@@ -275,6 +308,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
           status: payload.status || 'active',
           isHot: payload.isHot ?? false
         });
+        if (catIds.length > 0) {
+          await syncProductCategories(sequelize, Product, ProductCategory, created.id, catIds, null);
+        }
         // 若无SKU，创建默认SKU（沿用创建商品逻辑的兜底）
         await ProductSKU.create({
           productId: created.id,
@@ -511,6 +547,13 @@ router.get('/:id', async (req, res) => {
           attributes: ['id', 'name']
         },
         {
+          model: Category,
+          as: 'categories',
+          attributes: ['id', 'name'],
+          through: { attributes: ['sortOrder'] },
+          required: false
+        },
+        {
           model: ProductSKU,
           as: 'skus',
           order: [['sortOrder', 'ASC'], ['createdAt', 'ASC']]
@@ -530,7 +573,7 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    const out = product.toJSON();
+    const out = enrichProductCategoryArrays(product.toJSON());
     // include 内的 order 在部分 Sequelize 版本不会生效，响应前再手动排序兜底
     if (out && out.skus) out.skus = sortSkus(out.skus);
 
@@ -553,7 +596,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { attributes, skus, ...productData } = req.body;
-    
+
     // 验证必填字段
     if (!productData.name) {
       return res.status(400).json({
@@ -561,24 +604,35 @@ router.post('/', async (req, res) => {
         message: '商品名称不能为空'
       });
     }
-    
-    // 检查分类是否存在
-    if (productData.categoryId) {
-      const category = await Category.findByPk(productData.categoryId);
+
+    const categoryIds = normalizeCategoryIdsFromBody(req.body);
+    if (categoryIds.length === 0) {
+      return res.status(400).json({
+        code: 1,
+        message: '请至少选择一个商品分类'
+      });
+    }
+    for (const cid of categoryIds) {
+      const category = await Category.findByPk(cid);
       if (!category) {
         return res.status(400).json({
           code: 1,
-          message: '分类不存在'
+          message: `分类不存在: ${cid}`
         });
       }
     }
-    
-    // 创建商品，确保status为active
+
+    const { categoryIds: _c1, categoryId: _c2, ...restData } = productData;
+
+    // 创建商品，确保status为active；主分类为 categoryIds[0]
     const product = await Product.create({
-      ...productData,
+      ...restData,
+      categoryId: categoryIds[0],
       status: productData.status || 'active',
       isHot: productData.isHot ?? false
     });
+
+    await syncProductCategories(sequelize, Product, ProductCategory, product.id, categoryIds, null);
     
     // 创建属性
     if (attributes && attributes.length > 0) {
@@ -615,11 +669,18 @@ router.post('/', async (req, res) => {
     const fullProduct = await Product.findByPk(product.id, {
       include: [
         { model: Category, as: 'category' },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id', 'name'],
+          through: { attributes: ['sortOrder'] },
+          required: false
+        },
         { model: ProductSKU, as: 'skus' },
         { model: ProductAttribute, as: 'attributes' }
       ]
     });
-    const out = fullProduct ? fullProduct.toJSON() : null;
+    let out = fullProduct ? enrichProductCategoryArrays(fullProduct.toJSON()) : null;
     if (out && out.skus) out.skus = sortSkus(out.skus);
 
     res.json({
@@ -665,7 +726,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { attributes, skus, ...productData } = req.body;
-    
+
     const product = await Product.findByPk(id);
     if (!product) {
       return res.status(404).json({
@@ -673,24 +734,44 @@ router.put('/:id', async (req, res) => {
         message: '商品不存在'
       });
     }
-    
-    // 如果更新分类，检查分类是否存在
-    if (productData.categoryId && productData.categoryId !== product.categoryId) {
-      const category = await Category.findByPk(productData.categoryId);
-      if (!category) {
+
+    const hasCategoryUpdate =
+      Array.isArray(req.body.categoryIds) || (req.body.categoryId !== undefined && req.body.categoryId !== null);
+    let nextCategoryIds = null;
+    if (hasCategoryUpdate) {
+      nextCategoryIds = normalizeCategoryIdsFromBody(req.body);
+      if (nextCategoryIds.length === 0) {
         return res.status(400).json({
           code: 1,
-          message: '分类不存在'
+          message: '请至少选择一个商品分类'
         });
       }
+      for (const cid of nextCategoryIds) {
+        const category = await Category.findByPk(cid);
+        if (!category) {
+          return res.status(400).json({
+            code: 1,
+            message: `分类不存在: ${cid}`
+          });
+        }
+      }
     }
-    
+
+    const { categoryIds: _d1, categoryId: _d2, ...restData } = productData;
+
     await sequelize.transaction(async (t) => {
-      // 更新商品基本信息
-      await product.update({
-        ...productData,
+      const updatePayload = {
+        ...restData,
         isHot: productData.isHot ?? product.isHot
-      }, { transaction: t });
+      };
+      if (nextCategoryIds) {
+        updatePayload.categoryId = nextCategoryIds[0];
+      }
+      await product.update(updatePayload, { transaction: t });
+
+      if (nextCategoryIds) {
+        await syncProductCategories(sequelize, Product, ProductCategory, Number(id), nextCategoryIds, t);
+      }
       
       // 更新属性（仍采用全量替换）
       if (attributes !== undefined) {
@@ -734,16 +815,23 @@ router.put('/:id', async (req, res) => {
         }
       }
     });
-    
+
     // 返回完整的商品信息
     const fullProduct = await Product.findByPk(id, {
       include: [
         { model: Category, as: 'category' },
+        {
+          model: Category,
+          as: 'categories',
+          attributes: ['id', 'name'],
+          through: { attributes: ['sortOrder'] },
+          required: false
+        },
         { model: ProductSKU, as: 'skus' },
         { model: ProductAttribute, as: 'attributes' }
       ]
     });
-    const out = fullProduct ? fullProduct.toJSON() : null;
+    let out = fullProduct ? enrichProductCategoryArrays(fullProduct.toJSON()) : null;
     if (out && out.skus) out.skus = sortSkus(out.skus);
 
     res.json({
@@ -805,7 +893,9 @@ router.delete('/:id', async (req, res) => {
         message: '商品不存在'
       });
     }
-    
+
+    await ProductCategory.destroy({ where: { productId: id } });
+
     // 删除商品文件（直接调用，避免在 Cloud Run 等环境请求 localhost 导致 ECONNREFUSED）
     try {
       const result = await deleteProductFiles(id);

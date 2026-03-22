@@ -204,7 +204,7 @@ function renderProducts() {
             <td><input type="checkbox" class="product-checkbox" value="${product.id}"></td>
             <td>${product.id}</td>
             <td>${product.name}</td>
-            <td>${product.category ? product.category.name : '未分类'}</td>
+            <td>${formatProductCategoriesCell(product)}</td>
             <td>${product.brand || '-'}</td>
             <td>
                 <span class="sku-info">${product.skuCount}个SKU</span>
@@ -241,6 +241,14 @@ function getStatusText(status) {
 
 function getHotBadge(isHot) {
     return `<span class="hot-badge ${isHot ? 'hot' : 'normal'}">${isHot ? '热门' : '普通'}</span>`;
+}
+
+/** 列表展示：多分类名称 */
+function formatProductCategoriesCell(product) {
+    if (product.categories && product.categories.length) {
+        return product.categories.map((c) => c.name).join('、');
+    }
+    return product.category ? product.category.name : '未分类';
 }
 
 // 渲染分页
@@ -321,10 +329,9 @@ function renderCategoryOptions() {
     categoryFilter.innerHTML = '<option value="">所有分类</option>' + 
         categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
     
-    // 表单分类下拉框
+    // 表单分类多选
     const productCategory = document.getElementById('productCategory');
-    productCategory.innerHTML = '<option value="">请选择分类</option>' + 
-        categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
+    productCategory.innerHTML = categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
 }
 
 // 打开添加商品模态框
@@ -332,7 +339,13 @@ function openAddProductModal() {
     document.getElementById('modalTitle').textContent = '添加商品';
     document.getElementById('productForm').reset();
     document.getElementById('productIsHot').checked = false;
-    
+    const pcAdd = document.getElementById('productCategory');
+    if (pcAdd) {
+        Array.from(pcAdd.options).forEach(function (o) {
+            o.selected = false;
+        });
+    }
+
     // 清空数据
     window.productManagementData.attributes = [];
     window.productManagementData.skus = [];
@@ -699,7 +712,14 @@ async function editProduct(id) {
             // 填充基本信息
             document.getElementById('productName').value = product.name || '';
             document.getElementById('productBrand').value = product.brand || '';
-            document.getElementById('productCategory').value = product.categoryId || '';
+            const pc = document.getElementById('productCategory');
+            if (pc) {
+                const ids = (product.categoryIds && product.categoryIds.length) ? product.categoryIds : (product.categoryId ? [product.categoryId] : []);
+                const idSet = new Set(ids.map((x) => Number(x)));
+                Array.from(pc.options).forEach((opt) => {
+                    opt.selected = idSet.has(Number(opt.value));
+                });
+            }
             document.getElementById('productType').value = product.productType || 'physical';
             document.getElementById('productStatus').value = product.status || 'active';
             document.getElementById('productDescription').value = product.description || '';
@@ -1408,15 +1428,22 @@ async function submitProductForm(event) {
     const formData = new FormData(event.target);
     const productData = Object.fromEntries(formData.entries());
     productData.isHot = document.getElementById('productIsHot').checked;
-    
+
+    const catSel = document.getElementById('productCategory');
+    const categoryIds = catSel
+        ? Array.from(catSel.selectedOptions)
+              .map((o) => parseInt(o.value, 10))
+              .filter((n) => Number.isFinite(n) && n > 0)
+        : [];
+
     // 验证必填字段
     if (!productData.name) {
         alert('商品名称不能为空');
         return;
     }
-    
-    if (!productData.categoryId) {
-        alert('请选择商品分类');
+
+    if (categoryIds.length === 0) {
+        alert('请至少选择一个商品分类');
         return;
     }
     
@@ -1436,8 +1463,10 @@ async function submitProductForm(event) {
     }
     
     // 准备提交数据
+    delete productData.categoryId;
     const submitData = {
         ...productData,
+        categoryIds,
         // 注意：images/detailImages/videos 由 /api/product-files 维护
         // 这里不要在 PUT /api/products 时携带，否则可能覆盖刚上传的视频/图片
         detailContent: document.getElementById('detailContent').value,
