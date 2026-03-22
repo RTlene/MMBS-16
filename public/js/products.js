@@ -320,6 +320,15 @@ async function loadCategories() {
     }
 }
 
+/** 分类名称展示用转义，防止 HTML 注入 */
+function escapeCategoryNameHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 // 渲染分类选项
 function renderCategoryOptions() {
     const { categories } = window.productManagementData;
@@ -329,9 +338,19 @@ function renderCategoryOptions() {
     categoryFilter.innerHTML = '<option value="">所有分类</option>' + 
         categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
     
-    // 表单分类多选
-    const productCategory = document.getElementById('productCategory');
-    productCategory.innerHTML = categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
+    // 表单分类：勾选列表
+    const wrap = document.getElementById('productCategoryCheckboxes');
+    if (wrap) {
+        wrap.innerHTML = categories
+            .map(
+                (cat) =>
+                    `<label class="product-category-checkbox-label">` +
+                    `<input type="checkbox" class="product-category-cb" value="${cat.id}" data-category-cb="1">` +
+                    `<span>${escapeCategoryNameHtml(cat.name)}</span>` +
+                    `</label>`
+            )
+            .join('');
+    }
 }
 
 // 打开添加商品模态框
@@ -339,12 +358,9 @@ function openAddProductModal() {
     document.getElementById('modalTitle').textContent = '添加商品';
     document.getElementById('productForm').reset();
     document.getElementById('productIsHot').checked = false;
-    const pcAdd = document.getElementById('productCategory');
-    if (pcAdd) {
-        Array.from(pcAdd.options).forEach(function (o) {
-            o.selected = false;
-        });
-    }
+    document.querySelectorAll('#productCategoryCheckboxes .product-category-cb').forEach(function (cb) {
+        cb.checked = false;
+    });
 
     // 清空数据
     window.productManagementData.attributes = [];
@@ -712,14 +728,11 @@ async function editProduct(id) {
             // 填充基本信息
             document.getElementById('productName').value = product.name || '';
             document.getElementById('productBrand').value = product.brand || '';
-            const pc = document.getElementById('productCategory');
-            if (pc) {
-                const ids = (product.categoryIds && product.categoryIds.length) ? product.categoryIds : (product.categoryId ? [product.categoryId] : []);
-                const idSet = new Set(ids.map((x) => Number(x)));
-                Array.from(pc.options).forEach((opt) => {
-                    opt.selected = idSet.has(Number(opt.value));
-                });
-            }
+            const ids = (product.categoryIds && product.categoryIds.length) ? product.categoryIds : (product.categoryId ? [product.categoryId] : []);
+            const idSet = new Set(ids.map((x) => Number(x)));
+            document.querySelectorAll('#productCategoryCheckboxes .product-category-cb').forEach((cb) => {
+                cb.checked = idSet.has(Number(cb.value));
+            });
             document.getElementById('productType').value = product.productType || 'physical';
             document.getElementById('productStatus').value = product.status || 'active';
             document.getElementById('productDescription').value = product.description || '';
@@ -1429,12 +1442,9 @@ async function submitProductForm(event) {
     const productData = Object.fromEntries(formData.entries());
     productData.isHot = document.getElementById('productIsHot').checked;
 
-    const catSel = document.getElementById('productCategory');
-    const categoryIds = catSel
-        ? Array.from(catSel.selectedOptions)
-              .map((o) => parseInt(o.value, 10))
-              .filter((n) => Number.isFinite(n) && n > 0)
-        : [];
+    const categoryIds = Array.from(document.querySelectorAll('#productCategoryCheckboxes .product-category-cb:checked'))
+        .map((cb) => parseInt(cb.value, 10))
+        .filter((n) => Number.isFinite(n) && n > 0);
 
     // 验证必填字段
     if (!productData.name) {

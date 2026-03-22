@@ -5,6 +5,10 @@
 - 表 **`product_categories`**：`productId`、`categoryId` 联合主键，可选 `sortOrder`（与 `Products` / `Categories` 对应）。
 - 字段 **`Products.categoryId`** 保留为**主分类**（与列表、历史逻辑兼容），在保存多分类时自动设为 **`categoryIds` 的第一个**。
 
+## 后台界面
+
+- 商品编辑表单中分类为 **勾选列表**（多选框），至少勾选一项。
+
 ## 后台 API
 
 - 创建/更新商品时传 **`categoryIds`**：`[1, 2, 3]`（至少一个）。
