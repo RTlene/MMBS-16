@@ -40,13 +40,6 @@
         .modal.show { display: flex; }
         .modal-content { background: white; border-radius: 8px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; }
         .modal-content.modal-wide { max-width: 680px; }
-        .amap-picker-wrap { height: 320px; width: 100%; border: 1px solid #d9d9d9; border-radius: 4px; box-sizing: border-box; }
-        .map-hint { font-size: 13px; color: #666; margin: 0 0 10px; }
-        .map-picker-locate-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin-bottom: 12px; }
-        .map-picker-locate-row .form-input { flex: 1; min-width: 220px; margin: 0; }
-        .form-actions-inline { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-        .btn-outline { background: #fff; color: #1890ff; border: 1px solid #1890ff; }
-        .btn-outline:hover { background: #e6f7ff; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
         .modal-title { font-size: 18px; font-weight: 600; margin: 0; }
         .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
@@ -122,10 +115,7 @@
                     <div class="form-group">
                         <label class="form-label">详细地址</label>
                         <input type="text" class="form-input" id="storeAddress" placeholder="省市区+街道门牌">
-                        <div class="form-actions-inline">
-                            <button type="button" class="btn btn-outline" onclick="geocodeStoreAddress()">根据地址解析坐标</button>
-                            <button type="button" class="btn btn-outline" onclick="openMapPickerModal()">地图选点</button>
-                        </div>
+                        <p style="font-size:13px;color:#666;margin:8px 0 0;">请手动填写；经纬度可用手机/网页地图「复制坐标」后填入下方（国内常用 GCJ-02）。</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">区域（省/市/区）</label>
@@ -134,15 +124,12 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">纬度</label>
-                            <input type="text" class="form-input" id="storeLatitude" placeholder="用于地图定位">
+                            <input type="text" class="form-input" id="storeLatitude" placeholder="如 22.543096">
                         </div>
                         <div class="form-group">
                             <label class="form-label">经度</label>
-                            <input type="text" class="form-input" id="storeLongitude" placeholder="用于地图定位">
+                            <input type="text" class="form-input" id="storeLongitude" placeholder="如 114.057868">
                         </div>
-                    </div>
-                    <div class="form-actions-inline" style="margin-bottom: 16px;">
-                        <button type="button" class="btn btn-outline" onclick="regeoStoreFromInputs()">根据坐标填充地址</button>
                     </div>
                     <div class="form-group">
                         <label class="form-label">联系电话</label>
@@ -170,31 +157,6 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="saveStore()">保存</button>
                 <button class="btn" onclick="closeStoreModal()">取消</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 地图选点弹窗（高德 JS API 由脚本动态加载） -->
-    <div class="modal" id="storeMapPickerModal">
-        <div class="modal-content modal-wide" style="max-width: 720px;">
-            <div class="modal-header">
-                <h3 class="modal-title">地图选点</h3>
-                <button class="close-btn" onclick="closeMapPickerModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p class="map-hint">可先输入地址搜索定位到地图，再拖动或点击微调；确认选点后将写入表单中的详细地址、区域与经纬度。</p>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label" for="mapPickerSearchAddress">地址搜索定位</label>
-                    <div class="map-picker-locate-row">
-                        <input type="text" id="mapPickerSearchAddress" class="form-input" placeholder="输入完整地址（可含省市区），回车或点「定位」" autocomplete="off">
-                        <button type="button" class="btn btn-outline" style="white-space:nowrap;" onclick="locateMapPickerByAddress()">定位到地图</button>
-                    </div>
-                </div>
-                <div id="amapStorePicker" class="amap-picker-wrap"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" type="button" onclick="confirmMapPick()">确认选点</button>
-                <button class="btn" type="button" onclick="closeMapPickerModal()">取消</button>
             </div>
         </div>
     </div>

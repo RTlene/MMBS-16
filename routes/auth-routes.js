@@ -35,7 +35,7 @@ router.post('/login', async (req, res) => {
   try {
     const { username, password, captcha, captchaToken } = req.body;
     // 兼容旧字段名 captchaId（曾用于内存版；现为 JWT 字符串）
-    const token = captchaToken || req.body.captchaId;
+    const captchaTokenPayload = captchaToken || req.body.captchaId;
 
     if (!username || !password) {
       return res.status(400).json({
@@ -51,14 +51,14 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    if (!token || captcha == null || String(captcha).trim() === '') {
+    if (!captchaTokenPayload || captcha == null || String(captcha).trim() === '') {
       return res.status(400).json({
         code: 1,
         message: '请输入验证码'
       });
     }
 
-    if (!captchaService.verifyCaptchaToken(token, captcha)) {
+    if (!captchaService.verifyCaptchaToken(captchaTokenPayload, captcha)) {
       return res.status(401).json({
         code: 1,
         message: '验证码错误或已过期，请刷新后重试'

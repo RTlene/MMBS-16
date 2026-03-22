@@ -1,5 +1,5 @@
 /**
- * 系统设置 API：通用设置（如活跃会员自动检测、高德地图 Key）存储在 configStore section 'system'
+ * 系统设置 API：通用设置（如活跃会员自动检测）存储在 configStore section 'system'
  * 含售后凭证图保留天数及清理接口
  */
 const express = require('express');
@@ -20,13 +20,7 @@ const DEFAULT_SYSTEM = {
     activeMemberCheckIntervalHours: 24,
     mallName: '',
     returnAddress: '',
-    afterSalesImageRetentionDays: 90, // 售后凭证图保留天数，超期后清除转为轻量化存储
-    /** 高德 Web 端(JS API) Key，用于后台地图选点 */
-    amapKey: '',
-    /** 高德 Web 服务 Key（地理编码/逆地理）；与 JS Key 分离填写可避免 USERKEY_PLAT_NOMATCH */
-    amapWebServiceKey: '',
-    /** 高德安全密钥（JS API 2.0）；若环境变量 AMAP_SECURITY_JS_CODE 已设置则优先生效 */
-    amapSecurityJsCode: ''
+    afterSalesImageRetentionDays: 90 // 售后凭证图保留天数，超期后清除转为轻量化存储
 };
 
 // GET /api/settings/system
@@ -34,6 +28,9 @@ router.get('/system', authenticateToken, async (req, res) => {
     try {
         const data = configStore.getSection(SECTION) || {};
         const merged = { ...DEFAULT_SYSTEM, ...data };
+        delete merged.amapKey;
+        delete merged.amapWebServiceKey;
+        delete merged.amapSecurityJsCode;
         res.json({ code: 0, message: '获取成功', data: merged });
     } catch (e) {
         console.error('获取系统设置失败:', e);
@@ -56,11 +53,11 @@ router.put('/system', authenticateToken, async (req, res) => {
             activeMemberCheckIntervalHours: body.activeMemberCheckIntervalHours !== undefined ? Math.max(1, Math.min(720, parseInt(body.activeMemberCheckIntervalHours, 10) || 24)) : (current.activeMemberCheckIntervalHours ?? 24),
             mallName: body.mallName !== undefined ? String(body.mallName || '').trim().slice(0, 50) : (current.mallName ?? ''),
             returnAddress: body.returnAddress !== undefined ? String(body.returnAddress || '').trim() : (current.returnAddress ?? ''),
-            afterSalesImageRetentionDays: body.afterSalesImageRetentionDays !== undefined ? Math.max(1, Math.min(3650, parseInt(body.afterSalesImageRetentionDays, 10) || 90)) : (current.afterSalesImageRetentionDays ?? 90),
-            amapKey: body.amapKey !== undefined ? String(body.amapKey || '').trim().slice(0, 256) : (current.amapKey ?? ''),
-            amapWebServiceKey: body.amapWebServiceKey !== undefined ? String(body.amapWebServiceKey || '').trim().slice(0, 256) : (current.amapWebServiceKey ?? ''),
-            amapSecurityJsCode: body.amapSecurityJsCode !== undefined ? String(body.amapSecurityJsCode || '').trim().slice(0, 256) : (current.amapSecurityJsCode ?? '')
+            afterSalesImageRetentionDays: body.afterSalesImageRetentionDays !== undefined ? Math.max(1, Math.min(3650, parseInt(body.afterSalesImageRetentionDays, 10) || 90)) : (current.afterSalesImageRetentionDays ?? 90)
         };
+        delete next.amapKey;
+        delete next.amapWebServiceKey;
+        delete next.amapSecurityJsCode;
         await configStore.setSection(SECTION, next);
         res.json({ code: 0, message: '保存成功', data: next });
     } catch (e) {

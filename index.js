@@ -45,7 +45,6 @@ const miniappVerificationRoutes = require('./routes/miniapp-verification-routes'
 const miniappAfterSalesRoutes = require('./routes/miniapp-after-sales-routes');
 const staffRoutes = require('./routes/staff-routes');
 const storeRoutes = require('./routes/store-routes');
-const amapRoutes = require('./routes/amap-routes');
 const miniappStoreRoutes = require('./routes/miniapp-store-routes');
 const miniappConfigRoutes = require('./routes/miniapp-config-routes');
 
@@ -163,8 +162,6 @@ app.use('/api/miniapp', miniappAfterSalesRoutes);
 app.use('/api/miniapp', miniappStoreRoutes);
 // 门店管理（后台）
 app.use('/api/stores', require('./middleware/auth').authenticateToken, storeRoutes);
-// 高德地图（后台：逆地理/地理编码/前端地图 Key，Key 仅服务端配置）
-app.use('/api/amap', require('./middleware/auth').authenticateToken, amapRoutes);
 // 支付相关API
 const paymentRoutes = require('./routes/payment-routes');
 app.use('/api/payment', paymentRoutes);

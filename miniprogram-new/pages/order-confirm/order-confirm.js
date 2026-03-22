@@ -303,7 +303,7 @@ Page({
     });
   },
 
-  /** 打开外部地图（腾讯/高德/苹果地图） */
+  /** 打开外部地图（腾讯/苹果地图链接） */
   onOpenExternalMap(e) {
     const store = this._getStoreById(e.currentTarget.dataset.storeId);
     if (!store || !store.address) {
@@ -316,7 +316,7 @@ Page({
     const lng = store.longitude;
     const items = ['复制地址'];
     if (lat != null && lng != null) {
-      items.push('腾讯地图', '高德地图', '苹果地图');
+      items.push('腾讯地图', '苹果地图');
     }
     wx.showActionSheet({
       itemList: items,
@@ -332,12 +332,6 @@ Page({
           });
         }
         if (res.tapIndex === 2 && lat != null && lng != null) {
-          wx.setClipboardData({
-            data: `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&address=${encodeURIComponent(address)}`,
-            success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开高德地图', icon: 'none' })
-          });
-        }
-        if (res.tapIndex === 3 && lat != null && lng != null) {
           wx.setClipboardData({
             data: `https://maps.apple.com/?q=${encodeURIComponent(name)}&ll=${lat},${lng}`,
             success: () => wx.showToast({ title: '链接已复制，可粘贴到浏览器打开苹果地图', icon: 'none' })
