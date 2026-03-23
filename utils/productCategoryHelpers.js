@@ -51,8 +51,9 @@ function buildCategoryFilterWhere(categoryIdRaw, sequelize) {
     return {
         [Op.or]: [
             { categoryId: cid },
+            // 须与 Sequelize 主查询别名一致：FROM `Products` AS `Product`（表名是 Products，别名是 Product）
             sequelize.literal(
-                `EXISTS (SELECT 1 FROM \`product_categories\` AS \`pc\` WHERE \`pc\`.\`productId\` = \`Products\`.\`id\` AND \`pc\`.\`categoryId\` = ${cid})`
+                `EXISTS (SELECT 1 FROM \`product_categories\` AS \`pc\` WHERE \`pc\`.\`productId\` = \`Product\`.\`id\` AND \`pc\`.\`categoryId\` = ${cid})`
             )
         ]
     };
