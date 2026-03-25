@@ -639,7 +639,7 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
     procurementCost: {
         type: DataTypes.DECIMAL(5, 4),
         allowNull: true,
-        comment: '采购成本比例（0-1，分享模式可为0）'
+        comment: '采购成本比例：零售价基数为0～1；成本基数可至9.9999（分享模式可为0）'
     },
     sharerDirectCommissionRate: {
         type: DataTypes.DECIMAL(5, 4),

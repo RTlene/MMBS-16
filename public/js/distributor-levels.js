@@ -53,6 +53,11 @@ function bindEvents() {
             switchMode(this.dataset.mode);
         });
     });
+
+    const costRateBaseEl = document.getElementById('costRateBase');
+    if (costRateBaseEl) {
+        costRateBaseEl.addEventListener('change', applyProcurementCostInputConstraints);
+    }
 }
 
 // 加载统计信息
@@ -155,7 +160,7 @@ function renderLevels() {
             </td>
             <td>${formatSalesRange(level.minSales, level.maxSales)}</td>
             <td>${formatFansRange(level.minFans, level.maxFans)}${level.useActiveFansForUpgrade ? '<span style="color:#666;font-size:12px;">（活跃）</span>' : ''}</td>
-            <td>${formatProcurementCost(level.procurementCost)}</td>
+            <td>${formatProcurementCost(level.procurementCost, level.costRateBase)}</td>
             <td>${formatCostRateBase(level.costRateBase)}</td>
             <td>${formatCommissionRates(level.sharerDirectCommissionRate, level.sharerIndirectCommissionRate)}</td>
             <td>
@@ -221,6 +226,32 @@ function goToPage(page) {
     }
 }
 
+/** 零售价基数：比例存 0～1；成本基数：可大于1（与 DB DECIMAL(5,4) 上限 9.9999 一致） */
+function applyProcurementCostInputConstraints() {
+    const sel = document.getElementById('costRateBase');
+    const input = document.getElementById('procurementCost');
+    const hint = document.getElementById('procurementCostHint');
+    if (!input) return;
+    const isCost = sel && sel.value === 'cost';
+    if (isCost) {
+        input.setAttribute('max', '9.9999');
+        input.setAttribute('placeholder', '1.5000');
+        if (hint) {
+            hint.textContent = '成本价基数：可大于1，如1.5表示按订单成本合计的150%计提货成本（上限9.9999，即999.99%）。';
+        }
+    } else {
+        input.setAttribute('max', '1');
+        input.setAttribute('placeholder', '0.5000');
+        if (hint) {
+            hint.textContent = '零售价基数：填0～1，如0.5表示按订单零售总额的50%计提货成本。';
+        }
+        const v = parseFloat(input.value);
+        if (Number.isFinite(v) && v > 1) {
+            input.value = '1';
+        }
+    }
+}
+
 // 搜索等级
 function searchLevels() {
     window.distributorLevelsData.searchKeyword = document.getElementById('searchInput').value;
@@ -255,6 +286,7 @@ function switchMode(mode) {
         // 清空分享佣金字段的值
         sharerDirectField.value = '';
         sharerIndirectField.value = '';
+        applyProcurementCostInputConstraints();
     } else {
         // 分享赚钱模式：分享佣金字段必填，采购成本不必填
         procurementCostField.required = false;
@@ -318,6 +350,7 @@ function fillLevelForm(level) {
     document.getElementById('procurementCost').value = level.procurementCost != null ? level.procurementCost : '';
     const crb = document.getElementById('costRateBase');
     if (crb) crb.value = level.costRateBase === 'cost' ? 'cost' : 'retail';
+    applyProcurementCostInputConstraints();
     document.getElementById('sharerDirectCommissionRate').value = level.sharerDirectCommissionRate != null ? level.sharerDirectCommissionRate : '';
     document.getElementById('sharerIndirectCommissionRate').value = level.sharerIndirectCommissionRate != null ? level.sharerIndirectCommissionRate : '';
     document.getElementById('color').value = level.color || '#1890ff';
@@ -384,6 +417,20 @@ async function submitLevelForm(event) {
     if (!levelData.level) {
         alert('等级数值不能为空');
         return;
+    }
+
+    if (!isSharerMode) {
+        const crbEl = document.getElementById('costRateBase');
+        const isCostBase = crbEl && crbEl.value === 'cost';
+        const pc = parseFloat(formData.get('procurementCost'));
+        if (!isCostBase && Number.isFinite(pc) && pc > 1) {
+            alert('当前为「零售价」基数，采购成本比例不能超过1（100%）。若需超过100%，请将成本比例基数改为「订单商品成本价合计」。');
+            return;
+        }
+        if (isCostBase && Number.isFinite(pc) && pc > 9.9999) {
+            alert('成本基数下采购成本比例上限为 9.9999（即成本合计的 999.99%）。');
+            return;
+        }
     }
     
     const editing = window.distributorLevelsData.editingLevel;
@@ -533,10 +580,11 @@ function formatFansRange(minFans, maxFans) {
     return `${min} - ${max}人`;
 }
 
-function formatProcurementCost(procurementCost) {
+function formatProcurementCost(procurementCost, costRateBase) {
     const v = safeNum(procurementCost);
     if (v === 0) return '-';
-    return (v * 100).toFixed(2) + '%';
+    const pct = (v * 100).toFixed(2) + '%';
+    return costRateBase === 'cost' ? `${pct}（成本基数）` : `${pct}（零售基数）`;
 }
 
 function formatCommissionRates(directRate, indirectRate) {

@@ -9,6 +9,18 @@ function parseNum(v, defaultVal) {
     return Number.isNaN(n) ? defaultVal : n;
 }
 
+/** 采购成本比例：零售价基数为 0～1；成本基数允许至 9.9999（与 DECIMAL(5,4) 一致） */
+function validateProcurementCostForBase(pc, costRateBase) {
+    const crb = costRateBase === 'cost' ? 'cost' : 'retail';
+    if (pc < 0) return '采购成本比例不能为负数';
+    if (crb === 'retail') {
+        if (pc > 1) return '零售价基数时，采购成本比例不能超过 1（100%）';
+    } else if (pc > 9.9999) {
+        return '成本基数时，采购成本比例不能超过 9.9999（成本合计的 999.99%）';
+    }
+    return null;
+}
+
 // 获取分销等级列表（分页）
 router.get('/', async (req, res) => {
     try {
@@ -147,11 +159,15 @@ router.post('/', async (req, res) => {
         }
 
         const pc = parseNum(procurementCost, 0.5);
+        const crb = costRateBase === 'cost' ? 'cost' : 'retail';
+        const pcErr = validateProcurementCostForBase(pc, crb);
+        if (pcErr) {
+            return res.status(400).json({ code: 1, message: pcErr });
+        }
         const sd = parseNum(sharerDirectCommissionRate, 0.05);
         const si = parseNum(sharerIndirectCommissionRate, 0.02);
-        // 佣金计算服务使用 distributorLevel.costRate（0-100），这里将 procurementCost（0-1）同步过去
+        // 佣金：costRate（%）= procurementCost × 100（零售价基数时 procurement 为 0～1；成本基数时可至 9.9999）
         const costRate = pc > 0 ? (pc * 100) : 0;
-        const crb = costRateBase === 'cost' ? 'cost' : 'retail';
         const newLevel = await DistributorLevel.create({
             name,
             level,
@@ -265,6 +281,12 @@ router.put('/:id', async (req, res) => {
             upgradeConditionLogic: upgradeConditionLogic !== undefined ? (upgradeConditionLogic === 'or' ? 'or' : 'and') : (levelRecord.upgradeConditionLogic === 'or' ? 'or' : 'and'),
             costRateBase: costRateBase !== undefined ? (costRateBase === 'cost' ? 'cost' : 'retail') : levelRecord.costRateBase
         };
+        const finalPc = parseNum(upd.procurementCost, 0);
+        const finalCrb = upd.costRateBase === 'cost' ? 'cost' : 'retail';
+        const pcErrPut = validateProcurementCostForBase(finalPc, finalCrb);
+        if (pcErrPut) {
+            return res.status(400).json({ code: 1, message: pcErrPut });
+        }
         // procurementCost 更新时同步 costRate（0-100）。分享模式 procurementCost=0 → costRate=0
         if (procurementCost !== undefined) {
             const pc2 = upd.procurementCost;
