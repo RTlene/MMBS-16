@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 
 /**
  * 数据库设计规范（避免 MySQL 单表 64 索引上限）：
- * - 不在模型字段上使用 unique: true / index: true，业务唯一性在应用层保证。
- * - 仅保留主键与关联产生的 FK 索引；需唯一约束的业务字段（如 orderNo、核销码、提现单号）
- *   在创建时由业务代码校验或重试，不建唯一索引。
+ * - 不在模型字段上随意加 unique/index（避免触及 MySQL 单表索引上限）。
+ * - 例外：members.openid 在启动迁移中增加唯一索引，防止并发登录重复插入（见 init 内迁移）。
+ * - 其他业务唯一性（orderNo 等）在应用层或专项迁移中处理。
  */
 
 // Read database configuration from environment variables
@@ -616,6 +616,13 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         allowNull: false,
         defaultValue: 0,
         comment: '提货成本比例（%）'
+    },
+    /** 成本比例所乘基数：零售价=订单总额；成本价=订单内 SKU 成本×数量合计 */
+    costRateBase: {
+        type: DataTypes.ENUM('retail', 'cost'),
+        allowNull: false,
+        defaultValue: 'retail',
+        comment: '提货成本比例基数：retail=订单零售价，cost=订单商品成本价合计'
     },
     directCommissionRate: {
         type: DataTypes.DECIMAL(5, 2),
@@ -3383,6 +3390,45 @@ async function init() {
     // 先快速验证连接（比 sync 快很多），让服务尽快可用
     await sequelize.authenticate();
     console.log('[DB] 连接成功');
+
+    // ===== 自动迁移：members.openid 唯一索引（防止小程序并发 code 登录重复插入同一 openid）=====
+    try {
+      const qi = sequelize.getQueryInterface();
+      if (sequelize.getDialect() === 'mysql') {
+        const memberDesc = await qi.describeTable('members').catch(() => null);
+        if (memberDesc && Object.keys(memberDesc).length > 0) {
+          const [idxRows] = await sequelize.query(
+            `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members'
+             AND COLUMN_NAME = 'openid' AND NON_UNIQUE = 0`
+          );
+          if (!idxRows || idxRows.length === 0) {
+            const [dups] = await sequelize.query(`
+              SELECT openid, COUNT(*) AS c
+              FROM members
+              WHERE openid IS NOT NULL AND openid != ''
+              GROUP BY openid
+              HAVING c > 1
+              LIMIT 10
+            `);
+            if (dups && dups.length > 0) {
+              console.error(
+                '[DB] members 表已存在重复 openid，无法自动添加唯一索引。请合并重复会员后重启。样例:',
+                dups.slice(0, 3)
+              );
+            } else {
+              await qi.addIndex('members', ['openid'], {
+                unique: true,
+                name: 'idx_members_openid_unique'
+              });
+              console.log('[DB] 已添加 members.openid 唯一索引 idx_members_openid_unique');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] members.openid 唯一索引迁移失败(忽略):', e && e.message ? e.message : e);
+    }
 
     // ===== 自动迁移：product_member_prices 增加 skuId 并修正唯一索引 =====
     // 说明：历史库如果还存在 (productId, memberLevelId) 的旧唯一键，会导致多 SKU 会员价互相覆盖：

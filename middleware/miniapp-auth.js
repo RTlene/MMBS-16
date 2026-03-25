@@ -4,6 +4,7 @@
  */
 
 const axios = require('axios');
+const { UniqueConstraintError } = require('sequelize/lib/errors');
 const { mergeAxiosHttpsOpts } = require('../utils/wechatHttpsAgent');
 const { Member, MemberLevel } = require('../db');
 
@@ -110,94 +111,81 @@ async function miniappLogin(req, res) {
     // 若未授权头像昵称，则使用随机昵称兜底（避免过多“微信用户xxxx”）
     const safeNickname = nicknameFromBody || `用户${Math.random().toString(10).slice(2, 8)}`;
 
-    // 2. 查询或创建会员
-    let member = await Member.findOne({ 
-      where: { openid: openid },
-      include: [{
-        model: MemberLevel,
-        as: 'memberLevel'
-      }]
+    // 2. 查询或创建会员（findOne+create 并发会产生重复 openid；改用 findOrCreate + DB 唯一索引）
+    let defaultLevel = await MemberLevel.findOne({
+      where: { isDefault: true }
+    });
+    if (!defaultLevel) {
+      defaultLevel = await MemberLevel.findOne({
+        where: { status: 'active' },
+        order: [['level', 'ASC']]
+      });
+    }
+    if (!defaultLevel) {
+      defaultLevel = await MemberLevel.findOne({
+        order: [['id', 'ASC']]
+      });
+    }
+    const memberLevelId = defaultLevel ? defaultLevel.id : null;
+
+    let referrerId_parsed = null;
+    if (referrerId) {
+      try {
+        const referrer = await Member.findByPk(referrerId);
+        if (referrer) {
+          referrerId_parsed = referrerId;
+          console.log('[MiniappAuth] 推荐人ID:', referrerId);
+        }
+      } catch (err) {
+        console.warn('[MiniappAuth] 查找推荐人失败:', err.message);
+      }
+    }
+
+    const memberCode = 'M' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
+
+    let member;
+    let isNew = false;
+    try {
+      const row = await Member.findOrCreate({
+        where: { openid },
+        defaults: {
+          nickname: safeNickname,
+          unionid: unionid || null,
+          sessionKey: session_key,
+          avatar: null,
+          memberLevelId,
+          referrerId: referrerId_parsed,
+          memberCode,
+          status: 'active',
+          totalCommission: 0,
+          availableCommission: 0,
+          totalSales: 0,
+          directSales: 0,
+          indirectSales: 0,
+          distributorSales: 0,
+          availablePoints: 0,
+          lastActiveAt: new Date()
+        }
+      });
+      member = row[0];
+      isNew = row[1];
+    } catch (e) {
+      // 极端情况（如唯一索引尚未建好）兜底再查一次
+      if (e instanceof UniqueConstraintError || (e && e.name === 'SequelizeUniqueConstraintError')) {
+        member = await Member.findOne({ where: { openid } });
+      }
+      if (!member) throw e;
+      isNew = false;
+    }
+
+    member = await Member.findByPk(member.id, {
+      include: [{ model: MemberLevel, as: 'memberLevel' }]
     });
 
-    let isNew = false;
-    if (!member) {
-      console.log('[MiniappAuth] 新用户，创建会员记录');
-      isNew = true;
-      
-      // 查找默认会员等级
-      let defaultLevel = await MemberLevel.findOne({ 
-        where: { isDefault: true } 
-      });
-
-      // 如果没有默认等级，查找第一个可用的等级
-      if (!defaultLevel) {
-        defaultLevel = await MemberLevel.findOne({ 
-          where: { status: 'active' },
-          order: [['level', 'ASC']]
-        });
-      }
-
-      // 如果还是没有，使用第一个等级（即使状态不是active）
-      if (!defaultLevel) {
-        defaultLevel = await MemberLevel.findOne({ 
-          order: [['id', 'ASC']]
-        });
-      }
-
-      // 如果数据库中没有任何会员等级，使用 null（需要数据库允许 memberLevelId 为 null）
-      const memberLevelId = defaultLevel ? defaultLevel.id : null;
-
-      // 处理推荐人
-      let referrerId_parsed = null;
-      if (referrerId) {
-        try {
-          const referrer = await Member.findByPk(referrerId);
-          if (referrer) {
-            referrerId_parsed = referrerId;
-            console.log('[MiniappAuth] 推荐人ID:', referrerId);
-          }
-        } catch (err) {
-          console.warn('[MiniappAuth] 查找推荐人失败:', err.message);
-        }
-      }
-
-      // 生成会员编号（作为推荐码使用）
-      const memberCode = 'M' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
-
-      // 创建会员
-      member = await Member.create({
-        nickname: safeNickname,
-        openid: openid,
-        unionid: unionid,
-        sessionKey: session_key,
-        // 不在首次登录阶段强制写入头像（避免把默认/匿名头像持久化）
-        avatar: null,
-        memberLevelId: memberLevelId,
-        referrerId: referrerId_parsed,
-        memberCode: memberCode,
-        status: 'active',
-        totalCommission: 0,
-        availableCommission: 0,
-        totalSales: 0,
-        directSales: 0,
-        indirectSales: 0,
-        distributorSales: 0,
-        availablePoints: 0,
-        lastActiveAt: new Date()
-      });
-
-      // 重新查询，包含关联数据
-      member = await Member.findByPk(member.id, {
-        include: [{
-          model: MemberLevel,
-          as: 'memberLevel'
-        }]
-      });
-
+    if (isNew) {
       console.log('[MiniappAuth] 会员创建成功, ID:', member.id);
     } else {
       console.log('[MiniappAuth] 已有会员, ID:', member.id);
-      
       const now = new Date();
       await member.update({
         lastActiveAt: now,
@@ -206,6 +194,9 @@ async function miniappLogin(req, res) {
         unionid: unionid || member.unionid,
         nickname: member.nickname || safeNickname,
         avatar: member.avatar || null
+      });
+      member = await Member.findByPk(member.id, {
+        include: [{ model: MemberLevel, as: 'memberLevel' }]
       });
     }
 

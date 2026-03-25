@@ -425,6 +425,7 @@
                         <th>销售额要求</th>
                         <th>粉丝数要求</th>
                         <th>采购成本</th>
+                        <th>成本基数</th>
                         <th>分享佣金</th>
                         <th>自动升级</th>
                         <th>升级条件</th>
@@ -512,6 +513,16 @@
                             <label class="form-label">采购成本比例 *</label>
                             <input type="number" id="procurementCost" name="procurementCost" class="form-input" required min="0" max="1" step="0.0001" placeholder="0.5000">
                             <small style="color: #666;">采购成本比例，如0.5表示采购价为售价的50%</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">成本比例基数</label>
+                            <select id="costRateBase" name="costRateBase" class="form-input" style="width:100%;">
+                                <option value="retail">订单零售价（订单总金额）</option>
+                                <option value="cost">订单商品成本价合计（SKU 成本×数量）</option>
+                            </select>
+                            <small style="color: #666;">级差佣金按「先算各自成本金额，再相减」；基数不同仍可混用。成本价需维护 SKU 成本价</small>
                         </div>
                     </div>
                 </div>

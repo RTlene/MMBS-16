@@ -928,6 +928,21 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 });
 
+/** 后台「编辑会员资料」允许写入的字段（严禁包含积分/佣金/销售额等，避免被请求体误带或 ORM 副作用覆盖） */
+const MEMBER_PROFILE_UPDATE_FIELDS = [
+    'nickname', 'openid', 'unionid', 'memberLevelId', 'distributorLevelId', 'teamExpansionLevelId',
+    'memberCode', 'realName', 'phone', 'avatar', 'gender', 'birthday',
+    'province', 'city', 'district', 'address', 'status',
+    'referrerId', 'referrerPath', 'remark', 'lastActiveAt',
+    'memberLevelManualOverride', 'distributorLevelManualOverride'
+];
+
+function parseOptionalPositiveIntId(v) {
+    if (v === undefined || v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // 更新会员
 router.put('/:id', authenticateToken, async (req, res) => {
     try {
@@ -942,14 +957,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
             });
         }
 
-        // 数据清理和验证
+        // 数据清理和验证（仅资料字段；积分/佣金/销售额等仅能通过专用接口或业务逻辑变更）
         const cleanedData = {
             nickname: memberData.nickname,
             openid: memberData.openid || null,
             unionid: memberData.unionid || null,
-            memberLevelId: memberData.memberLevelId || null,
-            distributorLevelId: memberData.distributorLevelId || null,
-            teamExpansionLevelId: memberData.teamExpansionLevelId || null,
+            memberLevelId: parseOptionalPositiveIntId(memberData.memberLevelId),
+            distributorLevelId: parseOptionalPositiveIntId(memberData.distributorLevelId),
+            teamExpansionLevelId: parseOptionalPositiveIntId(memberData.teamExpansionLevelId),
             // 修复：保持原有会员编号，只有在明确传递新编号时才更新
             memberCode: memberData.memberCode || member.memberCode,
             realName: memberData.realName || null,
@@ -962,12 +977,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
             district: memberData.district || null,
             address: memberData.address || null,
             status: memberData.status || 'active',
-            // 不更新积分/销售额/佣金/团队激励/粉丝与分销人数/等级历史，由系统或专用接口维护，避免编辑时被误清空
-            referrerId: memberData.referrerId || null,
-            referrerPath: memberData.referrerPath || null,
-            remark: memberData.remark || null,
-            lastActiveAt: memberData.lastActiveAt || null
+            referrerId: parseOptionalPositiveIntId(memberData.referrerId),
+            remark: memberData.remark || null
         };
+        // 未在请求中携带的字段不要写成 null，否则会每次保存都清空原值
+        if (Object.prototype.hasOwnProperty.call(memberData, 'referrerPath')) {
+            cleanedData.referrerPath =
+                memberData.referrerPath != null && String(memberData.referrerPath).trim() !== ''
+                    ? String(memberData.referrerPath)
+                    : null;
+        }
+        if (Object.prototype.hasOwnProperty.call(memberData, 'lastActiveAt')) {
+            const la = memberData.lastActiveAt;
+            cleanedData.lastActiveAt =
+                la && la !== '' && la !== 'Invalid date' ? la : null;
+        }
         // 手动设置等级时标记为“手动覆盖”，自动升级将不再覆盖；清空等级时取消覆盖
         if (memberData.memberLevelId !== undefined) {
             cleanedData.memberLevelManualOverride = (memberData.memberLevelId != null && memberData.memberLevelId !== '');
@@ -1081,11 +1105,16 @@ router.put('/:id', authenticateToken, async (req, res) => {
         };
         const oldReferrerId = toRefId(member.referrerId);
         const newReferrerId = toRefId(cleanedData.referrerId);
-        await member.update(cleanedData);
-        try {
-            const activeMemberCheckService = require('../services/activeMemberCheckService');
-            activeMemberCheckService.setMemberActive(member.id).catch(() => {});
-        } catch (_) {}
+
+        const fieldsToUpdate = MEMBER_PROFILE_UPDATE_FIELDS.filter(
+            (f) => Object.prototype.hasOwnProperty.call(cleanedData, f) && cleanedData[f] !== undefined
+        );
+        await member.update(cleanedData, { fields: fieldsToUpdate });
+
+        // 重新从数据库加载，避免响应中积分/佣金等字段与库不一致；且 update 仅允许白名单字段，杜绝误写财务字段
+        await member.reload();
+
+        // 不在此强制 setMemberActive：否则会覆盖管理员在表单中设置的 status，且与「仅改资料」语义不符
         // 本请求若在 body 中传了等级字段，视为手动设置，本次不执行自动升级覆盖（不依赖 DB 的 manualOverride 列即可生效）
         const skipLevelOverwrite = {};
         if (memberData.hasOwnProperty('memberLevelId')) skipLevelOverwrite.member = true;

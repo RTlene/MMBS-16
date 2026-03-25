@@ -132,6 +132,10 @@ function safeNum(v) {
     return Number(v);
 }
 
+function formatCostRateBase(v) {
+    return v === 'cost' ? '成本价' : '零售价';
+}
+
 // 渲染等级列表
 function renderLevels() {
     const tbody = document.getElementById('levelTableBody');
@@ -152,6 +156,7 @@ function renderLevels() {
             <td>${formatSalesRange(level.minSales, level.maxSales)}</td>
             <td>${formatFansRange(level.minFans, level.maxFans)}${level.useActiveFansForUpgrade ? '<span style="color:#666;font-size:12px;">（活跃）</span>' : ''}</td>
             <td>${formatProcurementCost(level.procurementCost)}</td>
+            <td>${formatCostRateBase(level.costRateBase)}</td>
             <td>${formatCommissionRates(level.sharerDirectCommissionRate, level.sharerIndirectCommissionRate)}</td>
             <td>
                 <span class="status-badge status-${level.enableAutoUpgrade ? 'active' : 'inactive'}">
@@ -311,6 +316,8 @@ function fillLevelForm(level) {
     const activeFansEl = document.getElementById('useActiveFansForUpgrade');
     if (activeFansEl) activeFansEl.checked = !!level.useActiveFansForUpgrade;
     document.getElementById('procurementCost').value = level.procurementCost != null ? level.procurementCost : '';
+    const crb = document.getElementById('costRateBase');
+    if (crb) crb.value = level.costRateBase === 'cost' ? 'cost' : 'retail';
     document.getElementById('sharerDirectCommissionRate').value = level.sharerDirectCommissionRate != null ? level.sharerDirectCommissionRate : '';
     document.getElementById('sharerIndirectCommissionRate').value = level.sharerIndirectCommissionRate != null ? level.sharerIndirectCommissionRate : '';
     document.getElementById('color').value = level.color || '#1890ff';
@@ -359,12 +366,15 @@ async function submitLevelForm(event) {
     
     if (isSharerMode) {
         levelData.procurementCost = 0;
+        levelData.costRateBase = 'retail';
         levelData.sharerDirectCommissionRate = parseFloat(formData.get('sharerDirectCommissionRate')) || 0;
         levelData.sharerIndirectCommissionRate = parseFloat(formData.get('sharerIndirectCommissionRate')) || 0;
     } else {
         levelData.procurementCost = parseFloat(formData.get('procurementCost')) || 0;
         levelData.sharerDirectCommissionRate = 0;
         levelData.sharerIndirectCommissionRate = 0;
+        const crbEl = document.getElementById('costRateBase');
+        levelData.costRateBase = crbEl && crbEl.value === 'cost' ? 'cost' : 'retail';
     }
     
     if (!levelData.name) {

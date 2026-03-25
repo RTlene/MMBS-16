@@ -65,19 +65,6 @@ router.post('/members', async (req, res) => {
             });
         }
 
-        // 检查用户是否已存在
-        const existingMember = await Member.findOne({ 
-            where: { openid } 
-        });
-
-        if (existingMember) {
-            return res.status(400).json({
-                code: 1,
-                message: '用户已存在',
-                data: { memberId: existingMember.id }
-            });
-        }
-
         // 处理推荐人
         let referrer = null;
         if (referrerId) {
@@ -116,16 +103,13 @@ router.post('/members', async (req, res) => {
         // 生成会员编号（作为推荐码使用）
         const memberCode = generateReferralCode();
 
-        // 创建会员
-        const member = await Member.create({
-            openid,
+        const defaults = {
             unionid,
             nickname,
             avatar,
             phone,
             realName,
-            idCard,
-            gender,
+            gender: ['male', 'female', 'other'].includes(gender) ? gender : null,
             birthday: birthday ? new Date(birthday) : null,
             address,
             memberCode,
@@ -142,7 +126,35 @@ router.post('/members', async (req, res) => {
             indirectSales: 0,
             distributorSales: 0,
             lastActiveAt: new Date()
-        });
+        };
+        if (Member.rawAttributes.idCard) {
+            defaults.idCard = idCard;
+        }
+
+        let member;
+        let created;
+        try {
+            [member, created] = await Member.findOrCreate({
+                where: { openid },
+                defaults
+            });
+        } catch (e) {
+            const { UniqueConstraintError } = require('sequelize/lib/errors');
+            if (e instanceof UniqueConstraintError) {
+                member = await Member.findOne({ where: { openid } });
+                created = false;
+            } else {
+                throw e;
+            }
+        }
+
+        if (!created) {
+            return res.status(400).json({
+                code: 1,
+                message: '用户已存在',
+                data: { memberId: member.id }
+            });
+        }
 
         // 返回会员信息（不包含敏感信息）
         const memberInfo = {

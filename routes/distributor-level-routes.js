@@ -116,6 +116,7 @@ router.post('/', async (req, res) => {
             maxFans,
             useActiveFansForUpgrade,
             procurementCost,
+            costRateBase,
             sharerDirectCommissionRate,
             sharerIndirectCommissionRate,
             privileges,
@@ -150,6 +151,7 @@ router.post('/', async (req, res) => {
         const si = parseNum(sharerIndirectCommissionRate, 0.02);
         // 佣金计算服务使用 distributorLevel.costRate（0-100），这里将 procurementCost（0-1）同步过去
         const costRate = pc > 0 ? (pc * 100) : 0;
+        const crb = costRateBase === 'cost' ? 'cost' : 'retail';
         const newLevel = await DistributorLevel.create({
             name,
             level,
@@ -159,6 +161,7 @@ router.post('/', async (req, res) => {
             maxFans: maxFans != null && maxFans !== '' ? parseInt(maxFans, 10) : null,
             useActiveFansForUpgrade: !!useActiveFansForUpgrade,
             procurementCost: pc,
+            costRateBase: crb,
             costRate,
             sharerDirectCommissionRate: sd,
             sharerIndirectCommissionRate: si,
@@ -201,6 +204,7 @@ router.put('/:id', async (req, res) => {
             maxFans,
             useActiveFansForUpgrade,
             procurementCost,
+            costRateBase,
             directCommissionRate,
             indirectCommissionRate,
             differentialCommissionRate,
@@ -258,7 +262,8 @@ router.put('/:id', async (req, res) => {
             status: status || levelRecord.status,
             sortOrder: sortOrder !== undefined ? sortOrder : levelRecord.sortOrder,
             enableAutoUpgrade: enableAutoUpgrade !== undefined ? !!enableAutoUpgrade : levelRecord.enableAutoUpgrade,
-            upgradeConditionLogic: upgradeConditionLogic !== undefined ? (upgradeConditionLogic === 'or' ? 'or' : 'and') : (levelRecord.upgradeConditionLogic === 'or' ? 'or' : 'and')
+            upgradeConditionLogic: upgradeConditionLogic !== undefined ? (upgradeConditionLogic === 'or' ? 'or' : 'and') : (levelRecord.upgradeConditionLogic === 'or' ? 'or' : 'and'),
+            costRateBase: costRateBase !== undefined ? (costRateBase === 'cost' ? 'cost' : 'retail') : levelRecord.costRateBase
         };
         // procurementCost 更新时同步 costRate（0-100）。分享模式 procurementCost=0 → costRate=0
         if (procurementCost !== undefined) {
