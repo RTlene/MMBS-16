@@ -755,8 +755,7 @@
                             <th>会员信息</th>
                             <th>商品信息</th>
                             <th>数量</th>
-                            <th>单价</th>
-                            <th>总金额</th>
+                            <th>实付金额</th>
                             <th>状态</th>
                             <th>支付方式</th>
                             <th>配送方式</th>
@@ -936,9 +935,9 @@
                                         </div>
                                         <div class="col-md-9">
                                             <h6 id="detailProductName">-</h6>
-                                            <p><strong>单价：</strong><span id="detailUnitPrice">-</span> 元</p>
+                                            <p><strong>参考标价合计：</strong><span id="detailUnitPrice">-</span></p>
                                             <p><strong>数量：</strong><span id="detailQuantity">-</span></p>
-                                            <p><strong>总金额：</strong><span id="detailTotalAmount">-</span> 元</p>
+                                            <p><strong>订单实付：</strong><span id="detailTotalAmount">-</span></p>
                                         </div>
                                     </div>
                                 </div>
@@ -986,6 +985,12 @@
                                         <tr class="table-primary">
                                             <td><strong>实付金额：</strong></td>
                                             <td id="detailFinalAmount" class="text-end fw-bold">¥0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2"><strong>计算公式与总价组成</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2"><pre id="detailPriceFormula" class="mb-0 text-start small bg-light p-3 rounded border" style="white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;"></pre></td>
                                         </tr>
                                     </table>
                                 </div>

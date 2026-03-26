@@ -54,6 +54,28 @@ class OrderManagement {
         return this.getOrderType(order) === 'service';
     }
 
+    /**
+     * 行参考标价小计：优先 SKU 快照价 × 数量，否则 行单价×数量（兼容无快照数据）。
+     */
+    lineReferenceSubtotal(item) {
+        const qty = parseInt(item.quantity || 0, 10) || 0;
+        const snap = item.skuSnapshot && typeof item.skuSnapshot === 'object' ? item.skuSnapshot : null;
+        const refUnit = snap && snap.price != null ? parseFloat(snap.price) : NaN;
+        if (Number.isFinite(refUnit) && refUnit >= 0) return refUnit * qty;
+        return parseFloat(item.unitPrice || 0) * qty;
+    }
+
+    /** 行上优惠说明（来自 discounts） */
+    formatLineDiscountsText(item) {
+        if (!item.discounts || !Array.isArray(item.discounts) || item.discounts.length === 0) return '—';
+        return item.discounts.map((d) => {
+            const typeLabel = { promotion: '促销', coupon: '优惠券', member: '会员折扣', points: '积分抵扣' }[d.type] || (d.type || '优惠');
+            const name = d.name ? ` ${d.name}` : '';
+            const amt = d.amount != null ? ` -¥${parseFloat(d.amount).toFixed(2)}` : '';
+            return `${typeLabel}${name}${amt}`;
+        }).join('；');
+    }
+
     /** 是否门店自提（deliveryType / shippingMethod / storeId 多通道，兼容误落库） */
     isPickupDeliveryOrder(order) {
         if (!order) return false;
@@ -228,7 +250,6 @@ class OrderManagement {
         // 表头结构在当前页渲染期间保持不变：放到 forEach 外层计算，避免作用域导致 hasCheckbox 未定义
         const headerRow = table?.querySelector('thead tr');
         const hasCheckbox = headerRow?.querySelector('th input[type="checkbox"]') !== null;
-        const hasUnitPrice = headerRow?.textContent.includes('单价');
 
         this.orders.forEach(order => {
             // 处理商品信息（支持多商品）
@@ -272,28 +293,21 @@ class OrderManagement {
             // 数量
             rowHtml += `<td>${totalQuantity}</td>`;
             
-            // 计算原始总价（从订单项中获取）
-            let originalTotalAmount = 0;
+            // 列表金额：以订单头 totalAmount 与行小计为准。行上 unitPrice 在会员折扣等场景下可能仍为 SKU 原价，
+            // 实付应以 item.totalAmount 之和或 order.totalAmount 为准（与小程序下单一致）。
+            let linePaidSum = 0;
             if (order.items && order.items.length > 0) {
-                originalTotalAmount = order.items.reduce((sum, item) => {
-                    // 使用订单项中的unitPrice和quantity计算原始总价
-                    const itemTotal = parseFloat(item.unitPrice || 0) * parseInt(item.quantity || 0);
-                    return sum + itemTotal;
+                linePaidSum = order.items.reduce((sum, item) => {
+                    const line = parseFloat(item.totalAmount != null ? item.totalAmount : 0);
+                    return sum + (Number.isFinite(line) ? line : 0);
                 }, 0);
-            } else {
-                // 如果没有订单项，使用订单的unitPrice和quantity
-                originalTotalAmount = parseFloat(order.unitPrice || 0) * parseInt(order.quantity || 0);
             }
-            
-            // 如果有单价列，计算单价（使用原始价格）
-            if (hasUnitPrice) {
-                const unitPrice = totalQuantity > 0 ? (originalTotalAmount / totalQuantity).toFixed(2) : '0.00';
-                rowHtml += `<td>¥${unitPrice}</td>`;
-            }
-            
-            // 总金额（显示原始总价，如果实际支付为0则显示原始价格）
-            const displayAmount = originalTotalAmount > 0 ? originalTotalAmount : (order.totalAmount || 0);
-            rowHtml += `<td>¥${displayAmount.toFixed(2)}`;
+            const orderTotalNum = parseFloat(order.totalAmount);
+            const displayTotal = Number.isFinite(orderTotalNum) && orderTotalNum >= 0
+                ? orderTotalNum
+                : (linePaidSum > 0 ? linePaidSum : 0);
+
+            rowHtml += `<td>¥${Number(displayTotal).toFixed(2)}`;
             // 如果使用佣金/积分支付且实际支付为0，显示实际支付信息
             if (order.totalAmount === 0 && (order.paymentMethod === 'commission' || order.paymentMethod === 'points' || order.paymentMethod === 'mixed')) {
                 rowHtml += `<br><small class="text-muted">实付：¥0.00</small>`;
@@ -699,17 +713,22 @@ class OrderManagement {
                 // 多商品订单 - 使用表格显示
                 console.log('[OrderManagement] 显示多商品订单，商品数量:', order.items.length);
                 let productHtml = '<div class="table-responsive"><table class="table table-sm table-bordered">';
-                productHtml += '<thead><tr><th>商品图片</th><th>商品名称</th><th>规格</th><th>单价</th><th>数量</th><th>小计</th></tr></thead><tbody>';
+                productHtml += '<thead><tr><th>商品图片</th><th>商品名称</th><th>规格</th><th>标价参考（×数量）</th><th>数量</th><th>行实付（小计）</th><th>优惠说明</th></tr></thead><tbody>';
                 order.items.forEach((item) => {
                     console.log('[OrderManagement] 处理商品项:', item);
+                    const qty = parseInt(item.quantity || 0, 10) || 0;
+                    const refLine = this.lineReferenceSubtotal(item);
+                    const refUnit = qty > 0 ? (refLine / qty).toFixed(2) : '0.00';
+                    const refCol = `¥${refUnit} × ${qty} = ¥${refLine.toFixed(2)}`;
                     productHtml += `
                         <tr>
                             <td><img src="${item.productImage || '/images/default-product.svg'}" alt="${item.productName || '商品'}" class="img-fluid" style="max-height: 80px;" onerror="this.src='/images/default-product.svg'; this.onerror=null;"></td>
                             <td>${item.productName || '-'}</td>
                             <td>${item.skuName || '-'}</td>
-                            <td>¥${parseFloat(item.unitPrice || 0).toFixed(2)}</td>
-                            <td>${item.quantity || 0}</td>
-                            <td>¥${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
+                            <td class="text-nowrap">${refCol}</td>
+                            <td>${qty}</td>
+                            <td class="fw-bold">¥${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
+                            <td class="small text-muted">${this.formatLineDiscountsText(item)}</td>
                         </tr>
                     `;
                 });
@@ -726,8 +745,10 @@ class OrderManagement {
                 // 单商品订单（兼容旧数据）
                 console.log('[OrderManagement] 显示单商品订单');
                 if (detailProductName) detailProductName.textContent = order.product.name || '-';
-                if (detailUnitPrice) detailUnitPrice.textContent = `¥${parseFloat(order.unitPrice || 0).toFixed(2)}`;
-                if (detailQuantity) detailQuantity.textContent = order.quantity || '-';
+                const q = parseInt(order.quantity || 0, 10) || 0;
+                const refSum = parseFloat(order.unitPrice || 0) * q;
+                if (detailUnitPrice) detailUnitPrice.textContent = `¥${refSum.toFixed(2)}（单价参考×数量）`;
+                if (detailQuantity) detailQuantity.textContent = String(q || '-');
                 if (detailTotalAmount) detailTotalAmount.textContent = `¥${parseFloat(order.totalAmount || 0).toFixed(2)}`;
                 
                 if (detailProductImage && order.product.images && order.product.images.length > 0) {
@@ -744,16 +765,17 @@ class OrderManagement {
                         <div class="row">
                             <div class="col-md-12">
                                 <p><strong>商品名称：</strong>${order.productId ? '商品ID: ' + order.productId : '-'}</p>
-                                <p><strong>单价：</strong>¥${parseFloat(order.unitPrice || 0).toFixed(2)}</p>
+                                <p><strong>参考标价合计：</strong>¥${(parseFloat(order.unitPrice || 0) * (parseInt(order.quantity || 0, 10) || 0)).toFixed(2)}</p>
                                 <p><strong>数量：</strong>${order.quantity || '-'}</p>
-                                <p><strong>总金额：</strong>¥${parseFloat(order.totalAmount || 0).toFixed(2)}</p>
+                                <p><strong>订单实付：</strong>¥${parseFloat(order.totalAmount || 0).toFixed(2)}</p>
                             </div>
                         </div>
                     `;
                 } else if (detailProductName) {
                     // 兼容旧结构
                     if (detailProductName) detailProductName.textContent = order.productId ? '商品ID: ' + order.productId : '-';
-                    if (detailUnitPrice) detailUnitPrice.textContent = `¥${parseFloat(order.unitPrice || 0).toFixed(2)}`;
+                    const q2 = parseInt(order.quantity || 0, 10) || 0;
+                    if (detailUnitPrice) detailUnitPrice.textContent = `¥${(parseFloat(order.unitPrice || 0) * q2).toFixed(2)}（参考）`;
                     if (detailQuantity) detailQuantity.textContent = order.quantity || '-';
                     if (detailTotalAmount) detailTotalAmount.textContent = `¥${parseFloat(order.totalAmount || 0).toFixed(2)}`;
                 }
@@ -764,7 +786,8 @@ class OrderManagement {
                 console.log('[OrderManagement] 订单有items但detailProductList不存在，使用detailProductName等元素');
                 const firstItem = order.items[0];
                 if (detailProductName) detailProductName.textContent = firstItem.productName || '-';
-                if (detailUnitPrice) detailUnitPrice.textContent = `¥${parseFloat(firstItem.unitPrice || 0).toFixed(2)}`;
+                const refMulti = order.items.reduce((s, it) => s + this.lineReferenceSubtotal(it), 0);
+                if (detailUnitPrice) detailUnitPrice.textContent = `¥${refMulti.toFixed(2)}（各行参考标价合计）`;
                 if (detailQuantity) detailQuantity.textContent = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
                 if (detailTotalAmount) detailTotalAmount.textContent = `¥${parseFloat(order.totalAmount || 0).toFixed(2)}`;
                 
@@ -880,15 +903,12 @@ class OrderManagement {
     renderAmountCalculation(order) {
         console.log('[OrderManagement] 渲染金额计算流程，订单数据:', order);
         const calc = order.amountCalculation || {};
-        // 如果没有amountCalculation，尝试从订单项计算原价
         let originalAmount = calc.originalAmount;
         if (!originalAmount) {
             if (order.itemsOriginalTotal) {
                 originalAmount = order.itemsOriginalTotal;
             } else if (order.items && order.items.length > 0) {
-                originalAmount = order.items.reduce((sum, item) => {
-                    return sum + (parseFloat(item.unitPrice || 0) * parseInt(item.quantity || 0));
-                }, 0);
+                originalAmount = order.items.reduce((sum, item) => sum + this.lineReferenceSubtotal(item), 0);
             } else {
                 originalAmount = parseFloat(order.unitPrice || 0) * parseInt(order.quantity || 0);
             }
@@ -898,9 +918,10 @@ class OrderManagement {
         const finalAmount = calc.finalAmount || order.totalAmount || 0;
         console.log('[OrderManagement] 金额计算 - 原价:', originalAmount, '佣金抵扣:', commissionDeduction, '积分抵扣:', pointsDeduction, '最终金额:', finalAmount);
         
-        // 计算总优惠（从订单项中获取）
         let totalCouponDiscount = 0;
         let totalPromotionDiscount = 0;
+        let totalMemberDiscount = 0;
+        let totalPointsLineDiscount = 0;
         if (order.items && order.items.length > 0) {
             order.items.forEach(item => {
                 if (item.appliedCoupons && Array.isArray(item.appliedCoupons)) {
@@ -913,12 +934,18 @@ class OrderManagement {
                         if (discount.type === 'promotion') {
                             totalPromotionDiscount += parseFloat(discount.amount || 0);
                         }
+                        if (discount.type === 'member') {
+                            totalMemberDiscount += parseFloat(discount.amount || 0);
+                        }
+                        if (discount.type === 'points') {
+                            totalPointsLineDiscount += parseFloat(discount.amount || 0);
+                        }
                     });
                 }
             });
         }
         
-        const afterDiscount = originalAmount - totalCouponDiscount - totalPromotionDiscount;
+        const afterDiscount = originalAmount - totalCouponDiscount - totalPromotionDiscount - totalMemberDiscount - totalPointsLineDiscount;
         
         // 更新显示
         const detailOriginalAmount = document.getElementById('detailOriginalAmount');
@@ -932,6 +959,8 @@ class OrderManagement {
         const detailPointsDeductionRow = document.getElementById('detailPointsDeductionRow');
         const detailPointsDeduction = document.getElementById('detailPointsDeduction');
         const detailFinalAmount = document.getElementById('detailFinalAmount');
+        const detailMemberDiscountRow = document.getElementById('detailMemberDiscountRow');
+        const detailMemberDiscount = document.getElementById('detailMemberDiscount');
         
         if (detailOriginalAmount) detailOriginalAmount.textContent = `¥${parseFloat(originalAmount).toFixed(2)}`;
         
@@ -947,6 +976,13 @@ class OrderManagement {
             if (detailPromotionDiscount) detailPromotionDiscount.textContent = `-¥${parseFloat(totalPromotionDiscount).toFixed(2)}`;
         } else {
             if (detailPromotionRow) detailPromotionRow.style.display = 'none';
+        }
+
+        if (totalMemberDiscount > 0) {
+            if (detailMemberDiscountRow) detailMemberDiscountRow.style.display = '';
+            if (detailMemberDiscount) detailMemberDiscount.textContent = `-¥${parseFloat(totalMemberDiscount).toFixed(2)}`;
+        } else {
+            if (detailMemberDiscountRow) detailMemberDiscountRow.style.display = 'none';
         }
         
         if (detailAfterDiscount) detailAfterDiscount.textContent = `¥${parseFloat(afterDiscount).toFixed(2)}`;
@@ -966,6 +1002,36 @@ class OrderManagement {
         }
         
         if (detailFinalAmount) detailFinalAmount.textContent = `¥${parseFloat(finalAmount).toFixed(2)}`;
+
+        const formulaEl = document.getElementById('detailPriceFormula');
+        if (formulaEl) {
+            const lines = [];
+            lines.push('【逐行组成】');
+            if (order.items && order.items.length > 0) {
+                order.items.forEach((item, idx) => {
+                    const ref = this.lineReferenceSubtotal(item);
+                    const paid = parseFloat(item.totalAmount || 0);
+                    const disc = this.formatLineDiscountsText(item);
+                    lines.push(`  ${idx + 1}. ${item.productName || '商品'}：参考小计 ¥${ref.toFixed(2)} → 行实付 ¥${paid.toFixed(2)} ｜ ${disc}`);
+                });
+            } else {
+                lines.push(`  （无明细行）参考标价合计 ¥${parseFloat(originalAmount).toFixed(2)}`);
+            }
+            lines.push('');
+            lines.push('【汇总公式】');
+            lines.push(`商品参考标价合计 = ¥${parseFloat(originalAmount).toFixed(2)}`);
+            if (totalCouponDiscount > 0) lines.push(`− 优惠券抵扣 = ¥${parseFloat(totalCouponDiscount).toFixed(2)}`);
+            if (totalPromotionDiscount > 0) lines.push(`− 促销活动折扣 = ¥${parseFloat(totalPromotionDiscount).toFixed(2)}`);
+            if (totalMemberDiscount > 0) lines.push(`− 会员权益折扣 = ¥${parseFloat(totalMemberDiscount).toFixed(2)}`);
+            if (totalPointsLineDiscount > 0) lines.push(`− 行内积分抵扣 = ¥${parseFloat(totalPointsLineDiscount).toFixed(2)}`);
+            lines.push(`= 优惠后商品金额 = ¥${parseFloat(afterDiscount).toFixed(2)}`);
+            if (commissionDeduction > 0) lines.push(`− 订单佣金抵扣 = ¥${parseFloat(commissionDeduction).toFixed(2)}`);
+            if (pointsDeduction > 0) lines.push(`− 订单积分抵扣 = ¥${parseFloat(pointsDeduction).toFixed(2)}`);
+            lines.push(`= 实付金额 = ¥${parseFloat(finalAmount).toFixed(2)}`);
+            lines.push('');
+            lines.push('说明：参考标价优先取 SKU 快照价×数量；无快照时用行单价×数量。实付金额以订单 totalAmount 为准。');
+            formulaEl.textContent = lines.join('\n');
+        }
     }
 
     // 显示佣金记录
