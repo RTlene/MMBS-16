@@ -398,11 +398,16 @@ class PromotionService {
                 quantity
             );
 
+            const q = Math.max(1, parseInt(quantity, 10) || 1);
+            const finalLineAmount = priceCalculation.finalPrice;
+            // 折后单价，避免订单明细 unitPrice 仍为 SKU 原价、与 totalAmount 不一致（后台列表曾误用原价展示）
+            const effectiveUnitPrice = finalLineAmount / q;
+
             // 构建订单数据
             const finalOrderData = {
                 ...orderData,
-                unitPrice: unitPrice,
-                totalAmount: priceCalculation.finalPrice,
+                unitPrice: effectiveUnitPrice,
+                totalAmount: finalLineAmount,
                 appliedCoupons: coupons.map(coupon => ({
                     id: coupon.id,
                     name: coupon.name,

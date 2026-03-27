@@ -175,51 +175,172 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 导出商品（按筛选条件导出全量CSV）
+// 导出商品 SKU 明细（CSV：每行一个 SKU；勾选 ids 时仅导出选中商品，否则按筛选导出全部）
 router.get('/export', async (req, res) => {
   try {
-    const { search = '', categoryId = '', status = '' } = req.query;
+    const { search = '', categoryId = '', status = '', ids = '' } = req.query;
+    const idList = String(ids || '')
+      .split(/[,;]+/)
+      .map((s) => parseInt(String(s).trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
 
-    const whereClause = buildAdminProductWhere({ search, categoryId, status }, sequelize);
+    let whereClause = buildAdminProductWhere({ search, categoryId, status }, sequelize);
+    if (idList.length > 0) {
+      whereClause = { [Op.and]: [whereClause, { id: { [Op.in]: idList } }] };
+    }
 
-    const rows = await Product.findAll({
-      where: whereClause,
-      include: [
-        { model: Category, as: 'category', attributes: ['id', 'name'] },
-        {
-          model: Category,
-          as: 'categories',
-          attributes: ['id', 'name'],
-          through: { attributes: ['sortOrder'] },
-          required: false
-        }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
+    const [products, levels] = await Promise.all([
+      withDbRetry(() => Product.findAll({
+        where: whereClause,
+        include: [
+          { model: Category, as: 'category', attributes: ['id', 'name'], required: false },
+          {
+            model: Category,
+            as: 'categories',
+            attributes: ['id', 'name'],
+            through: { attributes: ['sortOrder'] },
+            required: false
+          },
+          {
+            model: ProductSKU,
+            as: 'skus',
+            required: false
+          },
+          {
+            model: ProductMemberPrice,
+            as: 'memberPrices',
+            required: false,
+            attributes: ['id', 'memberLevelId', 'skuId', 'price']
+          }
+        ],
+        order: [['id', 'ASC']]
+      })),
+      MemberLevel.findAll({
+        attributes: ['id', 'level', 'name'],
+        order: [['level', 'ASC'], ['id', 'ASC']]
+      })
+    ]);
 
-    const headers = [
-      'id',
-      'name',
+    const safeHeaderSeg = (s) => String(s || '').replace(/[",\r\n\u200B]/g, ' ').trim().slice(0, 40);
+    const memberHeaders = levels.map(
+      (l) => `memberPrice_L${l.id}_${safeHeaderSeg(l.name)}`
+    );
+
+    const baseHeaders = [
+      'productId',
+      'productName',
+      'brand',
       'categoryId',
       'categoryIds',
-      'brand',
+      'categoryName',
       'productType',
-      'price',
-      'originalPrice',
-      'stock',
+      'productStatus',
       'isHot',
-      'status',
-      'createdAt'
+      'productSortOrder',
+      'skuId',
+      'skuCode',
+      'skuName',
+      'retailPrice',
+      'costPrice',
+      'stock',
+      'barcode',
+      'weight',
+      'dimensions',
+      'skuAttributesJson',
+      'skuImagesJson',
+      'skuStatus',
+      'skuSortOrder',
+      'skuCreatedAt',
+      'skuUpdatedAt'
     ];
+    const headers = [...baseHeaders, ...memberHeaders];
 
-    const dataRows = rows.map(p => {
+    const memberPriceCell = (productMemberPrices, levelId, sku) => {
+      const list = Array.isArray(productMemberPrices) ? productMemberPrices : [];
+      if (sku) {
+        const exact = list.find((mp) => mp.memberLevelId === levelId && mp.skuId === sku.id);
+        if (exact) return exact.price;
+      }
+      const def = list.find((mp) => mp.memberLevelId === levelId && mp.skuId === 0);
+      return def ? def.price : '';
+    };
+
+    const fmt = (v) => {
+      if (v === null || v === undefined) return '';
+      if (v instanceof Date) return v.toISOString();
+      return v;
+    };
+
+    const dataRows = [];
+    for (const p of products) {
       const j = enrichProductCategoryArrays(p.toJSON());
-      const row = { ...j, categoryIds: (j.categoryIds || []).join(';') };
-      return headers.map(h => row[h] ?? '');
-    });
+      const catNames = (j.categories || []).map((c) => c.name).filter(Boolean).join(';');
+      const mps = p.memberPrices || [];
+
+      const pushRow = (sku) => {
+        const row = {
+          productId: p.id,
+          productName: p.name,
+          brand: p.brand ?? '',
+          categoryId: p.categoryId ?? '',
+          categoryIds: (j.categoryIds || []).join(';'),
+          categoryName: catNames || (p.category && p.category.name) || '',
+          productType: p.productType,
+          productStatus: p.status,
+          isHot: p.isHot,
+          productSortOrder: p.sortOrder ?? ''
+        };
+        if (sku) {
+          row.skuId = sku.id;
+          row.skuCode = sku.sku;
+          row.skuName = sku.name;
+          row.retailPrice = sku.price;
+          row.costPrice = sku.costPrice ?? '';
+          row.stock = sku.stock;
+          row.barcode = sku.barcode ?? '';
+          row.weight = sku.weight ?? '';
+          row.dimensions = sku.dimensions ?? '';
+          row.skuAttributesJson = sku.attributes ? JSON.stringify(sku.attributes) : '';
+          row.skuImagesJson = sku.images ? JSON.stringify(sku.images) : '';
+          row.skuStatus = sku.status;
+          row.skuSortOrder = sku.sortOrder ?? 0;
+          row.skuCreatedAt = fmt(sku.createdAt);
+          row.skuUpdatedAt = fmt(sku.updatedAt);
+        } else {
+          row.skuId = '';
+          row.skuCode = '';
+          row.skuName = '(无SKU)';
+          row.retailPrice = '';
+          row.costPrice = '';
+          row.stock = '';
+          row.barcode = '';
+          row.weight = '';
+          row.dimensions = '';
+          row.skuAttributesJson = '';
+          row.skuImagesJson = '';
+          row.skuStatus = '';
+          row.skuSortOrder = '';
+          row.skuCreatedAt = '';
+          row.skuUpdatedAt = '';
+        }
+        levels.forEach((l, i) => {
+          row[memberHeaders[i]] = memberPriceCell(mps, l.id, sku);
+        });
+        dataRows.push(headers.map((h) => row[h] ?? ''));
+      };
+
+      const skus = sortSkus(p.skus || []);
+      if (skus.length === 0) {
+        pushRow(null);
+      } else {
+        for (const sku of skus) {
+          pushRow(sku);
+        }
+      }
+    }
 
     const csv = toCsv(headers, dataRows);
-    sendCsv(res, `products_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    sendCsv(res, `products_sku_detail_${new Date().toISOString().slice(0, 10)}.csv`, csv);
   } catch (error) {
     console.error('导出商品失败:', error);
     res.status(500).json({ code: 1, message: '导出商品失败: ' + error.message });

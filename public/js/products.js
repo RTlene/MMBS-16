@@ -71,6 +71,11 @@ window.exportProducts = async function exportProducts() {
         if (categoryId) params.set('categoryId', categoryId);
         if (status) params.set('status', status);
 
+        const selected = getSelectedProductIds();
+        if (selected.length > 0) {
+            params.set('ids', selected.join(','));
+        }
+
         const token = localStorage.getItem('token');
         const url = `/api/products/export${params.toString() ? `?${params.toString()}` : ''}`;
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -79,12 +84,16 @@ window.exportProducts = async function exportProducts() {
         const a = document.createElement('a');
         const href = URL.createObjectURL(blob);
         a.href = href;
-        a.download = `products_${new Date().toISOString().slice(0, 10)}.csv`;
+        const day = new Date().toISOString().slice(0, 10);
+        a.download = `products_sku_detail_${day}.csv`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(href);
-        alert('商品报表导出成功');
+        const tip = selected.length > 0
+            ? `已导出所选 ${selected.length} 个商品的全部 SKU 明细（含会员价、成本等）`
+            : '已导出当前筛选条件下全部商品的 SKU 明细（含会员价、成本等；未勾选则导出全部）';
+        alert(tip);
     } catch (err) {
         console.error('导出商品失败:', err);
         alert('导出商品失败: ' + err.message);
