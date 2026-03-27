@@ -1,6 +1,13 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { CommissionCalculation, TeamIncentiveCalculation, Member, Order } = require('../db');
+const {
+    CommissionCalculation,
+    CommissionExcludedProduct,
+    TeamIncentiveCalculation,
+    Member,
+    Order,
+    Product
+} = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const CommissionService = require('../services/commissionService');
 
@@ -134,7 +141,9 @@ router.get('/preview/:orderId', authenticateToken, async (req, res) => {
             data: {
                 calculations: result.calculations || [],
                 noReferrer: result.noReferrer,
-                referrerNotFound: result.referrerNotFound
+                referrerNotFound: result.referrerNotFound,
+                commissionBaseZero: result.commissionBaseZero,
+                promotionOrderExcluded: result.promotionOrderExcluded
             }
         });
     } catch (error) {
@@ -162,7 +171,12 @@ router.post('/calculate/:orderId', authenticateToken, async (req, res) => {
         res.json({
             code: 0,
             message,
-            data: { calculations, orderNotCompleted: result.orderNotCompleted, alreadyCalculated: result.alreadyCalculated }
+            data: {
+                calculations,
+                orderNotCompleted: result.orderNotCompleted,
+                alreadyCalculated: result.alreadyCalculated,
+                commissionBaseZero: result.commissionBaseZero
+            }
         });
     } catch (error) {
         console.error('计算订单佣金失败:', error);
@@ -240,6 +254,92 @@ router.put('/cancel/:id', authenticateToken, async (req, res) => {
             code: 1,
             message: error.message || '取消佣金失败'
         });
+    }
+});
+
+// ---------- 佣金除外商品 ----------
+router.get('/excluded-products', authenticateToken, async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+        const offset = (page - 1) * limit;
+
+        const { count, rows } = await CommissionExcludedProduct.findAndCountAll({
+            include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'images', 'status'] }],
+            limit,
+            offset,
+            order: [['id', 'DESC']]
+        });
+
+        const list = rows.map((r) => {
+            const j = r.toJSON();
+            let thumb = null;
+            if (j.product && Array.isArray(j.product.images) && j.product.images.length > 0) {
+                thumb = j.product.images[0];
+            }
+            return {
+                id: j.id,
+                productId: j.productId,
+                remark: j.remark,
+                createdAt: j.createdAt,
+                productName: j.product ? j.product.name : null,
+                productStatus: j.product ? j.product.status : null,
+                thumb
+            };
+        });
+
+        res.json({
+            code: 0,
+            message: '获取成功',
+            data: {
+                list,
+                total: count,
+                totalPages: Math.ceil(count / limit),
+                currentPage: page
+            }
+        });
+    } catch (error) {
+        console.error('获取佣金除外商品失败:', error);
+        res.status(500).json({ code: 1, message: '获取失败: ' + error.message });
+    }
+});
+
+router.post('/excluded-products', authenticateToken, async (req, res) => {
+    try {
+        const productId = parseInt(req.body.productId, 10);
+        const remark = req.body.remark != null ? String(req.body.remark).trim().slice(0, 500) : '';
+        if (!Number.isFinite(productId) || productId <= 0) {
+            return res.status(400).json({ code: 1, message: '请提供有效商品 ID' });
+        }
+        const product = await Product.findByPk(productId);
+        if (!product) {
+            return res.status(404).json({ code: 1, message: '商品不存在' });
+        }
+        const row = await CommissionExcludedProduct.create({ productId, remark: remark || null });
+        res.json({ code: 0, message: '已加入除外列表', data: { id: row.id, productId } });
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ code: 1, message: '该商品已在除外列表中' });
+        }
+        console.error('添加佣金除外商品失败:', error);
+        res.status(500).json({ code: 1, message: '添加失败: ' + error.message });
+    }
+});
+
+router.delete('/excluded-products/:id', authenticateToken, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ code: 1, message: '无效 ID' });
+        }
+        const n = await CommissionExcludedProduct.destroy({ where: { id } });
+        if (n === 0) {
+            return res.status(404).json({ code: 1, message: '记录不存在' });
+        }
+        res.json({ code: 0, message: '已移除' });
+    } catch (error) {
+        console.error('删除佣金除外商品失败:', error);
+        res.status(500).json({ code: 1, message: '删除失败: ' + error.message });
     }
 });
 

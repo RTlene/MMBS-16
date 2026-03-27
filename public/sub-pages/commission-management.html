@@ -66,13 +66,14 @@
     <div class="commission-container">
         <div class="page-header">
             <h1 class="page-title">佣金管理</h1>
-            <p class="page-description">佣金记录确认/取消、提现申请审核、小额自动通过配置</p>
+            <p class="page-description">佣金记录确认/取消、提现申请审核、佣金除外商品、小额自动通过配置</p>
         </div>
 
         <div class="tabs">
             <button type="button" class="tab active" data-tab="overview">概览</button>
             <button type="button" class="tab" data-tab="calculations">佣金记录</button>
             <button type="button" class="tab" data-tab="withdrawals">提现申请</button>
+            <button type="button" class="tab" data-tab="excluded">佣金除外商品</button>
         </div>
 
         <!-- Tab 概览 -->
@@ -196,6 +197,42 @@
                     </table>
                 </div>
                 <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+
+        <!-- Tab 佣金除外商品 -->
+        <div id="panel-excluded" class="tab-panel">
+            <p style="color:#666;margin-bottom:12px;font-size:13px;">以下商品在订单中对应的<strong>成交金额</strong>与<strong>SKU 成本</strong>不参与佣金基数；若订单仅含除外商品，则整单不产生佣金。不影响会员销售额统计。</p>
+            <div class="content-card">
+                <div class="card-header" style="flex-direction:column;align-items:stretch;">
+                    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+                        <div class="form-group">
+                            <label>商品 ID</label>
+                            <input type="number" id="excludedProductId" class="form-input" min="1" step="1" placeholder="商品管理中的数字 ID" style="width:160px;" />
+                        </div>
+                        <div class="form-group">
+                            <label>备注（选填）</label>
+                            <input type="text" id="excludedRemark" class="form-input" placeholder="如：引流款" style="min-width:200px;" />
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btnAddExcluded">加入除外</button>
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>商品ID</th>
+                                <th>商品名称</th>
+                                <th>备注</th>
+                                <th>添加时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="excludedTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="excludedPagination"></div>
             </div>
         </div>
     </div>

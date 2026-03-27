@@ -9,6 +9,7 @@ const {
     DistributorLevel,
     TeamExpansionLevel,
     CommissionCalculation,
+    CommissionExcludedProduct,
     TeamIncentiveCalculation
 } = require('../db');
 
@@ -94,7 +95,7 @@ class CommissionService {
             include: [{
                 model: OrderItem,
                 as: 'items',
-                include: [{ model: ProductSKU, as: 'sku', attributes: ['id', 'costPrice'] }]
+                include: [{ model: ProductSKU, as: 'sku', attributes: ['id', 'costPrice', 'productId'] }]
             }]
         });
         if (!orderWithItems) {
@@ -107,14 +108,19 @@ class CommissionService {
             return { calculations: [], promotionOrderExcluded: true, noReferrer: false, referrerNotFound: false };
         }
 
-        const orderAmount = parseFloat(orderWithItems.totalAmount);
         const bases = await this.getOrderCommerceBases(orderWithItems);
+        const orderAmount = bases.retailAmount;
+
+        if (orderAmount <= 0) {
+            console.log(`[佣金] 可计佣金金额为 0（可能全部为佣金除外商品或无有效明细） orderId=${orderId}`);
+            return { calculations: [], commissionBaseZero: true, noReferrer: false, referrerNotFound: false };
+        }
 
         if (!member) {
             return { calculations: [], noReferrer: false, referrerNotFound: false };
         }
 
-            console.log(`[佣金] 订单 orderId=${orderId} 下单会员 memberId=${member.id} referrerId=${member.referrerId} 订单零售价=${orderAmount} SKU成本合计=${bases.skuCostTotal}`);
+            console.log(`[佣金] 订单 orderId=${orderId} 下单会员 memberId=${member.id} referrerId=${member.referrerId} 可计佣金零售额=${orderAmount} SKU成本合计(可计佣)=${bases.skuCostTotal}`);
 
             // 未设置推荐人
             if (member.referrerId == null || member.referrerId === '') {
@@ -447,36 +453,99 @@ class CommissionService {
         return false;
     }
 
+    /** 后台配置的「佣金除外」商品 ID 集合 */
+    static async getCommissionExcludedProductIdsSet() {
+        const rows = await CommissionExcludedProduct.findAll({ attributes: ['productId'], raw: true });
+        return new Set((rows || []).map((r) => r.productId).filter((id) => id != null && id > 0));
+    }
+
+    static _resolveOrderItemProductId(it) {
+        if (it.productId != null && it.productId !== '') {
+            const n = parseInt(it.productId, 10);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+        if (it.sku && it.sku.productId != null) {
+            const n = parseInt(it.sku.productId, 10);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+        if (it.skuSnapshot && typeof it.skuSnapshot === 'object' && it.skuSnapshot.productId != null) {
+            const n = parseInt(it.skuSnapshot.productId, 10);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+        return null;
+    }
+
+    static _orderItemSkuCost(it) {
+        const qty = parseInt(it.quantity, 10) || 0;
+        let unitCost = null;
+        if (it.sku && it.sku.costPrice != null && parseFloat(it.sku.costPrice) > 0) {
+            unitCost = parseFloat(it.sku.costPrice);
+        } else if (it.skuSnapshot && typeof it.skuSnapshot === 'object' && it.skuSnapshot.costPrice != null) {
+            unitCost = parseFloat(it.skuSnapshot.costPrice);
+        }
+        if (unitCost == null || Number.isNaN(unitCost)) return 0;
+        return unitCost * qty;
+    }
+
     /**
+     * 佣金计算基数：零售额、SKU 成本合计（成本基数时分销商用）。
+     * 若配置了佣金除外商品且本订单行命中，则剔除对应行的零售额与成本。
      * @returns {{ retailAmount: number, skuCostTotal: number }}
      */
     static async getOrderCommerceBases(order) {
-        const retailAmount = parseFloat(order.totalAmount) || 0;
         let items = order.items;
         if (!items || !Array.isArray(items)) {
             const o2 = await Order.findByPk(order.id, {
                 include: [{
                     model: OrderItem,
                     as: 'items',
-                    include: [{ model: ProductSKU, as: 'sku', attributes: ['id', 'costPrice'] }]
+                    include: [{ model: ProductSKU, as: 'sku', attributes: ['id', 'costPrice', 'productId'] }]
                 }]
             });
             items = o2 && o2.items ? o2.items : [];
         }
+
+        const excludedSet = await this.getCommissionExcludedProductIdsSet();
+        let retailAmount = parseFloat(order.totalAmount) || 0;
         let skuCostTotal = 0;
-        for (const it of items) {
-            const qty = parseInt(it.quantity, 10) || 0;
-            let unitCost = null;
-            if (it.sku && it.sku.costPrice != null && parseFloat(it.sku.costPrice) > 0) {
-                unitCost = parseFloat(it.sku.costPrice);
-            } else if (it.skuSnapshot && typeof it.skuSnapshot === 'object' && it.skuSnapshot.costPrice != null) {
-                unitCost = parseFloat(it.skuSnapshot.costPrice);
+
+        if (excludedSet.size === 0) {
+            for (const it of items) {
+                skuCostTotal += this._orderItemSkuCost(it);
             }
-            if (unitCost != null && !Number.isNaN(unitCost)) {
-                skuCostTotal += unitCost * qty;
-            }
+            skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
+            return { retailAmount, skuCostTotal };
         }
+
+        const hasExcludedLine = items.some((it) => {
+            const pid = this._resolveOrderItemProductId(it);
+            return pid && excludedSet.has(pid);
+        });
+
+        if (!hasExcludedLine) {
+            for (const it of items) {
+                skuCostTotal += this._orderItemSkuCost(it);
+            }
+            skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
+            return { retailAmount, skuCostTotal };
+        }
+
+        let commissionableRetail = 0;
+        let excludedRetailSum = 0;
+        for (const it of items) {
+            const pid = this._resolveOrderItemProductId(it);
+            const lineRetail = parseFloat(it.totalAmount) || 0;
+            const lineCost = this._orderItemSkuCost(it);
+            if (pid && excludedSet.has(pid)) {
+                excludedRetailSum += lineRetail;
+                continue;
+            }
+            commissionableRetail += lineRetail;
+            skuCostTotal += lineCost;
+        }
+        retailAmount = parseFloat(commissionableRetail.toFixed(2));
         skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
+        console.log(`[佣金] 订单行含佣金除外商品，除外零售额约 ¥${excludedRetailSum.toFixed(2)}，可计佣金零售额 ¥${retailAmount.toFixed(2)}`);
         return { retailAmount, skuCostTotal };
     }
 

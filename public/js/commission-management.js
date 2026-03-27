@@ -15,7 +15,10 @@ window.CommissionManagement = {
     withdrawalPageSize: 10,
     withdrawalSearch: '',
     withdrawalStatus: '',
-    withdrawalCurrentId: null
+    withdrawalCurrentId: null,
+    excludedPage: 1,
+    excludedTotalPages: 1,
+    excludedPageSize: 10
   },
 
   init() {
@@ -23,6 +26,7 @@ window.CommissionManagement = {
     this.loadStats();
     this.bindCalcEvents();
     this.bindWithdrawalEvents();
+    this.bindExcludedEvents();
     const linkTestOrder = document.getElementById('linkTestOrder');
     if (linkTestOrder) {
       linkTestOrder.href = 'javascript:void(0)';
@@ -48,6 +52,7 @@ window.CommissionManagement = {
         if (t === 'overview') self.loadStats();
         if (t === 'calculations') self.loadCalculations();
         if (t === 'withdrawals') { self.loadWithdrawalConfig(); self.loadWithdrawals(); }
+        if (t === 'excluded') self.loadExcludedProducts();
       });
     });
   },
@@ -419,5 +424,111 @@ window.CommissionManagement = {
       if (result.code === 0) { alert(result.message || '已提交撤销'); this.closeWithdrawalDetail(); this.loadWithdrawals(); }
       else alert(result.message || '失败');
     } catch (e) { console.error(e); alert('网络错误'); }
+  },
+
+  // ---------- 佣金除外商品 ----------
+  bindExcludedEvents() {
+    const self = this;
+    document.getElementById('btnAddExcluded')?.addEventListener('click', () => self.addExcludedProduct());
+  },
+
+  async loadExcludedProducts() {
+    const d = this.data;
+    const params = new URLSearchParams({ page: d.excludedPage, limit: d.excludedPageSize });
+    try {
+      const res = await fetch('/api/commission/excluded-products?' + params, { headers: this.getAuthHeaders() });
+      const result = await res.json();
+      if (result.code === 0 && result.data) {
+        d.excludedTotalPages = result.data.totalPages || 1;
+        this.renderExcludedTable(result.data.list || []);
+        this.renderExcludedPagination();
+      } else {
+        alert(result.message || '加载失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('网络错误');
+    }
+  },
+
+  renderExcludedPagination() {
+    const p = document.getElementById('excludedPagination');
+    if (!p) return;
+    const cur = this.data.excludedPage;
+    const total = this.data.excludedTotalPages;
+    p.innerHTML = '<button class="btn btn-secondary" ' + (cur <= 1 ? 'disabled' : '') + ' onclick="window.CommissionManagement.excludedGoPage(' + (cur - 1) + ')">上一页</button>' +
+      '<span style="margin:0 12px;">第 ' + cur + ' / ' + (total || 1) + ' 页</span>' +
+      '<button class="btn btn-secondary" ' + (cur >= total ? 'disabled' : '') + ' onclick="window.CommissionManagement.excludedGoPage(' + (cur + 1) + ')">下一页</button>';
+  },
+
+  renderExcludedTable(list) {
+    const tbody = document.getElementById('excludedTableBody');
+    if (!tbody) return;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#999;">暂无除外商品，请添加</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map((row) => {
+      const t = row.createdAt ? new Date(row.createdAt).toLocaleString() : '-';
+      const name = row.productName || '（商品已删除或不可用）';
+      return '<tr>' +
+        '<td>' + row.id + '</td>' +
+        '<td>' + row.productId + '</td>' +
+        '<td>' + name + '</td>' +
+        '<td>' + (row.remark || '-') + '</td>' +
+        '<td>' + t + '</td>' +
+        '<td><button class="btn btn-danger btn-sm" onclick="window.CommissionManagement.removeExcluded(' + row.id + ')">移除</button></td></tr>';
+    }).join('');
+  },
+
+  excludedGoPage(page) {
+    if (page < 1 || page > this.data.excludedTotalPages) return;
+    this.data.excludedPage = page;
+    this.loadExcludedProducts();
+  },
+
+  async addExcludedProduct() {
+    const productId = parseInt(document.getElementById('excludedProductId')?.value, 10);
+    const remark = document.getElementById('excludedRemark')?.value?.trim() || '';
+    if (!Number.isFinite(productId) || productId <= 0) {
+      alert('请输入有效的商品 ID');
+      return;
+    }
+    try {
+      const res = await fetch('/api/commission/excluded-products', {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ productId, remark })
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        alert('已加入除外列表');
+        document.getElementById('excludedProductId').value = '';
+        document.getElementById('excludedRemark').value = '';
+        this.data.excludedPage = 1;
+        this.loadExcludedProducts();
+      } else {
+        alert(result.message || '添加失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('网络错误');
+    }
+  },
+
+  async removeExcluded(id) {
+    if (!confirm('确定从除外列表中移除？新订单将恢复对该商品计佣。')) return;
+    try {
+      const res = await fetch('/api/commission/excluded-products/' + id, { method: 'DELETE', headers: this.getAuthHeaders() });
+      const result = await res.json();
+      if (result.code === 0) {
+        this.loadExcludedProducts();
+      } else {
+        alert(result.message || '删除失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('网络错误');
+    }
   }
 };

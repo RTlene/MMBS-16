@@ -2887,6 +2887,30 @@ const CommissionCalculation = sequelize.define('CommissionCalculation', {
     timestamps: true
 });
 
+// 佣金除外商品：列入后，订单中该商品的成交金额与对应 SKU 成本不参与佣金基数
+const CommissionExcludedProduct = sequelize.define('CommissionExcludedProduct', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    productId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        unique: true,
+        comment: '商品ID'
+    },
+    remark: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        comment: '备注'
+    }
+}, {
+    tableName: 'commission_excluded_products',
+    comment: '佣金计算除外商品',
+    timestamps: true
+});
+
 // 团队拓展激励计算记录模型
 const TeamIncentiveCalculation = sequelize.define('TeamIncentiveCalculation', {
     id: {
@@ -3348,6 +3372,9 @@ CommissionCalculation.belongsTo(Member, { foreignKey: 'memberId', as: 'member' }
 CommissionCalculation.belongsTo(Member, { foreignKey: 'referrerId', as: 'referrer' });
 CommissionCalculation.belongsTo(Member, { foreignKey: 'recipientId', as: 'recipient' });
 
+CommissionExcludedProduct.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Product.hasMany(CommissionExcludedProduct, { foreignKey: 'productId', as: 'commissionExclusions' });
+
 Order.hasMany(CommissionCalculation, { foreignKey: 'orderId', as: 'commissionCalculations' });
 Member.hasMany(CommissionCalculation, { foreignKey: 'memberId', as: 'memberCommissionCalculations' });
 Member.hasMany(CommissionCalculation, { foreignKey: 'referrerId', as: 'referrerCommissionCalculations' });
@@ -3655,6 +3682,34 @@ async function init() {
       console.warn('[DB] distributor_levels 积分列自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
+    // ===== 自动迁移：commission_excluded_products 佣金除外商品（部署时建表，无需手工 SQL）=====
+    try {
+      const dialect = sequelize.getDialect();
+      if (dialect === 'mysql') {
+        const [tables] = await sequelize.query(
+          "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commission_excluded_products'"
+        );
+        if (!tables || tables.length === 0) {
+          console.log('[DB] 创建 commission_excluded_products 表（佣金除外商品）...');
+          await sequelize.query(`
+            CREATE TABLE \`commission_excluded_products\` (
+              \`id\` INT NOT NULL AUTO_INCREMENT,
+              \`productId\` INT NOT NULL COMMENT '商品ID',
+              \`remark\` VARCHAR(500) NULL COMMENT '备注',
+              \`createdAt\` DATETIME NOT NULL,
+              \`updatedAt\` DATETIME NOT NULL,
+              PRIMARY KEY (\`id\`),
+              UNIQUE KEY \`uniq_commission_excluded_productId\` (\`productId\`),
+              KEY \`idx_commission_excluded_productId\` (\`productId\`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          `);
+          console.log('[DB] commission_excluded_products 已就绪');
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] commission_excluded_products 表创建失败(忽略):', e && e.message ? e.message : e);
+    }
+
     // 默认不在启动时做 alter 同步（云托管缩容后冷启动会非常慢）
     // 需要同步时显式设置：DB_SYNC=true（可选：DB_SYNC_ALTER=true 走 alter）
     const shouldSync = process.env.DB_SYNC === 'true';
@@ -3697,6 +3752,7 @@ async function init() {
       ['Articles', Article],
       ['VerificationCodes', VerificationCode],
       ['CommissionCalculations', CommissionCalculation],
+      ['commission_excluded_products', CommissionExcludedProduct],
       ['TeamIncentiveCalculations', TeamIncentiveCalculation],
       ['OrderItems', OrderItem],
       ['OrderOperationLogs', OrderOperationLog],
@@ -3808,6 +3864,7 @@ module.exports = {
     PointMultiplierConfig,
     PointSourceConfig,
     CommissionCalculation,
+    CommissionExcludedProduct,
     OrderOperationLog,
     TeamIncentiveCalculation
 };
