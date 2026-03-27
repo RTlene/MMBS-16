@@ -600,6 +600,17 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         allowNull: true,
         comment: '最高粉丝数限制'
     },
+    minPoints: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '最低积分要求（分销自动升级）'
+    },
+    maxPoints: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '最高积分限制（分销自动升级，空表示无上限）'
+    },
     useActiveFansForUpgrade: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -688,7 +699,7 @@ const DistributorLevel = sequelize.define('DistributorLevel', {
         type: DataTypes.ENUM('and', 'or'),
         allowNull: false,
         defaultValue: 'and',
-        comment: '自动升级条件关系：and=粉丝与销售额都满足，or=满足其一即可'
+        comment: '自动升级条件关系：and=销售额、粉丝、积分均满足，or=满足其一即可'
     },
     createdAt: {
         type: DataTypes.DATE,
@@ -3604,6 +3615,44 @@ async function init() {
       }
     } catch (e) {
       console.warn('[DB] product_categories 自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
+    // ===== 自动迁移：distributor_levels 分销升级条件增加积分列（部署启动时执行，无需单独跑脚本/SQL）=====
+    try {
+      const qi = sequelize.getQueryInterface();
+      const hasCol = (desc, name) =>
+        desc &&
+        Object.keys(desc).some(
+          (k) => k.toLowerCase().replace(/_/g, '') === name.toLowerCase().replace(/_/g, '')
+        );
+      const dlDesc = await qi.describeTable('distributor_levels').catch(() => ({}));
+      if (dlDesc && Object.keys(dlDesc).length > 0) {
+        let changed = false;
+        if (!hasCol(dlDesc, 'minPoints')) {
+          console.log('[DB] distributor_levels 缺少 minPoints，自动迁移(加列)...');
+          await qi.addColumn('distributor_levels', 'minPoints', {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 0,
+            comment: '最低积分要求（分销自动升级）'
+          });
+          changed = true;
+        }
+        if (!hasCol(dlDesc, 'maxPoints')) {
+          console.log('[DB] distributor_levels 缺少 maxPoints，自动迁移(加列)...');
+          await qi.addColumn('distributor_levels', 'maxPoints', {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            comment: '最高积分限制（分销自动升级，空表示无上限）'
+          });
+          changed = true;
+        }
+        if (changed) {
+          console.log('[DB] distributor_levels 积分列已就绪');
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] distributor_levels 积分列自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
     // 默认不在启动时做 alter 同步（云托管缩容后冷启动会非常慢）

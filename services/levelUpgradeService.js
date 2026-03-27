@@ -128,40 +128,71 @@ class LevelUpgradeService {
     }
 
     /**
-     * 获取会员当前销售额、粉丝数应匹配的分销等级（仅考虑启用自动升级的等级，按 level 降序取最高满足的）
+     * 判断某分销等级配置下，销售额/粉丝/积分是否满足升级条件（与 upgradeConditionLogic 一致）
+     * @param {object} lv DistributorLevel 实例或含相同字段的 plain object
      */
-    static async getEligibleDistributorLevel(totalSales, totalFans, activeFans) {
+    static evaluateDistributorLevelConditions(lv, totalSales, totalFans, activeFans, totalPoints) {
+        const sales = parseFloat(totalSales) || 0;
+        const fansAll = parseInt(totalFans, 10) || 0;
+        const fansActive = parseInt(activeFans, 10) || 0;
+        const points = parseInt(totalPoints, 10) || 0;
+
+        const minS = parseFloat(lv.minSales) || 0;
+        let maxS = lv.maxSales != null && lv.maxSales !== '' ? parseFloat(lv.maxSales) : null;
+        if (maxS !== null && maxS <= 0) maxS = null;
+        const minF = parseInt(lv.minFans, 10) || 0;
+        let maxF = lv.maxFans != null && lv.maxFans !== '' ? parseInt(lv.maxFans, 10) : null;
+        if (maxF !== null && maxF <= 0) maxF = null;
+        const fansValue = lv.useActiveFansForUpgrade ? fansActive : fansAll;
+        const okSales = sales >= minS && (maxS == null || sales <= maxS);
+        const okFans = fansValue >= minF && (maxF == null || fansValue <= maxF);
+
+        const minP = parseInt(lv.minPoints, 10) || 0;
+        let maxP = lv.maxPoints != null && lv.maxPoints !== '' ? parseInt(lv.maxPoints, 10) : null;
+        if (maxP !== null && maxP <= 0) maxP = null;
+        const okPoints = points >= minP && (maxP == null || points <= maxP);
+
+        const logic = (lv.upgradeConditionLogic === 'or') ? 'or' : 'and';
+        const ok = logic === 'or' ? (okSales || okFans || okPoints) : (okSales && okFans && okPoints);
+        return { ok, okSales, okFans, okPoints, logic };
+    }
+
+    /**
+     * 获取会员当前销售额、粉丝数、积分应匹配的分销等级（仅考虑启用自动升级的等级，按 level 降序取最高满足的）
+     */
+    static async getEligibleDistributorLevel(totalSales, totalFans, activeFans, totalPoints) {
         const levels = await DistributorLevel.findAll({
             where: { status: 'active', enableAutoUpgrade: true },
             order: [['level', 'DESC']],
-            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'upgradeConditionLogic', 'useActiveFansForUpgrade']
+            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'minPoints', 'maxPoints', 'upgradeConditionLogic', 'useActiveFansForUpgrade']
         });
         const sales = parseFloat(totalSales) || 0;
         const fansAll = parseInt(totalFans, 10) || 0;
         const fansActive = parseInt(activeFans, 10) || 0;
+        const points = parseInt(totalPoints, 10) || 0;
         if (levels.length === 0) {
-            console.log('[等级升级] 无启用自动升级的分销等级，totalSales=%s totalFans=%s activeFans=%s', sales, fansAll, fansActive);
+            console.log('[等级升级] 无启用自动升级的分销等级，totalSales=%s totalFans=%s activeFans=%s totalPoints=%s', sales, fansAll, fansActive, points);
             return null;
         }
         for (const lv of levels) {
+            const { ok, okSales, okFans, okPoints, logic } = this.evaluateDistributorLevelConditions(lv, sales, fansAll, fansActive, points);
+            const fansValue = lv.useActiveFansForUpgrade ? fansActive : fansAll;
             const minS = parseFloat(lv.minSales) || 0;
             let maxS = lv.maxSales != null && lv.maxSales !== '' ? parseFloat(lv.maxSales) : null;
-            if (maxS !== null && maxS <= 0) maxS = null; // 0 或未填表示无上限
+            if (maxS !== null && maxS <= 0) maxS = null;
             const minF = parseInt(lv.minFans, 10) || 0;
             let maxF = lv.maxFans != null && lv.maxFans !== '' ? parseInt(lv.maxFans, 10) : null;
-            if (maxF !== null && maxF <= 0) maxF = null; // 0 或未填表示无上限
-            const fansValue = lv.useActiveFansForUpgrade ? fansActive : fansAll;
-            const okSales = sales >= minS && (maxS == null || sales <= maxS);
-            const okFans = fansValue >= minF && (maxF == null || fansValue <= maxF);
-            const logic = (lv.upgradeConditionLogic === 'or') ? 'or' : 'and';
-            const ok = logic === 'or' ? (okSales || okFans) : (okSales && okFans);
-            console.log('[等级升级] 等级「%s」条件关系=%s minSales=%s maxSales=%s minFans=%s maxFans=%s fansMode=%s(fans=%s) -> salesOk=%s fansOk=%s', lv.name, logic, minS, maxS, minF, maxF, lv.useActiveFansForUpgrade ? 'active' : 'all', fansValue, okSales, okFans);
+            if (maxF !== null && maxF <= 0) maxF = null;
+            const minP = parseInt(lv.minPoints, 10) || 0;
+            let maxP = lv.maxPoints != null && lv.maxPoints !== '' ? parseInt(lv.maxPoints, 10) : null;
+            if (maxP !== null && maxP <= 0) maxP = null;
+            console.log('[等级升级] 等级「%s」条件关系=%s minSales=%s maxSales=%s minFans=%s maxFans=%s minPoints=%s maxPoints=%s fansMode=%s(fans=%s) -> salesOk=%s fansOk=%s pointsOk=%s', lv.name, logic, minS, maxS, minF, maxF, minP, maxP, lv.useActiveFansForUpgrade ? 'active' : 'all', fansValue, okSales, okFans, okPoints);
             if (ok) {
-                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s activeFans=%s -> 等级「%s」', sales, fansAll, fansActive, lv.name);
+                console.log('[等级升级] 匹配分销等级 totalSales=%s totalFans=%s activeFans=%s totalPoints=%s -> 等级「%s」', sales, fansAll, fansActive, points, lv.name);
                 return lv;
             }
         }
-        console.log('[等级升级] 未匹配任何分销等级 totalSales=%s totalFans=%s activeFans=%s（已查 %s 个启用自动升级等级）', sales, fansAll, fansActive, levels.length);
+        console.log('[等级升级] 未匹配任何分销等级 totalSales=%s totalFans=%s activeFans=%s totalPoints=%s（已查 %s 个启用自动升级等级）', sales, fansAll, fansActive, points, levels.length);
         return null;
     }
 
@@ -205,13 +236,13 @@ class LevelUpgradeService {
     /**
      * 尝试将分销等级更新为「满足条件的最高等级」
      * - 若分销等级为手动设置（distributorLevelManualOverride），则不覆盖、不降级
-     * - 自动升级仅允许升级：条件不达标时不降级，不置空。销售额条件使用「总销售额」totalSales。
+     * - 自动升级仅允许升级：条件不达标时不降级，不置空。销售额条件使用「总销售额」totalSales；积分使用会员「累计积分」totalPoints。
      * @param {number} memberId
-     * @param {{ totalSales?: number, totalFans?: number }} [override] 若在刚重算粉丝后调用，可传入避免读库拿到旧值
+     * @param {{ totalSales?: number, totalFans?: number, totalPoints?: number, activeFans?: number }} [override] 若在刚重算粉丝后调用，可传入避免读库拿到旧值
      */
     static async tryUpgradeDistributorLevel(memberId, override) {
         const member = await Member.findByPk(memberId, {
-            attributes: ['id', 'distributorLevelId', 'totalSales', 'totalFans', 'distributorLevelManualOverride']
+            attributes: ['id', 'distributorLevelId', 'totalSales', 'totalFans', 'totalPoints', 'distributorLevelManualOverride']
         });
         if (!member) return { changed: false };
         if (member.distributorLevelManualOverride) {
@@ -220,11 +251,12 @@ class LevelUpgradeService {
         }
         const totalSales = override && override.totalSales !== undefined ? override.totalSales : member.totalSales;
         const totalFans = override && override.totalFans !== undefined ? override.totalFans : member.totalFans;
+        const totalPoints = override && override.totalPoints !== undefined ? override.totalPoints : member.totalPoints;
         const activeFans = override && override.activeFans !== undefined
             ? override.activeFans
             : (await this.countActiveFans(memberId)).totalActiveFans;
-        console.log('[等级升级] 分销等级检查 memberId=%s totalSales=%s totalFans=%s activeFans=%s (override=%s)', memberId, totalSales, totalFans, activeFans, override ? '是' : '否');
-        const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans, activeFans);
+        console.log('[等级升级] 分销等级检查 memberId=%s totalSales=%s totalFans=%s activeFans=%s totalPoints=%s (override=%s)', memberId, totalSales, totalFans, activeFans, totalPoints, override ? '是' : '否');
+        const eligible = await this.getEligibleDistributorLevel(totalSales, totalFans, activeFans, totalPoints);
         const currentId = member.distributorLevelId ? parseInt(member.distributorLevelId, 10) : null;
         let currentLevel = null;
         if (currentId) {
@@ -254,7 +286,7 @@ class LevelUpgradeService {
             oldLevelId: currentId,
             newLevelId: newId,
             reason: 'auto_upgrade',
-            description: `自动升级：总销售额 ${totalSales}、${fansLabel} ${usedFans} 满足等级「${eligible.name}」条件`
+            description: `自动升级：总销售额 ${totalSales}、${fansLabel} ${usedFans}、积分 ${totalPoints} 满足等级「${eligible.name}」条件`
         });
         return { changed: true, newLevelId: newId, newLevelName: eligible.name };
     }
@@ -262,7 +294,7 @@ class LevelUpgradeService {
     /**
      * 对指定会员执行会员等级 + 分销等级自动升级检查
      * @param {number} memberId
-     * @param {{ totalFans?: number, totalSales?: number }} [override] 刚重算粉丝后传入，避免读库拿到旧值
+     * @param {{ totalFans?: number, totalSales?: number, totalPoints?: number, activeFans?: number }} [override] 刚重算粉丝后传入，避免读库拿到旧值
      * @param {{ member?: boolean, distributor?: boolean }} [skipLevelOverwrite] 本请求内跳过：为 true 时不执行该类型自动升级（用于本次请求已手动设置等级）
      */
     static async tryUpgradeMember(memberId, override, skipLevelOverwrite) {

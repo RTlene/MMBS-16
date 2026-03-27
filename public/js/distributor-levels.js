@@ -160,6 +160,7 @@ function renderLevels() {
             </td>
             <td>${formatSalesRange(level.minSales, level.maxSales)}</td>
             <td>${formatFansRange(level.minFans, level.maxFans)}${level.useActiveFansForUpgrade ? '<span style="color:#666;font-size:12px;">（活跃）</span>' : ''}</td>
+            <td>${formatPointsRange(level.minPoints, level.maxPoints)}</td>
             <td>${formatProcurementCost(level.procurementCost, level.costRateBase)}</td>
             <td>${formatCostRateBase(level.costRateBase)}</td>
             <td>${formatCommissionRates(level.sharerDirectCommissionRate, level.sharerIndirectCommissionRate)}</td>
@@ -345,6 +346,10 @@ function fillLevelForm(level) {
     document.getElementById('maxSales').value = level.maxSales != null ? level.maxSales : '';
     document.getElementById('minFans').value = level.minFans != null ? level.minFans : '';
     document.getElementById('maxFans').value = level.maxFans != null ? level.maxFans : '';
+    const minPointsEl = document.getElementById('minPoints');
+    if (minPointsEl) minPointsEl.value = level.minPoints != null && level.minPoints !== undefined ? level.minPoints : '';
+    const maxPointsEl = document.getElementById('maxPoints');
+    if (maxPointsEl) maxPointsEl.value = level.maxPoints != null && level.maxPoints !== undefined ? level.maxPoints : '';
     const activeFansEl = document.getElementById('useActiveFansForUpgrade');
     if (activeFansEl) activeFansEl.checked = !!level.useActiveFansForUpgrade;
     document.getElementById('procurementCost').value = level.procurementCost != null ? level.procurementCost : '';
@@ -386,6 +391,8 @@ async function submitLevelForm(event) {
         maxSales: formData.get('maxSales') === '' ? null : parseFloat(formData.get('maxSales')),
         minFans: parseInt(formData.get('minFans'), 10) || 0,
         maxFans: formData.get('maxFans') === '' ? null : parseInt(formData.get('maxFans'), 10),
+        minPoints: parseInt(formData.get('minPoints'), 10) || 0,
+        maxPoints: formData.get('maxPoints') === '' ? null : parseInt(formData.get('maxPoints'), 10),
         useActiveFansForUpgrade: document.getElementById('useActiveFansForUpgrade') && document.getElementById('useActiveFansForUpgrade').checked,
         color: formData.get('color'),
         icon: formData.get('icon'),
@@ -578,6 +585,14 @@ function formatFansRange(minFans, maxFans) {
     if (min === 0 && !max) return '无限制';
     if (!max) return `≥${min}人`;
     return `${min} - ${max}人`;
+}
+
+function formatPointsRange(minPoints, maxPoints) {
+    const min = safeNum(minPoints);
+    const max = maxPoints != null && maxPoints !== '' && !Number.isNaN(Number(maxPoints)) ? Number(maxPoints) : null;
+    if (min === 0 && !max) return '无限制';
+    if (!max) return `≥${min}`;
+    return `${min} - ${max}`;
 }
 
 function formatProcurementCost(procurementCost, costRateBase) {

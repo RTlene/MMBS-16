@@ -353,7 +353,7 @@ router.get('/members/level-card', authenticateMiniappUser, async (req, res) => {
         const distributorLevels = await DistributorLevel.findAll({
             where: { status: 'active', enableAutoUpgrade: true },
             order: [['level', 'ASC']],
-            attributes: ['id', 'name', 'level', 'minSales', 'minFans', 'upgradeConditionLogic', 'useActiveFansForUpgrade']
+            attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'minPoints', 'maxPoints', 'upgradeConditionLogic', 'useActiveFansForUpgrade']
         });
 
         let currentMemberLevel = null;
@@ -386,7 +386,7 @@ router.get('/members/level-card', authenticateMiniappUser, async (req, res) => {
 
         let currentDistributorLevel = null;
         if (member.distributorLevelId) {
-            currentDistributorLevel = distributorLevels.find(l => l.id === member.distributorLevelId) || await DistributorLevel.findByPk(member.distributorLevelId, { attributes: ['id', 'name', 'level', 'minSales', 'minFans', 'upgradeConditionLogic', 'useActiveFansForUpgrade'] });
+            currentDistributorLevel = distributorLevels.find(l => l.id === member.distributorLevelId) || await DistributorLevel.findByPk(member.distributorLevelId, { attributes: ['id', 'name', 'level', 'minSales', 'maxSales', 'minFans', 'maxFans', 'minPoints', 'maxPoints', 'upgradeConditionLogic', 'useActiveFansForUpgrade'] });
         }
         const nextDistributorLevel = distributorLevels.find(l => (currentDistributorLevel ? l.level > currentDistributorLevel.level : true));
         let activeFans = 0;
@@ -399,15 +399,18 @@ router.get('/members/level-card', authenticateMiniappUser, async (req, res) => {
             currentLevelName: currentDistributorLevel ? currentDistributorLevel.name : null,
             currentLevel: currentDistributorLevel ? currentDistributorLevel.level : 0,
             currentSales,
+            currentPoints,
             currentFans: totalFans,
             activeFans,
             nextLevelName: nextDistributorLevel ? nextDistributorLevel.name : null,
             nextLevelMinSales: nextDistributorLevel ? (parseFloat(nextDistributorLevel.minSales) || 0) : null,
             nextLevelMinFans: nextDistributorLevel ? (parseInt(nextDistributorLevel.minFans, 10) || 0) : null,
+            nextLevelMinPoints: nextDistributorLevel ? (parseInt(nextDistributorLevel.minPoints, 10) || 0) : null,
             conditionLogic: nextDistributorLevel ? (nextDistributorLevel.upgradeConditionLogic || 'and') : 'and',
             useActiveFans: nextDistributorLevel ? !!nextDistributorLevel.useActiveFansForUpgrade : false,
             needSales: 0,
             needFans: 0,
+            needPoints: 0,
             progressPercent: 0,
             isMax: !nextDistributorLevel,
             tip: ''
@@ -415,21 +418,36 @@ router.get('/members/level-card', authenticateMiniappUser, async (req, res) => {
         if (nextDistributorLevel) {
             const needS = Math.max(0, (parseFloat(nextDistributorLevel.minSales) || 0) - currentSales);
             const needF = Math.max(0, (parseInt(nextDistributorLevel.minFans, 10) || 0) - fansForDisplay);
+            const needP = Math.max(0, (parseInt(nextDistributorLevel.minPoints, 10) || 0) - currentPoints);
             distributorProgress.needSales = needS;
             distributorProgress.needFans = needF;
-            const logic = nextDistributorLevel.upgradeConditionLogic === 'or' ? 'or' : 'and';
+            distributorProgress.needPoints = needP;
             const fanLabel = nextDistributorLevel.useActiveFansForUpgrade ? '活跃粉丝' : '粉丝';
+            const { ok, okSales, okFans, okPoints, logic } = LevelUpgradeService.evaluateDistributorLevelConditions(
+                nextDistributorLevel,
+                currentSales,
+                totalFans,
+                activeFans,
+                currentPoints
+            );
+            const pctSales = (parseFloat(nextDistributorLevel.minSales) || 0) > 0 ? Math.min(1, currentSales / (parseFloat(nextDistributorLevel.minSales) || 1)) : 1;
+            const pctFans = (parseInt(nextDistributorLevel.minFans, 10) || 0) > 0 ? Math.min(1, fansForDisplay / (parseInt(nextDistributorLevel.minFans, 10) || 1)) : 1;
+            const pctPoints = (parseInt(nextDistributorLevel.minPoints, 10) || 0) > 0 ? Math.min(1, currentPoints / (parseInt(nextDistributorLevel.minPoints, 10) || 1)) : 1;
             if (logic === 'and') {
-                distributorProgress.tip = `销售额还差 ¥${needS.toFixed(0)}，${fanLabel}还差 ${needF} 人可升级至「${nextDistributorLevel.name}」`;
-                const pctSales = (parseFloat(nextDistributorLevel.minSales) || 0) > 0 ? Math.min(1, currentSales / (parseFloat(nextDistributorLevel.minSales) || 1)) : 1;
-                const pctFans = (parseInt(nextDistributorLevel.minFans, 10) || 0) > 0 ? Math.min(1, fansForDisplay / (parseInt(nextDistributorLevel.minFans, 10) || 1)) : 1;
-                distributorProgress.progressPercent = Math.min(100, Math.round(Math.min(pctSales, pctFans) * 100));
+                distributorProgress.tip = ok
+                    ? `已达升级条件，将自动升级至「${nextDistributorLevel.name}」`
+                    : `销售额还差 ¥${needS.toFixed(0)}，${fanLabel}还差 ${needF} 人，积分还差 ${needP} 可升级至「${nextDistributorLevel.name}」`;
+                distributorProgress.progressPercent = Math.min(100, Math.round(Math.min(pctSales, pctFans, pctPoints) * 100));
             } else {
-                distributorProgress.tip = needS <= 0 && needF <= 0 ? `已达升级条件，将自动升级至「${nextDistributorLevel.name}」` : `再完成 ¥${needS.toFixed(0)} 销售额或增加 ${needF} 位${fanLabel}可升级至「${nextDistributorLevel.name}」`;
-                const pctSales = (parseFloat(nextDistributorLevel.minSales) || 0) > 0 ? Math.min(1, currentSales / (parseFloat(nextDistributorLevel.minSales) || 1)) : 1;
-                const pctFans = (parseInt(nextDistributorLevel.minFans, 10) || 0) > 0 ? Math.min(1, fansForDisplay / (parseInt(nextDistributorLevel.minFans, 10) || 1)) : 1;
-                distributorProgress.progressPercent = Math.min(100, Math.round(Math.max(pctSales, pctFans) * 100));
+                distributorProgress.tip = ok
+                    ? `已达升级条件，将自动升级至「${nextDistributorLevel.name}」`
+                    : `再完成 ¥${needS.toFixed(0)} 销售额或增加 ${needF} 位${fanLabel}或再积累 ${needP} 积分可升级至「${nextDistributorLevel.name}」`;
+                distributorProgress.progressPercent = Math.min(100, Math.round(Math.max(pctSales, pctFans, pctPoints) * 100));
             }
+            // 便于前端展示单项是否已达标（与 ok 分解一致）
+            distributorProgress.okSales = okSales;
+            distributorProgress.okFans = okFans;
+            distributorProgress.okPoints = okPoints;
         } else {
             distributorProgress.tip = currentDistributorLevel ? '已达当前最高分销等级' : '成为分销商后可按条件升级等级';
         }

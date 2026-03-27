@@ -424,6 +424,7 @@
                         <th>等级类型</th>  <!-- 添加这一行 -->
                         <th>销售额要求</th>
                         <th>粉丝数要求</th>
+                        <th>积分要求</th>
                         <th>采购成本</th>
                         <th>成本基数</th>
                         <th>分享佣金</th>
@@ -490,6 +491,17 @@
                     <div class="form-group">
                         <label class="form-label">最高粉丝数要求</label>
                         <input type="number" id="maxFans" name="maxFans" class="form-input" min="0">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">最低积分要求</label>
+                        <input type="number" id="minPoints" name="minPoints" class="form-input" min="0" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">最高积分限制</label>
+                        <input type="number" id="maxPoints" name="maxPoints" class="form-input" min="0" step="1">
+                        <small style="color:#666;">留空表示无上限；与销售额、粉丝数共同参与下方「与/或」关系</small>
                     </div>
                 </div>
                 <div class="form-row">
@@ -575,12 +587,12 @@
                     <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" id="enableAutoUpgrade" name="enableAutoUpgrade" value="1">
                         <label class="form-label" for="enableAutoUpgrade" style="margin: 0;">启用自动升级</label>
-                        <small style="color: #666;">满足本等级销售额/粉丝数条件时，自动将分销商升级到此等级</small>
+                        <small style="color: #666;">满足本等级销售额/粉丝/积分条件时，自动将分销商升级到此等级</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">升级条件关系</label>
                         <select id="upgradeConditionLogic" name="upgradeConditionLogic" class="form-input">
-                            <option value="and">与（粉丝与销售额都满足）</option>
+                            <option value="and">与（销售额、粉丝、积分均满足）</option>
                             <option value="or">或（满足其一即可）</option>
                         </select>
                         <small style="color: #666;">仅当启用自动升级时生效</small>
