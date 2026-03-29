@@ -57,7 +57,7 @@
         <text>订单号：{{item.orderNo}}</text>
         <text wx:if="{{item.orderAmount}}">订单金额：¥{{formatAmount(item.orderAmount)}}</text>
       </view>
-      <view class="record-balance">
+      <view class="record-balance" wx:if="{{item.balance != null}}">
         <text>余额：¥{{formatAmount(item.balance)}}</text>
       </view>
     </view>
