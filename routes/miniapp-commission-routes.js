@@ -44,6 +44,16 @@ const RECORD_TYPE_TEXT = {
     admin_adjust: '管理员调整'
 };
 
+function fmtMoney(v) {
+    const n = Number(v || 0);
+    return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+}
+
+function fmtPct(v) {
+    const n = Number(v || 0);
+    return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+}
+
 // 获取佣金明细列表（订单佣金来自 commission_calculations.recipientId；管理员调整等来自 member_commission_records）
 router.get('/commissions', authenticateMiniappUser, async (req, res) => {
     try {
@@ -112,6 +122,22 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
         for (const r of calcRows) {
             const j = r.toJSON();
             const ct = j.commissionType;
+            const orderAmountNum = j.order ? parseFloat(j.order.totalAmount) : parseFloat(j.orderAmount);
+            const commissionAmountNum = parseFloat(j.commissionAmount || 0);
+            const commissionRateNum = j.commissionRate != null ? parseFloat(j.commissionRate) : null;
+            const costRateNum = j.costRate != null ? parseFloat(j.costRate) : null;
+            const costAmountNum = j.costAmount != null ? parseFloat(j.costAmount) : null;
+            let formula = '';
+            if (ct === 'direct' || ct === 'indirect') {
+                formula = `订单金额¥${fmtMoney(orderAmountNum)} × 比例${fmtPct(commissionRateNum)}% = 佣金¥${fmtMoney(commissionAmountNum)}`;
+            } else if (ct === 'distributor' || ct === 'network_distributor') {
+                const costPart = costAmountNum != null
+                    ? `提货成本¥${fmtMoney(costAmountNum)}（成本率${fmtPct(costRateNum)}%）`
+                    : `成本率${fmtPct(costRateNum)}%`;
+                formula = `订单金额¥${fmtMoney(orderAmountNum)}，${costPart}，实得佣金¥${fmtMoney(commissionAmountNum)}`;
+            } else if (ct === 'team_incentive') {
+                formula = `激励金额¥${fmtMoney(commissionAmountNum)}`;
+            }
             merged.push({
                 _sort: new Date(j.createdAt).getTime(),
                 id: `cc_${j.id}`,
@@ -119,15 +145,15 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
                 source: 'calculation',
                 type: ct,
                 typeText: CALC_TYPE_TEXT[ct] || ct,
-                amount: parseFloat(j.commissionAmount),
-                commissionRate: j.commissionRate != null ? parseFloat(j.commissionRate) : null,
-                costRate: j.costRate != null ? parseFloat(j.costRate) : null,
-                costAmount: j.costAmount != null ? parseFloat(j.costAmount) : null,
+                amount: commissionAmountNum,
+                commissionRate: commissionRateNum,
+                costRate: costRateNum,
+                costAmount: costAmountNum,
                 balance: null,
                 orderId: j.orderId,
                 orderNo: j.order ? j.order.orderNo : null,
-                orderAmount: j.order ? parseFloat(j.order.totalAmount) : parseFloat(j.orderAmount),
-                description: j.description,
+                orderAmount: orderAmountNum,
+                description: formula ? `${j.description || ''}${j.description ? '；' : ''}${formula}` : (j.description || ''),
                 status: j.status,
                 statusText:
                     j.status === 'pending' ? '待结算' : j.status === 'confirmed' ? '已结算' : j.status === 'cancelled' ? '已取消' : j.status,
@@ -237,8 +263,8 @@ router.get('/commissions/stats', authenticateMiniappUser, async (req, res) => {
                 group: ['type'],
                 raw: true
             }),
-            CommissionCalculation.count({ where: { recipientId: member.id } }),
-            MemberCommissionRecord.count({ where: { memberId: member.id } })
+            CommissionCalculation.count({ where: { recipientId: member.id, status: { [Op.ne]: 'cancelled' } } }),
+            MemberCommissionRecord.count({ where: { memberId: member.id, status: { [Op.ne]: 'cancelled' } } })
         ]);
 
         const typeStatsMap = {};

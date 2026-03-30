@@ -6,7 +6,7 @@
 const axios = require('axios');
 const { UniqueConstraintError } = require('sequelize/lib/errors');
 const { mergeAxiosHttpsOpts } = require('../utils/wechatHttpsAgent');
-const { Member, MemberLevel } = require('../db');
+const { sequelize, Member, MemberLevel } = require('../db');
 
 // ==================== 微信 access_token（用于手机号解密等） ====================
 let _wxAccessTokenCache = { token: null, expiresAt: 0 };
@@ -81,6 +81,43 @@ async function code2Session(code) {
   }
 }
 
+async function withOpenidLock(openid, fn) {
+  if (!openid || sequelize.getDialect() !== 'mysql') return fn();
+  const lockKey = `miniapp_login_openid_${openid}`;
+  try {
+    await sequelize.query('SELECT GET_LOCK(:k, 10) AS locked', {
+      replacements: { k: lockKey }
+    });
+    return await fn();
+  } finally {
+    try {
+      await sequelize.query('DO RELEASE_LOCK(:k)', { replacements: { k: lockKey } });
+    } catch (_) { /* ignore */ }
+  }
+}
+
+async function resolveMemberByOpenid(openid, autoFixDuplicate = false) {
+  const rows = await Member.findAll({
+    where: { openid },
+    order: [['lastActiveAt', 'DESC'], ['updatedAt', 'DESC'], ['id', 'DESC']]
+  });
+  if (!rows || rows.length === 0) return null;
+  if (rows.length > 1 && autoFixDuplicate) {
+    const keeper = rows[0];
+    const duplicates = rows.slice(1);
+    console.warn('[MiniappAuth] 检测到重复 openid，执行自动收敛 openid=%s keep=%s dup=%s', openid, keeper.id, duplicates.map(d => d.id).join(','));
+    for (const d of duplicates) {
+      try {
+        await d.update({ openid: null, sessionKey: null });
+      } catch (e) {
+        console.warn('[MiniappAuth] 自动收敛重复 openid 失败 memberId=%s: %s', d.id, e.message);
+      }
+    }
+    return keeper;
+  }
+  return rows[0];
+}
+
 /**
  * 小程序登录接口
  * 接收小程序端的 code，换取 openid，并创建或查询会员
@@ -145,38 +182,47 @@ async function miniappLogin(req, res) {
 
     let member;
     let isNew = false;
-    try {
-      const row = await Member.findOrCreate({
-        where: { openid },
-        defaults: {
-          nickname: safeNickname,
-          unionid: unionid || null,
-          sessionKey: session_key,
-          avatar: null,
-          memberLevelId,
-          referrerId: referrerId_parsed,
-          memberCode,
-          status: 'active',
-          totalCommission: 0,
-          availableCommission: 0,
-          totalSales: 0,
-          directSales: 0,
-          indirectSales: 0,
-          distributorSales: 0,
-          availablePoints: 0,
-          lastActiveAt: new Date()
-        }
-      });
-      member = row[0];
-      isNew = row[1];
-    } catch (e) {
-      // 极端情况（如唯一索引尚未建好）兜底再查一次
-      if (e instanceof UniqueConstraintError || (e && e.name === 'SequelizeUniqueConstraintError')) {
-        member = await Member.findOne({ where: { openid } });
+    await withOpenidLock(openid, async () => {
+      member = await resolveMemberByOpenid(openid, true);
+      if (member) {
+        isNew = false;
+        return;
       }
-      if (!member) throw e;
-      isNew = false;
-    }
+      try {
+        const row = await Member.findOrCreate({
+          where: { openid },
+          defaults: {
+            nickname: safeNickname,
+            unionid: unionid || null,
+            sessionKey: session_key,
+            avatar: null,
+            memberLevelId,
+            referrerId: referrerId_parsed,
+            memberCode,
+            status: 'active',
+            totalCommission: 0,
+            availableCommission: 0,
+            totalSales: 0,
+            directSales: 0,
+            indirectSales: 0,
+            distributorSales: 0,
+            availablePoints: 0,
+            lastActiveAt: new Date()
+          }
+        });
+        member = row[0];
+        isNew = row[1];
+      } catch (e) {
+        if (e instanceof UniqueConstraintError || (e && e.name === 'SequelizeUniqueConstraintError')) {
+          member = await resolveMemberByOpenid(openid, true);
+          if (member) {
+            isNew = false;
+            return;
+          }
+        }
+        throw e;
+      }
+    });
 
     member = await Member.findByPk(member.id, {
       include: [{ model: MemberLevel, as: 'memberLevel' }]
@@ -287,13 +333,15 @@ async function authenticateMiniappUser(req, res, next) {
     console.log('[MiniappAuth] 验证用户 openid:', openid);
 
     // 查询会员信息
-    const member = await Member.findOne({ 
-      where: { openid: openid },
-      include: [{
-        model: MemberLevel,
-        as: 'memberLevel'
-      }]
-    });
+    let member = await resolveMemberByOpenid(openid, true);
+    if (member) {
+      member = await Member.findByPk(member.id, {
+        include: [{
+          model: MemberLevel,
+          as: 'memberLevel'
+        }]
+      });
+    }
 
     if (!member) {
       return res.status(401).json({ 
@@ -341,13 +389,15 @@ async function optionalAuthenticate(req, res, next) {
 
     if (openid) {
       console.log(`[MiniappAuth] [${requestId}] 开始查询会员信息`);
-      const member = await Member.findOne({ 
-        where: { openid: openid },
-        include: [{
-          model: MemberLevel,
-          as: 'memberLevel'
-        }]
-      });
+      let member = await resolveMemberByOpenid(openid, true);
+      if (member) {
+        member = await Member.findByPk(member.id, {
+          include: [{
+            model: MemberLevel,
+            as: 'memberLevel'
+          }]
+        });
+      }
       console.log(`[MiniappAuth] [${requestId}] 会员查询完成: ${member ? `找到会员ID=${member.id}` : '未找到会员'}`);
 
       if (member && member.status === 'active') {

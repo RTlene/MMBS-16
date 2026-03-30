@@ -684,24 +684,21 @@ function editMember(memberId) {
     // 设置模态框标题
     document.getElementById('memberModalTitle').textContent = '编辑会员';
     
-    // 重新加载等级数据和推荐人数据
-    loadMemberLevels();
-    loadDistributorLevels();
-    loadTeamExpansionLevels();
-    loadReferrers();
-    
-    // 获取会员信息
-    fetch(`/api/members/${memberId}`, {
+    // 先并行加载下拉，再回填会员数据，避免“值先设了但选项后加载导致丢失”
+    Promise.all([
+        loadMemberLevels(),
+        loadDistributorLevels(),
+        loadTeamExpansionLevels(),
+        loadReferrers()
+    ]).then(() => fetch(`/api/members/${memberId}`, {
         headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
-    })
+    }))
     .then(response => response.json())
     .then(result => {
         if (result.code === 0) {
-            // 填充表单
             fillMemberForm(result.data);
-            // 显示模态框
             document.getElementById('memberModal').style.display = 'flex';
         } else {
             console.error('获取会员信息失败:', result.message);
@@ -734,13 +731,36 @@ function fillMemberForm(member) {
     document.getElementById('avatar').value = member.avatar || '';
     document.getElementById('remark').value = member.remark || '';
     
-    // 等级信息
-    document.getElementById('memberLevelId').value = member.memberLevelId || '';
-    document.getElementById('distributorLevelId').value = member.distributorLevelId || '';
-    document.getElementById('teamExpansionLevelId').value = member.teamExpansionLevelId || '';
-    
-    // 推荐人信息
-    document.getElementById('referrerId').value = member.referrerId || '';
+    // 等级/推荐人：若当前值不在下拉里（例如已停用等级），动态补一个选项保证回显
+    const setSelectValueWithFallback = (id, value, labelBuilder) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = value == null ? '' : String(value);
+        if (v && ![...el.options].some(o => o.value === v)) {
+            const option = document.createElement('option');
+            option.value = v;
+            option.textContent = labelBuilder ? labelBuilder() : `${v}（历史值）`;
+            el.appendChild(option);
+        }
+        el.value = v;
+    };
+    setSelectValueWithFallback('memberLevelId', member.memberLevelId, () => {
+        const name = member.memberLevel && member.memberLevel.name ? member.memberLevel.name : '历史等级';
+        return `${name}（已停用/历史）`;
+    });
+    setSelectValueWithFallback('distributorLevelId', member.distributorLevelId, () => {
+        const name = member.distributorLevel && member.distributorLevel.name ? member.distributorLevel.name : '历史等级';
+        return `${name}（已停用/历史）`;
+    });
+    setSelectValueWithFallback('teamExpansionLevelId', member.teamExpansionLevelId, () => {
+        const name = member.teamExpansionLevel && member.teamExpansionLevel.name ? member.teamExpansionLevel.name : '历史等级';
+        return `${name}（已停用/历史）`;
+    });
+    setSelectValueWithFallback('referrerId', member.referrerId, () => {
+        return member.referrer && member.referrer.nickname
+            ? `${member.referrer.nickname} (${member.referrer.memberCode || member.referrerId})`
+            : `${member.referrerId}（历史推荐人）`;
+    });
     
     // 修复：编辑时保持会员编号，不显示在表单中让用户修改
     const memberCodeField = document.getElementById('memberCode');
