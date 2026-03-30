@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Member, MemberLevel, DistributorLevel, TeamExpansionLevel, CommissionCalculation } = require('../db');
+const { sequelize, Member, MemberLevel, DistributorLevel, TeamExpansionLevel, CommissionCalculation } = require('../db');
 const bcrypt = require('bcryptjs');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 const LevelUpgradeService = require('../services/levelUpgradeService');
@@ -10,6 +10,37 @@ const fs = require('fs');
 const cosStorage = require('../services/cosStorage');
 const wxCloudStorage = require('../services/wxCloudStorage');
 const router = express.Router();
+
+async function withOpenidLock(openid, fn) {
+    if (!openid || sequelize.getDialect() !== 'mysql') return fn();
+    const lockKey = `miniapp_members_create_openid_${openid}`;
+    try {
+        await sequelize.query('SELECT GET_LOCK(:k, 10) AS locked', { replacements: { k: lockKey } });
+        return await fn();
+    } finally {
+        try {
+            await sequelize.query('DO RELEASE_LOCK(:k)', { replacements: { k: lockKey } });
+        } catch (_) { /* ignore */ }
+    }
+}
+
+async function resolveMemberByOpenid(openid, autoFixDuplicate = false) {
+    const rows = await Member.findAll({
+        where: { openid },
+        order: [['lastActiveAt', 'DESC'], ['updatedAt', 'DESC'], ['id', 'DESC']]
+    });
+    if (!rows || rows.length === 0) return null;
+    if (rows.length > 1 && autoFixDuplicate) {
+        const keeper = rows[0];
+        for (const d of rows.slice(1)) {
+            try {
+                await d.update({ openid: null, sessionKey: null });
+            } catch (_) { /* ignore */ }
+        }
+        return keeper;
+    }
+    return rows[0];
+}
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -132,21 +163,30 @@ router.post('/members', async (req, res) => {
         }
 
         let member;
-        let created;
-        try {
-            [member, created] = await Member.findOrCreate({
-                where: { openid },
-                defaults
-            });
-        } catch (e) {
-            const { UniqueConstraintError } = require('sequelize/lib/errors');
-            if (e instanceof UniqueConstraintError) {
-                member = await Member.findOne({ where: { openid } });
+        let created = false;
+        await withOpenidLock(openid, async () => {
+            member = await resolveMemberByOpenid(openid, true);
+            if (member) {
                 created = false;
-            } else {
-                throw e;
+                return;
             }
-        }
+            try {
+                const row = await Member.findOrCreate({
+                    where: { openid },
+                    defaults
+                });
+                member = row[0];
+                created = row[1];
+            } catch (e) {
+                const { UniqueConstraintError } = require('sequelize/lib/errors');
+                if (e instanceof UniqueConstraintError || (e && e.name === 'SequelizeUniqueConstraintError')) {
+                    member = await resolveMemberByOpenid(openid, true);
+                    created = false;
+                } else {
+                    throw e;
+                }
+            }
+        });
 
         if (!created) {
             return res.status(400).json({

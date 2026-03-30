@@ -3442,25 +3442,40 @@ async function init() {
           );
           if (!idxRows || idxRows.length === 0) {
             const [dups] = await sequelize.query(`
-              SELECT openid, COUNT(*) AS c
+              SELECT openid
               FROM members
               WHERE openid IS NOT NULL AND openid != ''
               GROUP BY openid
-              HAVING c > 1
-              LIMIT 10
+              HAVING COUNT(*) > 1
             `);
             if (dups && dups.length > 0) {
-              console.error(
-                '[DB] members 表已存在重复 openid，无法自动添加唯一索引。请合并重复会员后重启。样例:',
-                dups.slice(0, 3)
-              );
-            } else {
-              await qi.addIndex('members', ['openid'], {
-                unique: true,
-                name: 'idx_members_openid_unique'
-              });
-              console.log('[DB] 已添加 members.openid 唯一索引 idx_members_openid_unique');
+              console.warn('[DB] 检测到重复 openid，开始自动收敛后再建唯一索引，重复组数=', dups.length);
+              for (const row of dups) {
+                const openid = row.openid;
+                if (!openid) continue;
+                const [ids] = await sequelize.query(`
+                  SELECT id
+                  FROM members
+                  WHERE openid = :openid
+                  ORDER BY COALESCE(lastActiveAt, updatedAt, createdAt) DESC, id DESC
+                `, { replacements: { openid } });
+                if (!ids || ids.length <= 1) continue;
+                const keepId = ids[0].id;
+                const dropIds = ids.slice(1).map(r => r.id).filter(Boolean);
+                if (dropIds.length > 0) {
+                  await sequelize.query(
+                    `UPDATE members SET openid = NULL, sessionKey = NULL WHERE id IN (:dropIds)`,
+                    { replacements: { dropIds } }
+                  );
+                  console.warn('[DB] members.openid 自动收敛 openid=%s keep=%s dropped=%s', openid, keepId, dropIds.join(','));
+                }
+              }
             }
+            await qi.addIndex('members', ['openid'], {
+              unique: true,
+              name: 'idx_members_openid_unique'
+            });
+            console.log('[DB] 已添加 members.openid 唯一索引 idx_members_openid_unique');
           }
         }
       }
