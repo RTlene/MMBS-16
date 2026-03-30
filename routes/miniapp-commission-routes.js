@@ -54,18 +54,16 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
         const dbStatus = mapStatusToDb(status);
 
         const calcWhere = { recipientId: member.id };
-        if (dbStatus) {
-            calcWhere.status = dbStatus;
-        }
+        calcWhere.status = dbStatus || { [Op.ne]: 'cancelled' };
         const typeCond = buildCalculationTypeFilter(type);
         if (typeCond) {
             Object.assign(calcWhere, typeCond);
         }
 
         const recordWhere = { memberId: member.id };
-        if (dbStatus) {
-            recordWhere.status = dbStatus === 'confirmed' ? 'completed' : dbStatus;
-        }
+        recordWhere.status = dbStatus
+            ? (dbStatus === 'confirmed' ? 'completed' : dbStatus)
+            : { [Op.ne]: 'cancelled' };
         if (type && type !== 'all') {
             if (type === 'differential') {
                 recordWhere.type = 'differential';
@@ -122,6 +120,9 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
                 type: ct,
                 typeText: CALC_TYPE_TEXT[ct] || ct,
                 amount: parseFloat(j.commissionAmount),
+                commissionRate: j.commissionRate != null ? parseFloat(j.commissionRate) : null,
+                costRate: j.costRate != null ? parseFloat(j.costRate) : null,
+                costAmount: j.costAmount != null ? parseFloat(j.costAmount) : null,
                 balance: null,
                 orderId: j.orderId,
                 orderNo: j.order ? j.order.orderNo : null,

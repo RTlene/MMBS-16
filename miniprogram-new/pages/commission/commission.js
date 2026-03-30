@@ -3,14 +3,14 @@
  */
 
 const request = require('../../utils/request.js');
-const { API, replaceUrlParams } = require('../../config/api.js');
+const { API } = require('../../config/api.js');
 
 Page({
   data: {
     records: [],
     stats: null,
     currentTab: 'all', // all, direct, indirect, differential, team_expansion
-    currentStatus: 'all', // all, pending, completed, cancelled
+    currentStatus: 'all', // all, pending, completed
     page: 1,
     limit: 10,
     hasMore: true,
@@ -25,8 +25,7 @@ Page({
     statusTabs: [
       { key: 'all', label: '全部' },
       { key: 'pending', label: '待结算' },
-      { key: 'completed', label: '已结算' },
-      { key: 'cancelled', label: '已取消' }
+      { key: 'completed', label: '已结算' }
     ]
   },
 
@@ -53,7 +52,6 @@ Page({
     }
   },
 
-  // 切换佣金类型标签
   onTabChange(e) {
     const tab = e.currentTarget.dataset.tab;
     this.setData({
@@ -65,7 +63,6 @@ Page({
     this.loadRecords(true);
   },
 
-  // 切换状态标签
   onStatusTabChange(e) {
     const status = e.currentTarget.dataset.status;
     this.setData({
@@ -77,13 +74,17 @@ Page({
     this.loadRecords(true);
   },
 
-  // 加载佣金统计
   async loadStats() {
     try {
       const res = await request.get(API.COMMISSION.STATS);
       if (res.code === 0) {
+        const s = res.data || {};
         this.setData({
-          stats: res.data
+          stats: {
+            ...s,
+            totalCommissionText: this.formatAmount(s.totalCommission),
+            totalCount: s.totalCount || 0
+          }
         });
       }
     } catch (error) {
@@ -91,7 +92,6 @@ Page({
     }
   },
 
-  // 加载佣金明细
   async loadRecords(refresh = false) {
     if (this.data.loading) return;
 
@@ -115,8 +115,8 @@ Page({
       const res = await request.get(API.COMMISSION.LIST, params);
 
       if (res.code === 0) {
-        const newRecords = res.data.records || [];
-        const records = refresh ? newRecords : [...this.data.records, ...newRecords];
+        const list = (res.data.records || []).map((item) => this.normalizeRecord(item));
+        const records = refresh ? list : [...this.data.records, ...list];
 
         this.setData({
           records,
@@ -125,31 +125,38 @@ Page({
           loading: false
         });
       } else {
-        wx.showToast({
-          title: res.message || '加载失败',
-          icon: 'none'
-        });
+        wx.showToast({ title: res.message || '加载失败', icon: 'none' });
         this.setData({ loading: false });
       }
     } catch (error) {
       console.error('加载佣金明细失败:', error);
-      wx.showToast({
-        title: '加载失败',
-        icon: 'none'
-      });
+      wx.showToast({ title: '加载失败', icon: 'none' });
       this.setData({ loading: false });
     }
   },
 
-  // 格式化金额
-  formatAmount(amount) {
-    return parseFloat(amount || 0).toFixed(2);
+  normalizeRecord(item = {}) {
+    const amountNum = Number(item.amount || 0);
+    const orderAmountNum = item.orderAmount == null ? null : Number(item.orderAmount || 0);
+    const balanceNum = item.balance == null ? null : Number(item.balance || 0);
+    return {
+      ...item,
+      amount: amountNum,
+      amountText: this.formatAmount(amountNum),
+      orderAmountText: orderAmountNum == null ? '' : this.formatAmount(orderAmountNum),
+      balanceText: balanceNum == null ? '' : this.formatAmount(balanceNum),
+      createdAtText: this.formatTime(item.createdAt)
+    };
   },
 
-  // 格式化时间
+  formatAmount(amount) {
+    return Number(amount || 0).toFixed(2);
+  },
+
   formatTime(time) {
     if (!time) return '';
     const date = new Date(time);
+    if (Number.isNaN(date.getTime())) return '';
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -158,4 +165,3 @@ Page({
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   }
 });
-
