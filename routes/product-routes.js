@@ -104,6 +104,18 @@ router.get('/', async (req, res) => {
     const offset = (page - 1) * limit;
 
     const whereClause = buildAdminProductWhere({ search, categoryId, status }, sequelize);
+    const reqTag = `[AdminProducts] [${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    console.log(`${reqTag} 列表查询开始`, {
+      page: pageNum,
+      limit: limitNum,
+      offset,
+      search: String(search || ''),
+      categoryId: String(categoryId || ''),
+      status: String(status || ''),
+      whereClause
+    });
 
     const { count, rows } = await withDbRetry(() => Product.findAndCountAll({
       where: whereClause,
@@ -133,6 +145,25 @@ router.get('/', async (req, res) => {
       distinct: true,
       subQuery: false
     }));
+
+    const idsInPage = (rows || []).map((p) => p && p.id).filter((x) => x != null);
+    const has16InPage = idsInPage.includes(16);
+    let has16ByFilter = false;
+    try {
+      const c16 = await Product.count({ where: { [Op.and]: [whereClause, { id: 16 }] } });
+      has16ByFilter = c16 > 0;
+    } catch (e) {
+      console.warn(`${reqTag} 检查商品16命中筛选失败:`, e && e.message ? e.message : e);
+    }
+    console.log(`${reqTag} 列表查询结果`, {
+      total: count,
+      page: pageNum,
+      limit: limitNum,
+      returned: idsInPage.length,
+      idsInPage,
+      has16InPage,
+      has16ByFilter
+    });
     
     // 处理商品数据，添加SKU统计信息
     const products = rows.map(product => {

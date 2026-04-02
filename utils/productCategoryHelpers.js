@@ -51,9 +51,23 @@ function buildCategoryFilterWhere(categoryIdRaw, sequelize) {
     return {
         [Op.or]: [
             { categoryId: cid },
+            // 兼容：商品主分类是「当前分类的子分类」时，也应命中当前分类筛选
+            sequelize.literal(
+                `EXISTS (SELECT 1 FROM \`Categories\` AS \`c_sub\` WHERE \`c_sub\`.\`id\` = \`Product\`.\`categoryId\` AND \`c_sub\`.\`parentId\` = ${cid})`
+            ),
             // 须与 Sequelize 主查询别名一致：FROM `Products` AS `Product`（表名是 Products，别名是 Product）
             sequelize.literal(
                 `EXISTS (SELECT 1 FROM \`product_categories\` AS \`pc\` WHERE \`pc\`.\`productId\` = \`Product\`.\`id\` AND \`pc\`.\`categoryId\` = ${cid})`
+            ),
+            // 兼容：商品在关联表挂的是子分类，筛选父分类时也应命中
+            sequelize.literal(
+                `EXISTS (
+                    SELECT 1
+                    FROM \`product_categories\` AS \`pc\`
+                    INNER JOIN \`Categories\` AS \`c\` ON \`c\`.\`id\` = \`pc\`.\`categoryId\`
+                    WHERE \`pc\`.\`productId\` = \`Product\`.\`id\`
+                      AND \`c\`.\`parentId\` = ${cid}
+                )`
             )
         ]
     };
