@@ -101,12 +101,12 @@ function sortSkus(list) {
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', categoryId = '', status = '' } = req.query;
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const offset = (pageNum - 1) * limitNum;
 
     const whereClause = buildAdminProductWhere({ search, categoryId, status }, sequelize);
     const reqTag = `[AdminProducts] [${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 10;
     console.log(`${reqTag} 列表查询开始`, {
       page: pageNum,
       limit: limitNum,
@@ -117,34 +117,51 @@ router.get('/', async (req, res) => {
       whereClause
     });
 
-    const { count, rows } = await withDbRetry(() => Product.findAndCountAll({
-      where: whereClause,
-      include: [
-        {
-          model: Category,
-          as: 'category',
-          attributes: ['id', 'name']
-        },
-        {
-          model: Category,
-          as: 'categories',
-          attributes: ['id', 'name'],
-          through: { attributes: ['sortOrder'] },
-          required: false
-        },
-        {
-          model: ProductSKU,
-          as: 'skus',
-          attributes: ['id', 'sku', 'name', 'price', 'stock', 'status'],
-          required: false
-        }
-      ],
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      distinct: true,
-      subQuery: false
-    }));
+    // 稳定分页：先只按 Product 主表分页 ID，避免 include(hasMany/belongsToMany) + limit 导致漏页/跳页
+    const [count, pageIdRows] = await Promise.all([
+      withDbRetry(() => Product.count({ where: whereClause })),
+      withDbRetry(() => Product.findAll({
+        where: whereClause,
+        attributes: ['id'],
+        order: [['createdAt', 'DESC']],
+        limit: limitNum,
+        offset: offset,
+        subQuery: false
+      }))
+    ]);
+    const pageIds = (pageIdRows || []).map((r) => r.id).filter((x) => x != null);
+
+    let rows = [];
+    if (pageIds.length > 0) {
+      rows = await withDbRetry(() => Product.findAll({
+        where: { id: { [Op.in]: pageIds } },
+        include: [
+          {
+            model: Category,
+            as: 'category',
+            attributes: ['id', 'name']
+          },
+          {
+            model: Category,
+            as: 'categories',
+            attributes: ['id', 'name'],
+            through: { attributes: ['sortOrder'] },
+            required: false
+          },
+          {
+            model: ProductSKU,
+            as: 'skus',
+            attributes: ['id', 'sku', 'name', 'price', 'stock', 'status'],
+            required: false
+          }
+        ],
+        subQuery: false
+      }));
+    }
+
+    // 按分页 ID 顺序重排，确保返回顺序稳定
+    const rowMap = new Map((rows || []).map((p) => [p.id, p]));
+    rows = pageIds.map((id) => rowMap.get(id)).filter(Boolean);
 
     const idsInPage = (rows || []).map((p) => p && p.id).filter((x) => x != null);
     const has16InPage = idsInPage.includes(16);
@@ -192,9 +209,9 @@ router.get('/', async (req, res) => {
       data: {
         products,
         total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(count / limit)
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(count / limitNum)
       }
     });
   } catch (error) {
