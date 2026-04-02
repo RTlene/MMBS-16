@@ -106,7 +106,9 @@ router.get('/products', async (req, res) => {
             isHot = ''
         } = req.query;
 
-        const offset = (page - 1) * limit;
+        const pageNum = parseInt(page, 10) || 1;
+        const limitNum = parseInt(limit, 10) || 20;
+        const offset = (pageNum - 1) * limitNum;
         let where = { status };
 
         // 热门商品筛选
@@ -175,18 +177,33 @@ router.get('/products', async (req, res) => {
         }
         listIncludes.push(skuIncludeForListCard(isLite));
 
-        const { count, rows } = await Product.findAndCountAll({
-            where,
-            attributes: isLite
-                ? ['id', 'name', 'images', 'isFeatured', 'isHot', 'sortOrder', 'createdAt']
-                : undefined,
-            include: listIncludes,
-            limit: parseInt(limit),
-            offset: parseInt(offset),
-            order,
-            distinct: true,
-            subQuery: false
-        });
+        // 稳定分页：先按 Product 主表分页 ID，避免 include 联表导致漏页/跳页
+        const [count, pageIdRows] = await Promise.all([
+            Product.count({ where }),
+            Product.findAll({
+                where,
+                attributes: ['id'],
+                limit: limitNum,
+                offset,
+                order,
+                subQuery: false
+            })
+        ]);
+        const pageIds = (pageIdRows || []).map((r) => r.id).filter((x) => x != null);
+
+        let rows = [];
+        if (pageIds.length > 0) {
+            rows = await Product.findAll({
+                where: { id: { [Op.in]: pageIds } },
+                attributes: isLite
+                    ? ['id', 'name', 'images', 'isFeatured', 'isHot', 'sortOrder', 'createdAt']
+                    : undefined,
+                include: listIncludes,
+                subQuery: false
+            });
+            const rowMap = new Map((rows || []).map((p) => [p.id, p]));
+            rows = pageIds.map((id) => rowMap.get(id)).filter(Boolean);
+        }
 
         // 处理商品数据，适配小程序展示
         const products = rows.map(product => {
@@ -268,9 +285,9 @@ router.get('/products', async (req, res) => {
             data: {
                 products: products || [],
                 total: count || 0,
-                totalPages: Math.ceil((count || 0) / limit),
-                currentPage: parseInt(page),
-                hasMore: parseInt(page) < Math.ceil((count || 0) / limit)
+                totalPages: Math.ceil((count || 0) / limitNum),
+                currentPage: pageNum,
+                hasMore: pageNum < Math.ceil((count || 0) / limitNum)
             }
         });
     } catch (error) {
