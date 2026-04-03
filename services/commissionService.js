@@ -879,12 +879,6 @@ class CommissionService {
                 const teamLevel = referrer.teamExpansionLevel;
                 if (!teamLevel) continue;
 
-                // 检查销售额是否在激励基数范围内
-                if (monthlySales < teamLevel.minIncentiveBase || 
-                    (teamLevel.maxIncentiveBase && monthlySales > teamLevel.maxIncentiveBase)) {
-                    continue;
-                }
-
                 // 兼容历史配置：<=1 视为小数比例（0.01=1%），>1 视为百分比（1=1%）
                 const rawRate = parseFloat(teamLevel.incentiveRate) || 0;
                 const rateDecimal = rawRate <= 1 ? rawRate : (rawRate / 100);
@@ -910,7 +904,7 @@ class CommissionService {
                     referrerId: referrer.id,
                     calculationMonth: month,
                     monthlySales,
-                    incentiveBase: teamLevel.minIncentiveBase,
+                    incentiveBase: monthlySales,
                     incentiveRate: incentiveRatePercent,
                     incentiveAmount: parseFloat(incentiveAmount),
                     status: 'pending',

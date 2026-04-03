@@ -280,9 +280,7 @@ function fillLevelForm(level) {
     document.getElementById('minTeamSize').value = level.minTeamSize || 0;
     document.getElementById('maxTeamSize').value = level.maxTeamSize || '';
     document.getElementById('incentiveRate').value = level.incentiveRate || 0.01;
-    // 新增：激励计算基数
-    document.getElementById('minIncentiveBase').value = level.minIncentiveBase || '';
-    document.getElementById('maxIncentiveBase').value = level.maxIncentiveBase || '';
+    // 团队拓展激励已改为按单计算，不再使用激励基数设置
     document.getElementById('levelColor').value = level.color || '#faad14';
     document.getElementById('levelIcon').value = level.icon || '';
     document.getElementById('levelDescription').value = level.description || '';
@@ -357,9 +355,6 @@ async function submitLevelForm() {
             minTeamSize: parseInt(document.getElementById('minTeamSize').value),
             maxTeamSize: document.getElementById('maxTeamSize').value ? parseInt(document.getElementById('maxTeamSize').value) : null,
             incentiveRate: parseFloat(document.getElementById('incentiveRate').value),
-            // 新增：激励计算基数
-            minIncentiveBase: document.getElementById('minIncentiveBase').value ? parseFloat(document.getElementById('minIncentiveBase').value) : null,
-            maxIncentiveBase: document.getElementById('maxIncentiveBase').value ? parseFloat(document.getElementById('maxIncentiveBase').value) : null,
             color: document.getElementById('levelColor').value,
             icon: document.getElementById('levelIcon').value.trim(),
             description: document.getElementById('levelDescription').value.trim(),
