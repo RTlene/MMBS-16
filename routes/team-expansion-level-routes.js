@@ -107,6 +107,7 @@ router.post('/', async (req, res) => {
             minTeamSize,
             maxTeamSize,
             incentiveRate,
+            maxDepth,
             privileges,
             color,
             icon,
@@ -123,6 +124,9 @@ router.post('/', async (req, res) => {
         const rateNum = incentiveRate === '' || incentiveRate === null || incentiveRate === undefined
             ? NaN
             : parseFloat(incentiveRate);
+        const maxDepthNum = maxDepth === '' || maxDepth === null || maxDepth === undefined
+            ? 5
+            : parseInt(maxDepth, 10);
 
         // 先校验再查重再写入（原先先 create 再查重，会命中刚插入的行，永远 400「该等级数值已存在」）
         if (!nameTrim || !Number.isFinite(levelNum) || levelNum < 1) {
@@ -141,6 +145,12 @@ router.post('/', async (req, res) => {
             return res.status(400).json({
                 code: 1,
                 message: '请填写有效的激励比例（可为 0）'
+            });
+        }
+        if (!Number.isFinite(maxDepthNum) || maxDepthNum < 1) {
+            return res.status(400).json({
+                code: 1,
+                message: '请填写有效的层数限制（>=1）'
             });
         }
 
@@ -164,6 +174,7 @@ router.post('/', async (req, res) => {
             minTeamSize: minTeamNum,
             maxTeamSize: maxTeamParsed,
             incentiveRate: rateNum,
+            maxDepth: maxDepthNum,
             minIncentiveBase: null,
             maxIncentiveBase: null,
             privileges: privileges || {},
@@ -199,6 +210,7 @@ router.put('/:id', async (req, res) => {
             minTeamSize,
             maxTeamSize,
             incentiveRate,
+            maxDepth,
             privileges,
             color,
             icon,
@@ -234,6 +246,7 @@ router.put('/:id', async (req, res) => {
             minTeamSize: minTeamSize !== undefined ? minTeamSize : levelRecord.minTeamSize,
             maxTeamSize: maxTeamSize !== undefined ? maxTeamSize : levelRecord.maxTeamSize,
             incentiveRate: incentiveRate !== undefined ? incentiveRate : levelRecord.incentiveRate,
+            maxDepth: maxDepth !== undefined ? maxDepth : levelRecord.maxDepth,
             minIncentiveBase: null,
             maxIncentiveBase: null,
             privileges: privileges !== undefined ? privileges : levelRecord.privileges,

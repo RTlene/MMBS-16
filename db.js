@@ -750,6 +750,12 @@ const TeamExpansionLevel = sequelize.define('TeamExpansionLevel', {
       defaultValue: 0.01,
       comment: '激励比例'
   },
+  maxDepth: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 5,
+      comment: '激励链路层数上限'
+  },
   // 激励计算基数设置
   minIncentiveBase: {
         type: DataTypes.DECIMAL(10, 2),
@@ -3695,6 +3701,31 @@ async function init() {
       }
     } catch (e) {
       console.warn('[DB] distributor_levels 积分列自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
+    // ===== 自动迁移：team_expansion_levels 增加 maxDepth（激励层数限制）=====
+    try {
+      const qi = sequelize.getQueryInterface();
+      const hasCol = (desc, name) =>
+        desc &&
+        Object.keys(desc).some(
+          (k) => k.toLowerCase().replace(/_/g, '') === name.toLowerCase().replace(/_/g, '')
+        );
+      const teDesc = await qi.describeTable('team_expansion_levels').catch(() => ({}));
+      if (teDesc && Object.keys(teDesc).length > 0) {
+        if (!hasCol(teDesc, 'maxDepth')) {
+          console.log('[DB] team_expansion_levels 缺少 maxDepth，自动迁移(加列)...');
+          await qi.addColumn('team_expansion_levels', 'maxDepth', {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 5,
+            comment: '激励链路层数上限'
+          });
+          console.log('[DB] team_expansion_levels maxDepth 已就绪');
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] team_expansion_levels maxDepth 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
     // ===== 自动迁移：commission_excluded_products 佣金除外商品（部署时建表，无需手工 SQL）=====

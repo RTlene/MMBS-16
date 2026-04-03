@@ -345,7 +345,9 @@ class CommissionService {
         let remainingBase = parseFloat((orderAmount - allocatedBefore).toFixed(2));
         if (remainingBase <= 0) return;
 
-        const maxDepth = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
+        const levelDepth = parseInt(referrer && referrer.teamExpansionLevel && referrer.teamExpansionLevel.maxDepth, 10);
+        const envDepth = parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10);
+        const maxDepth = Math.max(1, Number.isFinite(levelDepth) && levelDepth > 0 ? levelDepth : (envDepth || 5));
         const fullChain = [];
         let currentId = referrer && referrer.id ? referrer.id : null;
         while (currentId) {

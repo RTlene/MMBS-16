@@ -240,6 +240,7 @@ function openAddLevelModal() {
     document.getElementById('levelStatus').value = 'active';
     document.getElementById('sortOrder').value = '0';
     document.getElementById('incentiveRate').value = '0.01';
+    document.getElementById('maxDepth').value = '5';
     
     // 清空特权配置
     document.getElementById('privilegesContainer').innerHTML = '';
@@ -280,6 +281,7 @@ function fillLevelForm(level) {
     document.getElementById('minTeamSize').value = level.minTeamSize || 0;
     document.getElementById('maxTeamSize').value = level.maxTeamSize || '';
     document.getElementById('incentiveRate').value = level.incentiveRate || 0.01;
+    document.getElementById('maxDepth').value = level.maxDepth || 5;
     // 团队拓展激励已改为按单计算，不再使用激励基数设置
     document.getElementById('levelColor').value = level.color || '#faad14';
     document.getElementById('levelIcon').value = level.icon || '';
@@ -355,6 +357,7 @@ async function submitLevelForm() {
             minTeamSize: parseInt(document.getElementById('minTeamSize').value),
             maxTeamSize: document.getElementById('maxTeamSize').value ? parseInt(document.getElementById('maxTeamSize').value) : null,
             incentiveRate: parseFloat(document.getElementById('incentiveRate').value),
+            maxDepth: parseInt(document.getElementById('maxDepth').value),
             color: document.getElementById('levelColor').value,
             icon: document.getElementById('levelIcon').value.trim(),
             description: document.getElementById('levelDescription').value.trim(),
@@ -375,7 +378,7 @@ async function submitLevelForm() {
         formData.privileges = privileges;
 
         // 验证必填字段
-        if (!formData.name || !formData.level || formData.minTeamSize === undefined || !formData.incentiveRate) {
+        if (!formData.name || !formData.level || formData.minTeamSize === undefined || !formData.incentiveRate || !formData.maxDepth) {
             alert('请填写必填字段');
             return;
         }
