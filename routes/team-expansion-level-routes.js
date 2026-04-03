@@ -117,39 +117,64 @@ router.post('/', async (req, res) => {
             sortOrder
         } = req.body;
 
-        // 在创建时添加
-        const newLevel = await TeamExpansionLevel.create({
-            name,
-            level,
-            minTeamSize,
-            maxTeamSize,
-            incentiveRate,
-            minIncentiveBase,  // 新增
-            maxIncentiveBase,  // 新增
-            privileges: privileges || {},
-            color: color || '#faad14',
-            icon,
-            description,
-            status: status || 'active',
-            sortOrder: sortOrder || 0
-        });
+        const nameTrim = typeof name === 'string' ? name.trim() : '';
+        const levelNum = parseInt(level, 10);
+        const minTeamNum = minTeamSize === '' || minTeamSize === null || minTeamSize === undefined
+            ? NaN
+            : parseInt(minTeamSize, 10);
+        const rateNum = incentiveRate === '' || incentiveRate === null || incentiveRate === undefined
+            ? NaN
+            : parseFloat(incentiveRate);
 
-        // 验证必填字段
-        if (!name || !level || minTeamSize === undefined || !incentiveRate) {
+        // 先校验再查重再写入（原先先 create 再查重，会命中刚插入的行，永远 400「该等级数值已存在」）
+        if (!nameTrim || !Number.isFinite(levelNum) || levelNum < 1) {
             return res.status(400).json({
                 code: 1,
-                message: '请填写必填字段'
+                message: '请填写必填字段：名称、等级数值（正整数）'
+            });
+        }
+        if (!Number.isFinite(minTeamNum) || minTeamNum < 0) {
+            return res.status(400).json({
+                code: 1,
+                message: '请填写有效的最低团队规模（非负整数）'
+            });
+        }
+        if (!Number.isFinite(rateNum) || rateNum < 0) {
+            return res.status(400).json({
+                code: 1,
+                message: '请填写有效的激励比例（可为 0）'
             });
         }
 
-        // 检查等级是否已存在
-        const existingLevel = await TeamExpansionLevel.findOne({ where: { level } });
+        const existingLevel = await TeamExpansionLevel.findOne({ where: { level: levelNum } });
         if (existingLevel) {
             return res.status(400).json({
                 code: 1,
                 message: '该等级数值已存在'
             });
         }
+
+        let maxTeamParsed = null;
+        if (maxTeamSize !== '' && maxTeamSize !== null && maxTeamSize !== undefined) {
+            const m = parseInt(maxTeamSize, 10);
+            maxTeamParsed = Number.isFinite(m) ? m : null;
+        }
+
+        const newLevel = await TeamExpansionLevel.create({
+            name: nameTrim,
+            level: levelNum,
+            minTeamSize: minTeamNum,
+            maxTeamSize: maxTeamParsed,
+            incentiveRate: rateNum,
+            minIncentiveBase,
+            maxIncentiveBase,
+            privileges: privileges || {},
+            color: color || '#faad14',
+            icon,
+            description,
+            status: status || 'active',
+            sortOrder: sortOrder !== undefined && sortOrder !== null ? parseInt(sortOrder, 10) || 0 : 0
+        });
 
         res.json({
             code: 0,
@@ -176,6 +201,8 @@ router.put('/:id', async (req, res) => {
             minTeamSize,
             maxTeamSize,
             incentiveRate,
+            minIncentiveBase,
+            maxIncentiveBase,
             privileges,
             color,
             icon,
@@ -211,6 +238,8 @@ router.put('/:id', async (req, res) => {
             minTeamSize: minTeamSize !== undefined ? minTeamSize : levelRecord.minTeamSize,
             maxTeamSize: maxTeamSize !== undefined ? maxTeamSize : levelRecord.maxTeamSize,
             incentiveRate: incentiveRate !== undefined ? incentiveRate : levelRecord.incentiveRate,
+            minIncentiveBase: minIncentiveBase !== undefined ? minIncentiveBase : levelRecord.minIncentiveBase,
+            maxIncentiveBase: maxIncentiveBase !== undefined ? maxIncentiveBase : levelRecord.maxIncentiveBase,
             privileges: privileges !== undefined ? privileges : levelRecord.privileges,
             color: color || levelRecord.color,
             icon: icon !== undefined ? icon : levelRecord.icon,

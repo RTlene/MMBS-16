@@ -397,11 +397,12 @@ async function submitLevelForm() {
             body: JSON.stringify(formData)
         });
 
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            alert((window.teamExpansionLevelsData.editingLevel ? '更新失败' : '创建失败') + ': ' + (result.message || `HTTP ${response.status}`));
+            return;
         }
 
-        const result = await response.json();
         if (result.code === 0) {
             alert(window.teamExpansionLevelsData.editingLevel ? '更新成功' : '创建成功');
             closeLevelModal();
