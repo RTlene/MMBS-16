@@ -445,7 +445,25 @@ async function deleteLevel(id) {
     }
 }
 
-// 将函数暴露到全局作用域
+// 将函数暴露到全局作用域（兼容 page-loader 动态子页面初始化）
+window.TeamExpansionLevels = {
+    init: initTeamExpansionLevels,
+    loadLevels,
+    loadStats,
+    searchLevels,
+    goToPage,
+    openAddLevelModal,
+    editLevel,
+    closeLevelModal,
+    submitLevelForm,
+    deleteLevel,
+    addPrivilege,
+    updatePrivilegeKey,
+    updatePrivilegeValue,
+    removePrivilege
+};
+
+// 保留旧命名，避免其他脚本直接调用报错
 window.initTeamExpansionLevels = initTeamExpansionLevels;
 window.searchLevels = searchLevels;
 window.goToPage = goToPage;
@@ -458,8 +476,3 @@ window.addPrivilege = addPrivilege;
 window.updatePrivilegeKey = updatePrivilegeKey;
 window.updatePrivilegeValue = updatePrivilegeValue;
 window.removePrivilege = removePrivilege;
-
-// 页面加载完成后自动初始化
-document.addEventListener('DOMContentLoaded', function() {
-    initTeamExpansionLevels();
-});
