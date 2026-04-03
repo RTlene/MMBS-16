@@ -1082,7 +1082,85 @@ router.put('/:id/ship', async (req, res) => {
     }
 });
 
-// 快递/自提的「确认收货」均应由用户在小程序内完成（weappOrderConfirm 等），后台不再提供「代点确认收货 / 确认用户自提」，避免与公众平台结算不一致。见 docs/WECHAT_ORDER_SETTLEMENT_CONFIRM.md
+// 快递/自提的「确认收货」默认由用户在小程序内完成（weappOrderConfirm 等）。
+// 若微信侧已结算但本系统未更新，可使用后台兜底确认接口（仅用于异常补偿）。
+
+// 后台兜底确认收货（异常补偿：微信侧已结算/已确认，本地状态未同步）
+router.put('/:id/manual-deliver', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason = '' } = req.body || {};
+
+        const order = await Order.findByPk(id);
+        if (!order) {
+            return res.status(404).json({ code: 1, message: '订单不存在' });
+        }
+
+        const isPickupOrder =
+            String(order.deliveryType || '').toLowerCase() === 'pickup' ||
+            String(order.shippingMethod || '').toLowerCase() === 'pickup' ||
+            String(order.shippingMethod || '') === '自提';
+        const canFallback =
+            order.status === 'shipped' ||
+            order.status === 'paid' ||
+            order.status === 'delivered' ||
+            order.status === 'completed';
+
+        if (!canFallback) {
+            return res.status(400).json({
+                code: 1,
+                message: `当前状态不支持兜底确认：${order.status}`
+            });
+        }
+
+        const oldStatus = order.status;
+        const needUpdateStatus = order.status !== 'delivered' && order.status !== 'completed';
+        if (needUpdateStatus) {
+            await order.update({
+                status: 'delivered',
+                deliveredAt: order.deliveredAt || new Date(),
+                ...(isPickupOrder && !order.shippingMethod ? { shippingMethod: 'pickup' } : {}),
+                updatedBy: req.user?.id
+            });
+        }
+
+        await OrderOperationLog.create({
+            orderId: order.id,
+            operation: 'deliver',
+            operatorId: req.user?.id,
+            operatorType: 'admin',
+            oldStatus,
+            newStatus: needUpdateStatus ? 'delivered' : order.status,
+            description: `后台兜底确认收货（微信侧已结算补偿）${reason ? `：${reason}` : ''}`,
+            data: { reason: reason || null, fallback: true }
+        });
+
+        try {
+            await CommissionService.calculateOrderCommission(order.id);
+        } catch (error) {
+            console.error('兜底确认收货后佣金计算失败:', error);
+        }
+
+        res.json({
+            code: 0,
+            message: needUpdateStatus ? '兜底确认成功，已触发佣金计算' : '订单已是完成态，已补触发佣金计算',
+            data: {
+                order: {
+                    id: order.id,
+                    orderNo: order.orderNo,
+                    status: needUpdateStatus ? 'delivered' : order.status
+                }
+            }
+        });
+    } catch (error) {
+        console.error('兜底确认收货失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: '兜底确认收货失败',
+            error: error.message
+        });
+    }
+});
 
 // 申请退货
 router.post('/:id/return', async (req, res) => {

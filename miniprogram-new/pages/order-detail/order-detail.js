@@ -7,6 +7,8 @@ const { API, replaceUrlParams } = require('../../config/api.js');
 const auth = require('../../utils/auth.js');
 const { buildAbsoluteUrl, formatTime, formatMoney } = require('../../utils/util.js');
 
+const PENDING_CONFIRM_STORAGE_KEY = 'pendingConfirmReceiveOrderIds';
+
 Page({
   data: {
     orderId: null,
@@ -53,6 +55,7 @@ Page({
    */
   onShow() {
     const app = getApp();
+    this.flushPendingConfirmReceiveForCurrentOrder();
     const pending = app.globalData.pendingWechatConfirmOrderId;
     const ed = app.globalData.wechatOrderConfirmResult;
     if (!pending || !this.data.orderId) return;
@@ -64,7 +67,7 @@ Page({
 
     if (ed.status === 'success') {
       wx.showLoading({ title: '同步订单...' });
-      this.submitConfirmReceivePut()
+      this.submitConfirmReceivePutWithRetry()
         .then(() => {
           wx.hideLoading();
         })
@@ -81,6 +84,9 @@ Page({
       title: ed.errormsg || '未完成确认',
       icon: 'none'
     });
+
+    // 若存在历史待同步任务，页面展示时再补发一次
+    this.flushPendingConfirmReceiveForCurrentOrder();
   },
 
   async resolveOrderIdByOrderNo(orderNo) {
@@ -522,13 +528,18 @@ Page({
             fail: (err) => {
               console.warn('[OrderDetail] openBusinessView fail', err);
               app.globalData.pendingWechatConfirmOrderId = null;
+
+              const errMsg = String((err && (err.errMsg || err.errmsg)) || '').toLowerCase();
+              const maybeAlreadyConfirmed = errMsg.includes('already') || errMsg.includes('settle') || errMsg.includes('确认');
               wx.showModal({
                 title: '提示',
-                content: '无法拉起微信确认收货页，将仅更新本店订单状态（可能影响公众平台结算同步）。是否继续？',
+                content: maybeAlreadyConfirmed
+                  ? '微信侧可能已确认/已结算，是否立即同步本系统订单状态？'
+                  : '无法拉起微信确认收货页，将仅更新本店订单状态（可能影响公众平台结算同步）。是否继续？',
                 success: (m) => {
                   if (m.confirm) {
                     wx.showLoading({ title: '处理中...' });
-                    this.submitConfirmReceivePut()
+                    this.submitConfirmReceivePutWithRetry()
                       .then(() => wx.hideLoading())
                       .catch(() => wx.hideLoading());
                   }
@@ -541,7 +552,7 @@ Page({
 
         try {
           wx.showLoading({ title: '处理中...' });
-          await this.submitConfirmReceivePut();
+          await this.submitConfirmReceivePutWithRetry();
           wx.hideLoading();
         } catch (error) {
           wx.hideLoading();
@@ -573,6 +584,63 @@ Page({
       return;
     }
     throw new Error(result.message || '确认失败');
+  },
+
+  getPendingConfirmReceiveOrderIds() {
+    try {
+      const ids = wx.getStorageSync(PENDING_CONFIRM_STORAGE_KEY);
+      return Array.isArray(ids) ? ids.map(v => String(v)) : [];
+    } catch (_) {
+      return [];
+    }
+  },
+
+  setPendingConfirmReceiveOrderIds(ids) {
+    try {
+      const uniq = Array.from(new Set((ids || []).map(v => String(v))));
+      wx.setStorageSync(PENDING_CONFIRM_STORAGE_KEY, uniq);
+    } catch (_) {}
+  },
+
+  markConfirmReceivePending(orderId) {
+    const ids = this.getPendingConfirmReceiveOrderIds();
+    ids.push(String(orderId));
+    this.setPendingConfirmReceiveOrderIds(ids);
+  },
+
+  clearConfirmReceivePending(orderId) {
+    const ids = this.getPendingConfirmReceiveOrderIds().filter(v => v !== String(orderId));
+    this.setPendingConfirmReceiveOrderIds(ids);
+  },
+
+  async submitConfirmReceivePutWithRetry(maxRetries = 3) {
+    const { order } = this.data;
+    if (!order || !order.id) throw new Error('订单信息缺失');
+    this.markConfirmReceivePending(order.id);
+    let lastError = null;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await this.submitConfirmReceivePut();
+        this.clearConfirmReceivePending(order.id);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 400 * (i + 1)));
+        }
+      }
+    }
+    throw lastError || new Error('确认失败');
+  },
+
+  async flushPendingConfirmReceiveForCurrentOrder() {
+    const { order } = this.data;
+    if (!order || !order.id) return;
+    const ids = this.getPendingConfirmReceiveOrderIds();
+    if (!ids.includes(String(order.id))) return;
+    try {
+      await this.submitConfirmReceivePutWithRetry(2);
+    } catch (_) {}
   },
 
   /**

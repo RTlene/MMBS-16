@@ -388,7 +388,10 @@ class OrderManagement {
             }
         }
 
-        // 确认收货：仅用户可在小程序内完成（微信确认收货组件），已发货待用户确认，后台不提供代点
+        // 确认收货：默认由用户在小程序内完成；若微信已结算但本地未同步，支持兜底确认
+        if (['paid', 'shipped'].includes(order.status)) {
+            buttons += `<button class="btn btn-action btn-warning" onclick="orderManagement.manualDeliverFallback(${order.id})" title="微信已结算补偿同步"><i class="fas fa-shield-alt"></i> 兜底确认</button>`;
+        }
 
         // 处理退货申请
         if (order.returnStatus === 'requested') {
@@ -1474,6 +1477,32 @@ class OrderManagement {
         } catch (error) {
             console.error('核销失败:', error);
             showAlert('核销失败', 'error');
+        }
+    }
+
+    // 兜底确认收货（微信已结算但本地未更新时使用）
+    async manualDeliverFallback(orderId) {
+        const reason = prompt('请输入兜底确认原因（可选）', '微信侧已结算，本地状态补偿同步') || '';
+        if (!confirm('仅在微信侧已确认/已结算但后台未更新时使用，确认继续？')) return;
+        try {
+            const response = await fetch(`/api/orders/${orderId}/manual-deliver`, {
+                method: 'PUT',
+                headers: {
+                    ...getAuthHeaders(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reason })
+            });
+            const result = await response.json();
+            if (result.code === 0) {
+                showAlert(result.message || '兜底确认成功', 'success');
+                await this.loadOrders();
+            } else {
+                showAlert(result.message || '兜底确认失败', 'error');
+            }
+        } catch (error) {
+            console.error('兜底确认收货失败:', error);
+            showAlert('兜底确认收货失败: ' + (error.message || '网络错误'), 'error');
         }
     }
 

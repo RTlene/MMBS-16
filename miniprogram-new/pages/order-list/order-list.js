@@ -7,6 +7,8 @@ const { API, API_BASE_URL } = require('../../config/api.js');
 const auth = require('../../utils/auth.js');
 const { buildAbsoluteUrl, formatTime, formatMoney } = require('../../utils/util.js');
 
+const PENDING_CONFIRM_STORAGE_KEY = 'pendingConfirmReceiveOrderIds';
+
 Page({
   data: {
     // 订单列表
@@ -73,6 +75,7 @@ Page({
     if (this.data.orders.length > 0) {
       this.refreshOrders();
     }
+    this.flushPendingConfirmReceiveOrders();
   },
 
   /**
@@ -447,11 +450,7 @@ Page({
         if (res.confirm) {
           try {
             wx.showLoading({ title: '处理中...' });
-            
-            const result = await request.put(
-              API.ORDER.UPDATE_STATUS.replace(':id', id),
-              { status: 'delivered' }
-            );
+            const result = await this.submitConfirmReceiveWithRetry(id);
             
             wx.hideLoading();
             
@@ -477,6 +476,67 @@ Page({
         }
       }
     });
+  },
+
+  getPendingConfirmReceiveOrderIds() {
+    try {
+      const ids = wx.getStorageSync(PENDING_CONFIRM_STORAGE_KEY);
+      return Array.isArray(ids) ? ids.map(v => String(v)) : [];
+    } catch (_) {
+      return [];
+    }
+  },
+
+  setPendingConfirmReceiveOrderIds(ids) {
+    try {
+      const uniq = Array.from(new Set((ids || []).map(v => String(v))));
+      wx.setStorageSync(PENDING_CONFIRM_STORAGE_KEY, uniq);
+    } catch (_) {}
+  },
+
+  markConfirmReceivePending(orderId) {
+    const ids = this.getPendingConfirmReceiveOrderIds();
+    ids.push(String(orderId));
+    this.setPendingConfirmReceiveOrderIds(ids);
+  },
+
+  clearConfirmReceivePending(orderId) {
+    const ids = this.getPendingConfirmReceiveOrderIds().filter(v => v !== String(orderId));
+    this.setPendingConfirmReceiveOrderIds(ids);
+  },
+
+  async submitConfirmReceiveWithRetry(orderId, maxRetries = 3) {
+    this.markConfirmReceivePending(orderId);
+    let lastError = null;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const result = await request.put(
+          API.ORDER.UPDATE_STATUS.replace(':id', orderId),
+          { status: 'delivered' }
+        );
+        if (result.code === 0) {
+          this.clearConfirmReceivePending(orderId);
+          return result;
+        }
+        throw new Error(result.message || '确认失败');
+      } catch (err) {
+        lastError = err;
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 400 * (i + 1)));
+        }
+      }
+    }
+    throw lastError || new Error('确认失败');
+  },
+
+  async flushPendingConfirmReceiveOrders() {
+    const pendingIds = this.getPendingConfirmReceiveOrderIds();
+    if (!pendingIds.length) return;
+    for (const orderId of pendingIds.slice(0, 3)) {
+      try {
+        await this.submitConfirmReceiveWithRetry(orderId, 1);
+      } catch (_) {}
+    }
   },
 
   /**

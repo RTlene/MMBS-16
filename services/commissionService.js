@@ -227,7 +227,7 @@ class CommissionService {
             } else if (referrerCostRate > 0) {
                 console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是成本分销商，已计分销商佣金，避免重复）`);
                 // 4b. 推荐人本人有成本率：为上级链上的分销商计算级差
-                const uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.id, referrer.id);
+                const uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.referrerId, referrer.id);
                 let downstreamCostRate = referrerCostRate;
                 let downstreamLevel = referrer.distributorLevel;
                 for (const upline of uplineDistributors) {
@@ -284,7 +284,7 @@ class CommissionService {
                         description: `分销佣金（同一订单基数按差额：毛利佣金-直接-间接）：${nearestCost.nickname} 按 ${costRate}% 成本计算`
                     });
                     console.log(`[佣金] 分销佣金 已生成(上家首个成本分销商，毛利-直-间) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`);
-                    const uplineDistributors = await this.findOtherDistributorsInNetwork(nearestCost.id, nearestCost.id);
+                    const uplineDistributors = await this.findOtherDistributorsInNetwork(nearestCost.referrerId, nearestCost.id);
                     let downstreamCostRate = costRate;
                     let downstreamLevel = nearestCost.distributorLevel;
                     for (const upline of uplineDistributors) {
@@ -583,8 +583,36 @@ class CommissionService {
         return unitCost * qty;
     }
 
+    static _parseMaybeJson(v) {
+        if (!v) return null;
+        if (typeof v === 'object') return v;
+        if (typeof v !== 'string') return null;
+        try {
+            return JSON.parse(v);
+        } catch (_) {
+            return null;
+        }
+    }
+
     /**
-     * 佣金计算基数：零售额、SKU 成本合计（成本基数时分销商用）。
+     * 行零售价小计：优先 SKU 快照零售价 × 数量；否则回退行单价 × 数量
+     */
+    static _orderItemRetailSubtotal(it) {
+        const qty = parseInt(it.quantity, 10) || 0;
+        const skuSnap = this._parseMaybeJson(it.skuSnapshot);
+        const snapPrice = skuSnap && skuSnap.price != null ? parseFloat(skuSnap.price) : NaN;
+        if (Number.isFinite(snapPrice) && snapPrice >= 0) {
+            return snapPrice * qty;
+        }
+        const unit = parseFloat(it.unitPrice);
+        if (Number.isFinite(unit) && unit >= 0) {
+            return unit * qty;
+        }
+        return parseFloat(it.totalAmount) || 0;
+    }
+
+    /**
+     * 佣金计算基数：零售额（按 SKU 零售价）、SKU 成本合计（成本基数时分销商用）。
      * 若配置了佣金除外商品且本订单行命中，则剔除对应行的零售额与成本。
      * @returns {{ retailAmount: number, skuCostTotal: number }}
      */
@@ -602,13 +630,15 @@ class CommissionService {
         }
 
         const excludedSet = await this.getCommissionExcludedProductIdsSet();
-        let retailAmount = parseFloat(order.totalAmount) || 0;
+        let retailAmount = 0;
         let skuCostTotal = 0;
 
         if (excludedSet.size === 0) {
             for (const it of items) {
+                retailAmount += this._orderItemRetailSubtotal(it);
                 skuCostTotal += this._orderItemSkuCost(it);
             }
+            retailAmount = parseFloat(retailAmount.toFixed(2));
             skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
             return { retailAmount, skuCostTotal };
         }
@@ -620,8 +650,10 @@ class CommissionService {
 
         if (!hasExcludedLine) {
             for (const it of items) {
+                retailAmount += this._orderItemRetailSubtotal(it);
                 skuCostTotal += this._orderItemSkuCost(it);
             }
+            retailAmount = parseFloat(retailAmount.toFixed(2));
             skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
             return { retailAmount, skuCostTotal };
         }
@@ -630,7 +662,7 @@ class CommissionService {
         let excludedRetailSum = 0;
         for (const it of items) {
             const pid = this._resolveOrderItemProductId(it);
-            const lineRetail = parseFloat(it.totalAmount) || 0;
+            const lineRetail = this._orderItemRetailSubtotal(it);
             const lineCost = this._orderItemSkuCost(it);
             if (pid && excludedSet.has(pid)) {
                 excludedRetailSum += lineRetail;
@@ -641,7 +673,7 @@ class CommissionService {
         }
         retailAmount = parseFloat(commissionableRetail.toFixed(2));
         skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
-        console.log(`[佣金] 订单行含佣金除外商品，除外零售额约 ¥${excludedRetailSum.toFixed(2)}，可计佣金零售额 ¥${retailAmount.toFixed(2)}`);
+        console.log(`[佣金] 订单行含佣金除外商品，除外零售价约 ¥${excludedRetailSum.toFixed(2)}，可计佣金零售价 ¥${retailAmount.toFixed(2)}`);
         return { retailAmount, skuCostTotal };
     }
 
@@ -820,26 +852,27 @@ class CommissionService {
      * 查找网络中的其他分销商
      */
     static async findOtherDistributorsInNetwork(referrerId, excludeId) {
-        // 这里需要实现网络遍历逻辑，查找所有分销商
-        // 简化实现：查找推荐人路径中的所有分销商
         const distributors = [];
-        let currentId = referrerId;
-        
+        const visited = new Set();
+        let currentId = referrerId ? parseInt(referrerId, 10) : null;
+
         while (currentId) {
-            if (currentId !== excludeId) {
-                const member = await Member.findByPk(currentId, {
-                    include: [{ model: DistributorLevel, as: 'distributorLevel' }]
-                });
-                
-                if (member && member.distributorLevel) {
-                    distributors.push(member);
-                }
+            if (visited.has(currentId)) break;
+            visited.add(currentId);
+
+            const member = await Member.findByPk(currentId, {
+                include: [{ model: DistributorLevel, as: 'distributorLevel' }]
+            });
+            if (!member) break;
+
+            const memberId = parseInt(member.id, 10);
+            if (memberId !== parseInt(excludeId, 10) && member.distributorLevel) {
+                distributors.push(member);
             }
-            
-            const member = await Member.findByPk(currentId);
-            currentId = member ? member.referrerId : null;
+
+            currentId = member.referrerId ? parseInt(member.referrerId, 10) : null;
         }
-        
+
         return distributors;
     }
 
