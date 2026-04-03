@@ -3,6 +3,7 @@ const { Op, fn, col } = require('sequelize');
 const {
     CommissionCalculation,
     MemberCommissionRecord,
+    TeamIncentiveCalculation,
     Order,
     Member
 } = require('../db');
@@ -86,7 +87,17 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
             }
         }
 
-        const [calcRows, recordRows, calcCount, recordCount] = await Promise.all([
+        const tiWhere = {
+            referrerId: member.id,
+            status: dbStatus || { [Op.ne]: 'cancelled' }
+        };
+        if (type === 'team_expansion') {
+            // 仅团队拓展标签时保留，其他标签不读团队激励表
+        } else if (type && type !== 'all') {
+            tiWhere.id = { [Op.in]: [] };
+        }
+
+        const [calcRows, recordRows, tiRows, calcCount, recordCount, tiCount] = await Promise.all([
             CommissionCalculation.findAll({
                 where: calcWhere,
                 include: [
@@ -113,8 +124,22 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
                 order: [['createdAt', 'DESC']],
                 limit: 3000
             }),
+            TeamIncentiveCalculation.findAll({
+                where: tiWhere,
+                include: [
+                    {
+                        model: Member,
+                        as: 'distributor',
+                        attributes: ['id', 'nickname'],
+                        required: false
+                    }
+                ],
+                order: [['createdAt', 'DESC']],
+                limit: 3000
+            }),
             CommissionCalculation.count({ where: calcWhere }),
-            MemberCommissionRecord.count({ where: recordWhere })
+            MemberCommissionRecord.count({ where: recordWhere }),
+            TeamIncentiveCalculation.count({ where: tiWhere })
         ]);
 
         const merged = [];
@@ -185,8 +210,37 @@ router.get('/commissions', authenticateMiniappUser, async (req, res) => {
             });
         }
 
+        for (const r of tiRows) {
+            const j = r.toJSON();
+            const amount = parseFloat(j.incentiveAmount || 0);
+            const monthlySales = parseFloat(j.monthlySales || 0);
+            const rate = parseFloat(j.incentiveRate || 0);
+            merged.push({
+                _sort: new Date(j.createdAt).getTime(),
+                id: `ti_${j.id}`,
+                rawId: j.id,
+                source: 'team_incentive',
+                type: 'team_incentive',
+                typeText: CALC_TYPE_TEXT.team_incentive,
+                amount,
+                commissionRate: rate,
+                costRate: null,
+                costAmount: null,
+                balance: null,
+                orderId: null,
+                orderNo: null,
+                orderAmount: monthlySales,
+                description: `团队拓展激励：${j.calculationMonth} 月团队销售¥${fmtMoney(monthlySales)} × ${fmtPct(rate)}% = ¥${fmtMoney(amount)}`,
+                status: j.status,
+                statusText:
+                    j.status === 'pending' ? '待结算' : j.status === 'confirmed' ? '已结算' : j.status === 'cancelled' ? '已取消' : j.status,
+                settledAt: j.status === 'confirmed' ? j.calculationDate : null,
+                createdAt: j.createdAt
+            });
+        }
+
         merged.sort((a, b) => b._sort - a._sort);
-        const total = calcCount + recordCount;
+        const total = calcCount + recordCount + tiCount;
         const paged = merged.slice(offset, offset + lim);
         const records = paged.map(({ _sort, ...rest }) => rest);
 
@@ -242,7 +296,17 @@ router.get('/commissions/stats', authenticateMiniappUser, async (req, res) => {
             };
         }
 
-        const [typeStatsCalc, typeStatsRecord, cntCalc, cntRecord] = await Promise.all([
+        const tiWhereConfirmed = {
+            referrerId: member.id,
+            status: 'confirmed'
+        };
+        if (startDate && endDate) {
+            tiWhereConfirmed.calculationDate = {
+                [Op.between]: [new Date(startDate), new Date(endDate)]
+            };
+        }
+
+        const [typeStatsCalc, typeStatsRecord, typeStatsTeam, cntCalc, cntRecord, cntTeam] = await Promise.all([
             CommissionCalculation.findAll({
                 where: calcWhereConfirmed,
                 attributes: [
@@ -263,8 +327,17 @@ router.get('/commissions/stats', authenticateMiniappUser, async (req, res) => {
                 group: ['type'],
                 raw: true
             }),
+            TeamIncentiveCalculation.findAll({
+                where: tiWhereConfirmed,
+                attributes: [
+                    [fn('SUM', col('incentiveAmount')), 'totalAmount'],
+                    [fn('COUNT', col('id')), 'count']
+                ],
+                raw: true
+            }),
             CommissionCalculation.count({ where: { recipientId: member.id, status: { [Op.ne]: 'cancelled' } } }),
-            MemberCommissionRecord.count({ where: { memberId: member.id, status: { [Op.ne]: 'cancelled' } } })
+            MemberCommissionRecord.count({ where: { memberId: member.id, status: { [Op.ne]: 'cancelled' } } }),
+            TeamIncentiveCalculation.count({ where: { referrerId: member.id, status: { [Op.ne]: 'cancelled' } } })
         ]);
 
         const typeStatsMap = {};
@@ -285,13 +358,23 @@ router.get('/commissions/stats', authenticateMiniappUser, async (req, res) => {
                 count: prev.count + parseInt(row.count || 0, 10)
             };
         }
+        const teamRow = Array.isArray(typeStatsTeam) && typeStatsTeam.length > 0 ? typeStatsTeam[0] : null;
+        if (teamRow) {
+            const key = 'team_incentive';
+            const prev = typeStatsMap[key] || { totalAmount: 0, count: 0 };
+            typeStatsMap[key] = {
+                type: key,
+                totalAmount: prev.totalAmount + parseFloat(teamRow.totalAmount || 0),
+                count: prev.count + parseInt(teamRow.count || 0, 10)
+            };
+        }
 
         res.json({
             code: 0,
             message: '获取成功',
             data: {
                 totalCommission,
-                totalCount: cntCalc + cntRecord,
+                totalCount: cntCalc + cntRecord + cntTeam,
                 typeStats: Object.values(typeStatsMap)
             }
         });

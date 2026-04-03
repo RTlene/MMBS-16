@@ -14,6 +14,19 @@ const {
 } = require('../db');
 
 class CommissionService {
+    static _rateToDecimal(rawRate) {
+        const n = parseFloat(rawRate);
+        if (!Number.isFinite(n) || n <= 0) return 0;
+        return n <= 1 ? n : (n / 100);
+    }
+
+    static _isSpecialPartnerLevel(level) {
+        if (!level) return false;
+        const name = String(level.name || '').toLowerCase();
+        if (name.includes('合伙人') || name.includes('特级')) return true;
+        return false;
+    }
+
     /**
      * 计算订单佣金（仅订单完成时产生：状态为 delivered 或 completed 才写入，否则仅可预览）
      * @param {number} orderId - 订单ID
@@ -306,10 +319,90 @@ class CommissionService {
                 }
             }
 
+            // 5. 团队拓展激励（按单）：仅当分销/级差都没有产出时，按剩余基数逐级分配激励
+            const hasDistributorDiff = calculations.some((c) =>
+                (c.commissionType === 'distributor' || c.commissionType === 'network_distributor') &&
+                parseFloat(c.commissionAmount || 0) > 0
+            );
+            if (!hasDistributorDiff) {
+                await this.appendPerOrderTeamIncentiveCalculations({
+                    orderId,
+                    member,
+                    referrer,
+                    orderAmount,
+                    calculations
+                });
+            }
+
             if (calculations.length === 0) {
                 console.log(`[佣金] 订单 ${orderId} 无任何佣金记录生成（推荐人存在但各类型均未满足或比例为0）`);
             }
             return { calculations, noReferrer: false, referrerNotFound: false };
+    }
+
+    static async appendPerOrderTeamIncentiveCalculations({ orderId, member, referrer, orderAmount, calculations }) {
+        const allocatedBefore = calculations.reduce((sum, c) => sum + (parseFloat(c.commissionAmount) || 0), 0);
+        let remainingBase = parseFloat((orderAmount - allocatedBefore).toFixed(2));
+        if (remainingBase <= 0) return;
+
+        const maxDepth = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
+        const fullChain = [];
+        let currentId = referrer && referrer.id ? referrer.id : null;
+        while (currentId) {
+            const m = await Member.findByPk(currentId, {
+                include: [
+                    { model: DistributorLevel, as: 'distributorLevel' },
+                    { model: TeamExpansionLevel, as: 'teamExpansionLevel' }
+                ]
+            });
+            if (!m) break;
+            if (m.distributorLevel) fullChain.push(m);
+            currentId = m.referrerId ? parseInt(m.referrerId, 10) : null;
+        }
+        if (fullChain.length === 0) return;
+
+        let payoutChain = fullChain.slice(0, maxDepth);
+        // 最后一级强制对齐为“最近的特级/合伙人”
+        if (payoutChain.length > 0 && !this._isSpecialPartnerLevel(payoutChain[payoutChain.length - 1].distributorLevel)) {
+            let special = fullChain.find((m) => this._isSpecialPartnerLevel(m.distributorLevel));
+            if (!special) {
+                const maxLevelVal = fullChain.reduce((mx, m) => Math.max(mx, parseInt(m.distributorLevel?.level, 10) || 0), 0);
+                special = fullChain.find((m) => (parseInt(m.distributorLevel?.level, 10) || 0) === maxLevelVal);
+            }
+            if (special) {
+                payoutChain[payoutChain.length - 1] = special;
+                payoutChain = payoutChain.filter((m, idx, arr) => arr.findIndex((x) => x.id === m.id) === idx);
+            }
+        }
+
+        for (let i = 0; i < payoutChain.length; i++) {
+            if (remainingBase <= 0) break;
+            const recipient = payoutChain[i];
+            const rateDecimal = this._rateToDecimal(
+                recipient.teamExpansionLevel ? recipient.teamExpansionLevel.incentiveRate : 0
+            );
+            if (rateDecimal <= 0) continue;
+
+            const incentiveAmount = parseFloat((remainingBase * rateDecimal).toFixed(2));
+            if (incentiveAmount <= 0) continue;
+
+            const ratePercent = parseFloat((rateDecimal * 100).toFixed(2));
+            calculations.push({
+                orderId,
+                memberId: member.id,
+                referrerId: referrer.id,
+                commissionType: 'team_incentive',
+                recipientId: recipient.id,
+                orderAmount: remainingBase,
+                commissionRate: ratePercent,
+                commissionAmount: incentiveAmount,
+                status: 'pending',
+                description: `团队拓展激励（按单逐级）：第${i + 1}级 ${recipient.nickname} 按剩余基数 ¥${remainingBase.toFixed(2)} × ${ratePercent}%`
+            });
+
+            // 下一层基数需扣除上一层已分配佣金/激励
+            remainingBase = parseFloat((remainingBase - incentiveAmount).toFixed(2));
+        }
     }
 
     /**
@@ -321,7 +414,8 @@ class CommissionService {
         return await Member.findByPk(referrerId, {
             include: [
                 { model: MemberLevel, as: 'memberLevel' },
-                { model: DistributorLevel, as: 'distributorLevel' }
+                { model: DistributorLevel, as: 'distributorLevel' },
+                { model: TeamExpansionLevel, as: 'teamExpansionLevel' }
             ]
         });
     }
@@ -752,6 +846,9 @@ class CommissionService {
      */
     static async calculateTeamIncentiveCommission(month) {
         try {
+            if (!/^\d{4}-\d{2}$/.test(String(month || ''))) {
+                throw new Error('月份格式错误，需为 YYYY-MM');
+            }
             const startDate = new Date(month + '-01');
             const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
             
@@ -788,7 +885,25 @@ class CommissionService {
                     continue;
                 }
 
-                const incentiveAmount = (monthlySales * teamLevel.incentiveRate / 100).toFixed(2);
+                // 兼容历史配置：<=1 视为小数比例（0.01=1%），>1 视为百分比（1=1%）
+                const rawRate = parseFloat(teamLevel.incentiveRate) || 0;
+                const rateDecimal = rawRate <= 1 ? rawRate : (rawRate / 100);
+                if (rateDecimal <= 0) continue;
+                const incentiveAmount = (monthlySales * rateDecimal).toFixed(2);
+                const incentiveRatePercent = parseFloat((rateDecimal * 100).toFixed(2));
+
+                // 防重复：同月、同分销商、同推荐人仅保留一条（pending/confirmed 都视为已生成）
+                const existing = await TeamIncentiveCalculation.count({
+                    where: {
+                        calculationMonth: month,
+                        distributorId: distributor.id,
+                        referrerId: referrer.id,
+                        status: { [Op.ne]: 'cancelled' }
+                    }
+                });
+                if (existing > 0) {
+                    continue;
+                }
 
                 calculations.push({
                     distributorId: distributor.id,
@@ -796,10 +911,10 @@ class CommissionService {
                     calculationMonth: month,
                     monthlySales,
                     incentiveBase: teamLevel.minIncentiveBase,
-                    incentiveRate: teamLevel.incentiveRate,
+                    incentiveRate: incentiveRatePercent,
                     incentiveAmount: parseFloat(incentiveAmount),
                     status: 'pending',
-                    description: `团队拓展激励：${month} 月销售额 ${monthlySales} 元，激励比例 ${teamLevel.incentiveRate}%`
+                    description: `团队拓展激励：${month} 月销售额 ${monthlySales} 元，激励比例 ${incentiveRatePercent}%`
                 });
             }
 
@@ -904,10 +1019,20 @@ class CommissionService {
         const result = await Order.findOne({
             where: {
                 memberId,
-                status: 'paid',
-                createdAt: {
-                    [Op.between]: [startDate, endDate]
-                }
+                status: { [Op.in]: ['paid', 'delivered', 'completed'] },
+                [Op.or]: [
+                    {
+                        paymentTime: {
+                            [Op.between]: [startDate, endDate]
+                        }
+                    },
+                    {
+                        paymentTime: null,
+                        createdAt: {
+                            [Op.between]: [startDate, endDate]
+                        }
+                    }
+                ]
             },
             attributes: [
                 [sequelize.fn('SUM', sequelize.col('totalAmount')), 'totalSales']
@@ -916,6 +1041,38 @@ class CommissionService {
         });
 
         return parseFloat(result.totalSales) || 0;
+    }
+
+    /**
+     * 确认团队拓展激励（入账团队激励余额）
+     */
+    static async confirmTeamIncentive(calculationId) {
+        const calculation = await TeamIncentiveCalculation.findByPk(calculationId);
+        if (!calculation) {
+            throw new Error('团队拓展激励记录不存在');
+        }
+        if (calculation.status === 'confirmed') {
+            return calculation;
+        }
+        await calculation.update({ status: 'confirmed' });
+        const member = await Member.findByPk(calculation.referrerId);
+        if (member) {
+            await member.increment('availableTeamIncentive', { by: calculation.incentiveAmount });
+            await member.increment('totalTeamIncentive', { by: calculation.incentiveAmount });
+        }
+        return calculation;
+    }
+
+    /**
+     * 取消团队拓展激励
+     */
+    static async cancelTeamIncentive(calculationId) {
+        const calculation = await TeamIncentiveCalculation.findByPk(calculationId);
+        if (!calculation) {
+            throw new Error('团队拓展激励记录不存在');
+        }
+        await calculation.update({ status: 'cancelled' });
+        return calculation;
     }
 
     /**
@@ -932,8 +1089,13 @@ class CommissionService {
         // 更新会员佣金余额
         const member = await Member.findByPk(calculation.recipientId);
         if (member) {
-            await member.increment('availableCommission', { by: calculation.commissionAmount });
-            await member.increment('totalCommission', { by: calculation.commissionAmount });
+            if (calculation.commissionType === 'team_incentive') {
+                await member.increment('availableTeamIncentive', { by: calculation.commissionAmount });
+                await member.increment('totalTeamIncentive', { by: calculation.commissionAmount });
+            } else {
+                await member.increment('availableCommission', { by: calculation.commissionAmount });
+                await member.increment('totalCommission', { by: calculation.commissionAmount });
+            }
         }
 
         return calculation;

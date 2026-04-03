@@ -215,6 +215,44 @@ router.post('/calculate-team-incentive', authenticateToken, async (req, res) => 
     }
 });
 
+// 确认团队拓展激励（发放到推荐人团队激励余额）
+router.put('/team-incentives/confirm/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const record = await CommissionService.confirmTeamIncentive(id);
+        res.json({
+            code: 0,
+            message: '团队拓展激励确认成功',
+            data: record
+        });
+    } catch (error) {
+        console.error('确认团队拓展激励失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: error.message || '确认团队拓展激励失败'
+        });
+    }
+});
+
+// 取消团队拓展激励
+router.put('/team-incentives/cancel/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const record = await CommissionService.cancelTeamIncentive(id);
+        res.json({
+            code: 0,
+            message: '团队拓展激励取消成功',
+            data: record
+        });
+    } catch (error) {
+        console.error('取消团队拓展激励失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: error.message || '取消团队拓展激励失败'
+        });
+    }
+});
+
 // 确认佣金计算
 router.put('/confirm/:id', authenticateToken, async (req, res) => {
     try {
