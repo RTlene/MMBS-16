@@ -997,6 +997,22 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 佣金计提（commission_calculations，与佣金管理一致） -->
+                    <div class="row mt-3" id="orderCommissionCalcSection" style="display: none;">
+                        <div class="col-12">
+                            <div class="card border-info">
+                                <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <h6 class="mb-0">佣金计提（待确认 / 佣金管理）</h6>
+                                    <button type="button" class="btn btn-sm btn-warning" id="btnRecalculateCommission" style="display: none;" onclick="if(window.orderManagement) window.orderManagement.recalculateOrderCommissionFromDetail();">重新计算佣金</button>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-2 small text-muted" id="detailCommissionCalcSummary">-</p>
+                                    <p class="mb-0 small" id="detailCommissionCalcHint"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- 佣金记录 -->
                     <div class="row mt-3" id="commissionRecordsSection" style="display: none;">

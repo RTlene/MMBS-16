@@ -737,6 +737,62 @@ router.post('/batch-delete', async (req, res) => {
     }
 });
 
+// 重新计算订单佣金（删除本单全部计提记录后重算；存在已确认记录时拒绝）
+router.post('/:id/recalculate-commission', async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(orderId)) {
+            return res.status(400).json({ code: 1, message: '订单 ID 无效' });
+        }
+        const result = await CommissionService.recalculateOrderCommission(orderId);
+        if (!result.ok) {
+            return res.status(400).json({
+                code: 1,
+                message: result.message,
+                data: { errorCode: result.code }
+            });
+        }
+        const {
+            calculations,
+            deletedCount,
+            orderNotCompleted,
+            alreadyCalculated,
+            noReferrer,
+            referrerNotFound,
+            commissionBaseZero,
+            promotionOrderExcluded
+        } = result;
+        let message = '已重新计算佣金';
+        if (orderNotCompleted) {
+            message = '订单状态不允许计提（不应出现）';
+        } else if (alreadyCalculated) {
+            message = '重算后未写入新记录（不应出现）';
+        } else if (!calculations || calculations.length === 0) {
+            message = '重算完成，当前规则下未生成佣金明细（如无推荐人、促销单等）';
+        }
+        res.json({
+            code: 0,
+            message,
+            data: {
+                deletedCount,
+                calculations: calculations || [],
+                orderNotCompleted: !!orderNotCompleted,
+                alreadyCalculated: !!alreadyCalculated,
+                noReferrer: !!noReferrer,
+                referrerNotFound: !!referrerNotFound,
+                commissionBaseZero: !!commissionBaseZero,
+                promotionOrderExcluded: !!promotionOrderExcluded
+            }
+        });
+    } catch (error) {
+        console.error('重新计算订单佣金失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: error.message || '重新计算订单佣金失败'
+        });
+    }
+});
+
 // 获取订单详情
 router.get('/:id', async (req, res) => {
     try {
@@ -829,7 +885,23 @@ router.get('/:id', async (req, res) => {
         }
 
         await enrichPickupStoreOnOrderJson(orderData);
-        
+
+        const [ccPending, ccConfirmed, ccCancelled, ccTotal] = await Promise.all([
+            CommissionCalculation.count({ where: { orderId: id, status: 'pending' } }),
+            CommissionCalculation.count({ where: { orderId: id, status: 'confirmed' } }),
+            CommissionCalculation.count({ where: { orderId: id, status: 'cancelled' } }),
+            CommissionCalculation.count({ where: { orderId: id } })
+        ]);
+        const completedLike =
+            orderData.status === 'delivered' || orderData.status === 'completed';
+        orderData.commissionCalculationsSummary = {
+            pending: ccPending,
+            confirmed: ccConfirmed,
+            cancelled: ccCancelled,
+            total: ccTotal
+        };
+        orderData.canRecalculateCommission = completedLike && ccConfirmed === 0;
+
         res.json({
             code: 0,
             message: '获取成功',

@@ -860,6 +860,9 @@ class OrderManagement {
             // 佣金记录
             this.renderCommissionRecords(order.commissionRecords || []);
 
+            // 佣金计提（commission_calculations）与重算
+            this.renderOrderCommissionCalculations(order);
+
             // 操作日志
             this.renderOperationLogs(order.operationLogs || []);
 
@@ -1114,6 +1117,88 @@ class OrderManagement {
                 oldTbody.innerHTML = html;
             } else {
                 oldTbody.innerHTML = '<tr><td colspan="5" class="text-center">暂无佣金记录</td></tr>';
+            }
+        }
+    }
+
+    /**
+     * 订单详情：佣金计提（commission_calculations）摘要与「重新计算」入口
+     */
+    renderOrderCommissionCalculations(order) {
+        const section = document.getElementById('orderCommissionCalcSection');
+        const summaryEl = document.getElementById('detailCommissionCalcSummary');
+        const hintEl = document.getElementById('detailCommissionCalcHint');
+        const btn = document.getElementById('btnRecalculateCommission');
+        if (!section || !summaryEl || !hintEl) return;
+
+        const done = order.status === 'delivered' || order.status === 'completed';
+        if (!done) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = 'block';
+        const s = order.commissionCalculationsSummary || {};
+        const p = s.pending != null ? s.pending : 0;
+        const c = s.confirmed != null ? s.confirmed : 0;
+        const x = s.cancelled != null ? s.cancelled : 0;
+        const t = s.total != null ? s.total : 0;
+        summaryEl.textContent = `待确认 ${p} 条 · 已确认 ${c} 条 · 已取消 ${x} 条 · 合计 ${t} 条（与「佣金管理 → 佣金记录」一致）`;
+
+        if (btn) {
+            if (order.canRecalculateCommission) {
+                btn.style.display = 'inline-block';
+                btn.disabled = false;
+                hintEl.textContent = '将删除本单全部计提记录（含待确认、已取消），再按当前规则重新生成；不会自动确认入账。';
+                hintEl.className = 'mb-0 small text-muted';
+            } else {
+                btn.style.display = 'none';
+                btn.disabled = true;
+                if (c > 0) {
+                    hintEl.textContent = '本单已有已确认的佣金计提，不可在此重算；如需调整请在佣金管理中处理。';
+                    hintEl.className = 'mb-0 small text-danger';
+                } else {
+                    hintEl.textContent = '';
+                    hintEl.className = 'mb-0 small';
+                }
+            }
+        }
+    }
+
+    async recalculateOrderCommissionFromDetail() {
+        const order = this.currentOrder;
+        if (!order || !order.id) {
+            showAlert('订单数据无效', 'error');
+            return;
+        }
+        if (!order.canRecalculateCommission) {
+            showAlert('当前订单不可重新计算佣金', 'error');
+            return;
+        }
+        if (!confirm('确定删除本单全部佣金计提记录并重新计算？新记录为待确认，不会自动入账。')) {
+            return;
+        }
+        const btn = document.getElementById('btnRecalculateCommission');
+        if (btn) {
+            btn.disabled = true;
+        }
+        try {
+            const res = await fetch(`/api/orders/${order.id}/recalculate-commission`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+            const result = await res.json();
+            if (result.code === 0) {
+                showAlert(result.message || '已重新计算', 'success');
+                await this.viewOrder(order.id);
+            } else {
+                showAlert(result.message || '重算失败', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            showAlert('重新计算佣金失败', 'error');
+        } finally {
+            if (btn && this.currentOrder && this.currentOrder.canRecalculateCommission) {
+                btn.disabled = false;
             }
         }
     }

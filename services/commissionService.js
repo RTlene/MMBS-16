@@ -28,6 +28,29 @@ class CommissionService {
         return false;
     }
 
+    /**
+     * 级差链在层数 cap 之外仍须包含的会员（与团队激励最后一档兜底一致）：
+     * 链上首个特级/合伙人，若无则用分销等级 level 数值最高者。
+     */
+    static _tierDiffAnchorMemberIds(distributorMemberChain) {
+        const ids = new Set();
+        if (!Array.isArray(distributorMemberChain) || distributorMemberChain.length === 0) return ids;
+        let anchor = distributorMemberChain.find((m) => this._isSpecialPartnerLevel(m.distributorLevel));
+        if (!anchor) {
+            const maxLevelVal = distributorMemberChain.reduce(
+                (mx, m) => Math.max(mx, parseInt(m.distributorLevel?.level, 10) || 0),
+                0
+            );
+            if (maxLevelVal > 0) {
+                anchor = distributorMemberChain.find(
+                    (m) => (parseInt(m.distributorLevel?.level, 10) || 0) === maxLevelVal
+                );
+            }
+        }
+        if (anchor) ids.add(parseInt(anchor.id, 10));
+        return ids;
+    }
+
     /** 佣金管理 → 佣金设置；失败时回退 TEAM_INCENTIVE_MAX_DEPTH 或 5 */
     static async getDistributorChainMaxDepth() {
         const envFallback = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
@@ -107,6 +130,41 @@ class CommissionService {
             console.error('计算订单佣金失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * 删除本单全部佣金计提记录后按当前规则重算（仅写入新的 pending 记录，不自动确认）
+     */
+    static async recalculateOrderCommission(orderId) {
+        const order = await Order.findByPk(orderId);
+        if (!order) {
+            return { ok: false, code: 'ORDER_NOT_FOUND', message: '订单不存在' };
+        }
+        const status = order.status || '';
+        if (status !== 'delivered' && status !== 'completed') {
+            return {
+                ok: false,
+                code: 'ORDER_NOT_COMPLETED',
+                message: '仅已收货或已完成订单可重新计算佣金'
+            };
+        }
+        const confirmedCount = await CommissionCalculation.count({
+            where: { orderId, status: 'confirmed' }
+        });
+        if (confirmedCount > 0) {
+            return {
+                ok: false,
+                code: 'COMMISSION_CONFIRMED',
+                message: '本单存在已确认的佣金计提记录，请先在佣金管理中处理后再重算'
+            };
+        }
+        let deletedCount = 0;
+        await sequelize.transaction(async (t) => {
+            deletedCount = await CommissionCalculation.destroy({ where: { orderId }, transaction: t });
+        });
+        console.log(`[佣金] 订单 ${orderId} 重算：已删除 ${deletedCount} 条旧计提记录`);
+        const calcResult = await this.calculateOrderCommission(orderId);
+        return { ok: true, deletedCount, ...calcResult };
     }
 
     /**
@@ -251,7 +309,7 @@ class CommissionService {
                     calculations.push(distributorCommission);
                     console.log(`[佣金] 分销商佣金 已生成 costRate=${distributorCommission.costRate}% 金额=${distributorCommission.commissionAmount}`);
                 } else {
-                    console.log(`[佣金] 分销商佣金 未生成（costRate<=0）`);
+                    console.log(`[佣金] 分销商佣金 未生成（costRate<=0 或毛利扣直间后为0）`);
                 }
             }
 
@@ -271,11 +329,32 @@ class CommissionService {
                 console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是成本分销商，已计分销商佣金，避免重复）`);
                 // 4b. 推荐人本人有成本率：为上级链上的分销商计算级差
                 let uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.referrerId, referrer.id);
-                const allowedUplineIds4b = new Set(chainCap.slice(1).map((m) => parseInt(m.id, 10)));
+                const lastInCap = chainCap[chainCap.length - 1];
+                const lastCapIdxInFull = distributorMemberChain.findIndex(
+                    (m) => parseInt(m.id, 10) === parseInt(lastInCap.id, 10)
+                );
+                const anchorSet4b = this._tierDiffAnchorMemberIds(distributorMemberChain);
+                let anchorIdx4b = -1;
+                if (anchorSet4b.size > 0) {
+                    anchorIdx4b = distributorMemberChain.findIndex(
+                        (m) => parseInt(m.id, 10) === [...anchorSet4b][0]
+                    );
+                }
+                const topIdx4b =
+                    anchorIdx4b >= 0 && lastCapIdxInFull >= 0
+                        ? Math.max(lastCapIdxInFull, anchorIdx4b)
+                        : anchorIdx4b >= 0
+                          ? anchorIdx4b
+                          : lastCapIdxInFull;
+                const allowedUplineIds4b = new Set(
+                    topIdx4b >= 1
+                        ? distributorMemberChain.slice(1, topIdx4b + 1).map((m) => parseInt(m.id, 10))
+                        : []
+                );
                 const uplineBeforeCap4b = uplineDistributors.length;
                 uplineDistributors = uplineDistributors.filter((u) => allowedUplineIds4b.has(parseInt(u.id, 10)));
                 if (uplineBeforeCap4b !== uplineDistributors.length) {
-                    console.log(`[佣金] 级差链(4b) 按层数上限裁剪 uplines ${uplineBeforeCap4b}→${uplineDistributors.length}`);
+                    console.log(`[佣金] 级差链(4b) 按层数+特级兜底裁剪 uplines ${uplineBeforeCap4b}→${uplineDistributors.length}`);
                 }
                 console.log(`[佣金] 级差链 从推荐人上级起分销商数=${uplineDistributors.length}（同成本率不产生级差）`);
                 let downstreamCostRate = referrerCostRate;
@@ -332,25 +411,57 @@ class CommissionService {
                         0,
                         parseFloat((parseFloat(grossCommissionAmount) - directAmount - indirectAmount).toFixed(2))
                     ).toFixed(2);
-                    calculations.push({
-                        orderId,
-                        memberId: member.id,
-                        referrerId: referrer.id,
-                        commissionType: 'distributor',
-                        recipientId: nearestCost.id,
-                        orderAmount: paidOrderAmount,
-                        commissionRate: costRate,
-                        commissionAmount: parseFloat(commissionAmount),
-                        costRate,
-                        costAmount: parseFloat(costAmount),
-                        status: 'pending',
-                        description: `分销佣金（实付毛利-直接-间接）：${nearestCost.nickname} 按 ${costRate}%×等级成本基数 计提货成本`
-                    });
-                    console.log(`[佣金] 分销佣金 已生成(上家首个成本分销商，毛利-直-间) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`);
+                    const distAmt = parseFloat(commissionAmount);
+                    if (distAmt > 0) {
+                        calculations.push({
+                            orderId,
+                            memberId: member.id,
+                            referrerId: referrer.id,
+                            commissionType: 'distributor',
+                            recipientId: nearestCost.id,
+                            orderAmount: paidOrderAmount,
+                            commissionRate: costRate,
+                            commissionAmount: distAmt,
+                            costRate,
+                            costAmount: parseFloat(costAmount),
+                            status: 'pending',
+                            description: `分销佣金（实付毛利-直接-间接）：${nearestCost.nickname} 按 ${costRate}%×等级成本基数 计提货成本`
+                        });
+                        console.log(
+                            `[佣金] 分销佣金 已生成(上家首个成本分销商，毛利-直-间) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`
+                        );
+                    } else {
+                        console.log(
+                            `[佣金] 分销佣金 金额为0，不生成记录 recipientId=${nearestCost.id} costRate=${costRate}%`
+                        );
+                    }
                     const uplineDistributorsAll = await this.findOtherDistributorsInNetwork(nearestCost.referrerId, nearestCost.id);
-                    const idxNearest = chainCap.findIndex((m) => parseInt(m.id, 10) === parseInt(nearestCost.id, 10));
+                    const idxNearestFull = distributorMemberChain.findIndex(
+                        (m) => parseInt(m.id, 10) === parseInt(nearestCost.id, 10)
+                    );
+                    const lastInCap4c = chainCap[chainCap.length - 1];
+                    const lastCapIdxInFull4c = distributorMemberChain.findIndex(
+                        (m) => parseInt(m.id, 10) === parseInt(lastInCap4c.id, 10)
+                    );
+                    const anchorSet4c = this._tierDiffAnchorMemberIds(distributorMemberChain);
+                    let anchorIdx4c = -1;
+                    if (anchorSet4c.size > 0) {
+                        anchorIdx4c = distributorMemberChain.findIndex(
+                            (m) => parseInt(m.id, 10) === [...anchorSet4c][0]
+                        );
+                    }
+                    const topIdx4c =
+                        anchorIdx4c >= 0 && lastCapIdxInFull4c >= 0
+                            ? Math.max(lastCapIdxInFull4c, anchorIdx4c)
+                            : anchorIdx4c >= 0
+                              ? anchorIdx4c
+                              : lastCapIdxInFull4c;
                     const uplineAllowed4c = new Set(
-                        idxNearest >= 0 ? chainCap.slice(idxNearest + 1).map((m) => parseInt(m.id, 10)) : []
+                        idxNearestFull >= 0 && topIdx4c > idxNearestFull
+                            ? distributorMemberChain
+                                  .slice(idxNearestFull + 1, topIdx4c + 1)
+                                  .map((m) => parseInt(m.id, 10))
+                            : []
                     );
                     const uplineDistributors = uplineDistributorsAll.filter((u) =>
                         uplineAllowed4c.has(parseInt(u.id, 10))
@@ -853,6 +964,11 @@ class CommissionService {
             0,
             parseFloat((parseFloat(grossCommissionAmount) - directAmount - indirectAmount).toFixed(2))
         ).toFixed(2);
+        const amt = parseFloat(commissionAmount);
+        if (amt <= 0) {
+            console.log(`[佣金] 分销商佣金 毛利扣直间后为0，不生成记录 referrerId=${referrerId} costRate=${costRate}%`);
+            return null;
+        }
 
         const baseLabel = dl && this.getCostRateBase(dl) === 'cost' ? '成本价合计' : '参考零售价';
         return {
@@ -863,7 +979,7 @@ class CommissionService {
             recipientId: referrerId,
             orderAmount: paidAmount,
             commissionRate: costRate,
-            commissionAmount: parseFloat(commissionAmount),
+            commissionAmount: amt,
             costRate,
             costAmount: parseFloat(costAmount),
             status: 'pending',
