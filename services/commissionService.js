@@ -362,30 +362,27 @@ class CommissionService {
                 for (const upline of uplineDistributors) {
                     const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
                     const diffRate = downstreamCostRate - uplineCostRate;
-                    if (diffRate <= 0) {
-                        console.log(`[佣金] 级差跳过 uplineId=${upline.id} 下游成本率=${downstreamCostRate}% 上级成本率=${uplineCostRate}% 无正向级差(同档或上级更优)`);
+                    const diffAmt = this.tierDiffAmountByLevels(bases, downstreamLevel, downstreamCostRate, upline.distributorLevel, uplineCostRate);
+                    if (diffAmt <= 0) {
+                        console.log(`[佣金] 级差跳过 uplineId=${upline.id} 成本额差额<=0 diffAmt=${diffAmt}（下游成本率=${downstreamCostRate}% 上级成本率=${uplineCostRate}%）`);
                     } else {
-                        const diffAmt = this.tierDiffAmountByLevels(bases, downstreamLevel, downstreamCostRate, upline.distributorLevel, uplineCostRate);
-                        if (diffAmt <= 0) {
-                            console.log(`[佣金] 级差跳过 uplineId=${upline.id} 成本额差额<=0 diffAmt=${diffAmt}`);
-                        } else {
-                            const downMoney = this.computeProcurementCostAmount(bases, downstreamLevel, downstreamCostRate);
-                            const upMoney = this.computeProcurementCostAmount(bases, upline.distributorLevel, uplineCostRate);
-                            const commissionAmount = diffAmt.toFixed(2);
-                            calculations.push({
-                                orderId,
-                                memberId: member.id,
-                                referrerId: referrer.id,
-                                commissionType: 'network_distributor',
-                                recipientId: upline.id,
-                                orderAmount: paidOrderAmount,
-                                commissionRate: diffRate,
-                                commissionAmount: parseFloat(commissionAmount),
-                                status: 'pending',
-                                description: `级差分销佣金：${upline.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downstreamCostRate}%) − ¥${upMoney.toFixed(2)}(本等级${uplineCostRate}%) = ¥${commissionAmount}`
-                            });
-                            console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 级差百分点=${diffRate}% 金额=${commissionAmount}`);
-                        }
+                        const downMoney = this.computeProcurementCostAmount(bases, downstreamLevel, downstreamCostRate);
+                        const upMoney = this.computeProcurementCostAmount(bases, upline.distributorLevel, uplineCostRate);
+                        const commissionAmount = diffAmt.toFixed(2);
+                        const effectiveRate = paidOrderAmount > 0 ? parseFloat((diffAmt / paidOrderAmount * 100).toFixed(2)) : 0;
+                        calculations.push({
+                            orderId,
+                            memberId: member.id,
+                            referrerId: referrer.id,
+                            commissionType: 'network_distributor',
+                            recipientId: upline.id,
+                            orderAmount: paidOrderAmount,
+                            commissionRate: effectiveRate,
+                            commissionAmount: parseFloat(commissionAmount),
+                            status: 'pending',
+                            description: `级差分销佣金：${upline.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downstreamCostRate}%) − ¥${upMoney.toFixed(2)}(本等级${uplineCostRate}%) = ¥${commissionAmount}`
+                        });
+                        console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 金额=${commissionAmount}`);
                     }
                     downstreamCostRate = uplineCostRate;
                     downstreamLevel = upline.distributorLevel;
@@ -472,30 +469,27 @@ class CommissionService {
                     for (const upline of uplineDistributors) {
                         const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
                         const diffRate = downstreamCostRate - uplineCostRate;
-                        if (diffRate <= 0) {
-                            console.log(`[佣金] 级差跳过 uplineId=${upline.id} 下游成本率=${downstreamCostRate}% 上级成本率=${uplineCostRate}% 无正向级差(同档或上级更优)`);
+                        const diffAmt = this.tierDiffAmountByLevels(bases, downstreamLevel, downstreamCostRate, upline.distributorLevel, uplineCostRate);
+                        if (diffAmt <= 0) {
+                            console.log(`[佣金] 级差跳过 uplineId=${upline.id} 成本额差额<=0 diffAmt=${diffAmt}（下游成本率=${downstreamCostRate}% 上级成本率=${uplineCostRate}%）`);
                         } else {
-                            const diffAmt = this.tierDiffAmountByLevels(bases, downstreamLevel, downstreamCostRate, upline.distributorLevel, uplineCostRate);
-                            if (diffAmt <= 0) {
-                                console.log(`[佣金] 级差跳过 uplineId=${upline.id} 成本额差额<=0 diffAmt=${diffAmt}`);
-                            } else {
-                                const downMoney = this.computeProcurementCostAmount(bases, downstreamLevel, downstreamCostRate);
-                                const upMoney = this.computeProcurementCostAmount(bases, upline.distributorLevel, uplineCostRate);
-                                const diffAmount = diffAmt.toFixed(2);
-                                calculations.push({
-                                    orderId,
-                                    memberId: member.id,
-                                    referrerId: referrer.id,
-                                    commissionType: 'network_distributor',
-                                    recipientId: upline.id,
-                                    orderAmount: paidOrderAmount,
-                                    commissionRate: diffRate,
-                                    commissionAmount: parseFloat(diffAmount),
-                                    status: 'pending',
-                                    description: `级差分销佣金：${upline.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downstreamCostRate}%) − ¥${upMoney.toFixed(2)}(本等级${uplineCostRate}%) = ¥${diffAmount}`
-                                });
-                                console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 级差=${diffRate}% 金额=${diffAmount}`);
-                            }
+                            const downMoney = this.computeProcurementCostAmount(bases, downstreamLevel, downstreamCostRate);
+                            const upMoney = this.computeProcurementCostAmount(bases, upline.distributorLevel, uplineCostRate);
+                            const diffAmount = diffAmt.toFixed(2);
+                            const effectiveRate = paidOrderAmount > 0 ? parseFloat((diffAmt / paidOrderAmount * 100).toFixed(2)) : 0;
+                            calculations.push({
+                                orderId,
+                                memberId: member.id,
+                                referrerId: referrer.id,
+                                commissionType: 'network_distributor',
+                                recipientId: upline.id,
+                                orderAmount: paidOrderAmount,
+                                commissionRate: effectiveRate,
+                                commissionAmount: parseFloat(diffAmount),
+                                status: 'pending',
+                                description: `级差分销佣金：${upline.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downstreamCostRate}%) − ¥${upMoney.toFixed(2)}(本等级${uplineCostRate}%) = ¥${diffAmount}`
+                            });
+                            console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 金额=${diffAmount}`);
                         }
                         downstreamCostRate = uplineCostRate;
                         downstreamLevel = upline.distributorLevel;
@@ -620,46 +614,45 @@ class CommissionService {
                             const downRate = this.effectiveDistributorCostRate(downstream);
                             const upRate = this.effectiveDistributorCostRate(recipient);
                             const diffRate = downRate - upRate;
-                            if (diffRate > 0) {
-                                const diffAmt = this.tierDiffAmountByLevels(
+                            const diffAmt = this.tierDiffAmountByLevels(
+                                bases,
+                                downstream.distributorLevel,
+                                downRate,
+                                recipient.distributorLevel,
+                                upRate
+                            );
+                            if (diffAmt > 0) {
+                                const downMoney = this.computeProcurementCostAmount(
                                     bases,
                                     downstream.distributorLevel,
-                                    downRate,
+                                    downRate
+                                );
+                                const upMoney = this.computeProcurementCostAmount(
+                                    bases,
                                     recipient.distributorLevel,
                                     upRate
                                 );
-                                if (diffAmt > 0) {
-                                    const downMoney = this.computeProcurementCostAmount(
-                                        bases,
-                                        downstream.distributorLevel,
-                                        downRate
-                                    );
-                                    const upMoney = this.computeProcurementCostAmount(
-                                        bases,
-                                        recipient.distributorLevel,
-                                        upRate
-                                    );
-                                    const amountStr = diffAmt.toFixed(2);
-                                    calculations.push({
-                                        orderId,
-                                        memberId: member.id,
-                                        referrerId: referrer.id,
-                                        commissionType: 'network_distributor',
-                                        recipientId: recipient.id,
-                                        orderAmount: orderAmount,
-                                        commissionRate: diffRate,
-                                        commissionAmount: parseFloat(amountStr),
-                                        status: 'pending',
-                                        description: `级差分销佣金（团队链补计）：${recipient.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downRate}%) − ¥${upMoney.toFixed(2)}(本等级${upRate}%) = ¥${amountStr}`
-                                    });
-                                    console.log(
-                                        `[佣金] 团队链特级/兜底档补级差 recipientId=${rid} 级差=${diffRate}% 金额=${amountStr}`
-                                    );
-                                    remainingBase = parseFloat(
-                                        (remainingBase - parseFloat(amountStr)).toFixed(2)
-                                    );
-                                    continue;
-                                }
+                                const amountStr = diffAmt.toFixed(2);
+                                const effectiveRate = orderAmount > 0 ? parseFloat((diffAmt / orderAmount * 100).toFixed(2)) : 0;
+                                calculations.push({
+                                    orderId,
+                                    memberId: member.id,
+                                    referrerId: referrer.id,
+                                    commissionType: 'network_distributor',
+                                    recipientId: recipient.id,
+                                    orderAmount: orderAmount,
+                                    commissionRate: effectiveRate,
+                                    commissionAmount: parseFloat(amountStr),
+                                    status: 'pending',
+                                    description: `级差分销佣金（团队链补计）：${recipient.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downRate}%) − ¥${upMoney.toFixed(2)}(本等级${upRate}%) = ¥${amountStr}`
+                                });
+                                console.log(
+                                    `[佣金] 团队链特级/兜底档补级差 recipientId=${rid} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 金额=${amountStr}`
+                                );
+                                remainingBase = parseFloat(
+                                    (remainingBase - parseFloat(amountStr)).toFixed(2)
+                                );
+                                continue;
                             }
                         }
                     }
@@ -1140,8 +1133,7 @@ class CommissionService {
                 }
             }
 
-            const costDifference = nearestCostRate - maxCostRate;
-            if (costDifference <= 0 || !maxDistributor) return null;
+            if (!maxDistributor) return null;
 
             const amtNearest = this.computeProcurementCostAmount(bases, networkDistributor.distributorLevel, nearestCostRate);
             const amtMax = this.computeProcurementCostAmount(bases, maxDistributor.distributorLevel, maxCostRate);
