@@ -352,36 +352,7 @@ class CommissionService {
                 );
                 let uplineDistributors = distributorMemberChain.filter((u, idx) => idx >= 1 && allowedUplineIds4b.has(parseInt(u.id, 10)));
                 console.log(`[佣金] 级差链 从推荐人上级起分销商数=${uplineDistributors.length}（同成本率不产生级差）`);
-                let downstreamCostRate = referrerCostRate;
-                let downstreamLevel = referrer.distributorLevel;
-                for (const upline of uplineDistributors) {
-                    const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
-                    const diffRate = downstreamCostRate - uplineCostRate;
-                    const diffAmt = this.tierDiffAmountByLevels(bases, downstreamLevel, downstreamCostRate, upline.distributorLevel, uplineCostRate);
-                    if (diffAmt <= 0) {
-                        console.log(`[佣金] 级差跳过 uplineId=${upline.id} 成本额差额<=0 diffAmt=${diffAmt}（下游成本率=${downstreamCostRate}% 上级成本率=${uplineCostRate}%）`);
-                    } else {
-                        const downMoney = this.computeProcurementCostAmount(bases, downstreamLevel, downstreamCostRate);
-                        const upMoney = this.computeProcurementCostAmount(bases, upline.distributorLevel, uplineCostRate);
-                        const commissionAmount = diffAmt.toFixed(2);
-                        const effectiveRate = paidOrderAmount > 0 ? parseFloat((diffAmt / paidOrderAmount * 100).toFixed(2)) : 0;
-                        calculations.push({
-                            orderId,
-                            memberId: member.id,
-                            referrerId: referrer.id,
-                            commissionType: 'network_distributor',
-                            recipientId: upline.id,
-                            orderAmount: paidOrderAmount,
-                            commissionRate: effectiveRate,
-                            commissionAmount: parseFloat(commissionAmount),
-                            status: 'pending',
-                            description: `级差分销佣金：${upline.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downstreamCostRate}%) − ¥${upMoney.toFixed(2)}(本等级${uplineCostRate}%) = ¥${commissionAmount}`
-                        });
-                        console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 金额=${commissionAmount}`);
-                    }
-                    downstreamCostRate = uplineCostRate;
-                    downstreamLevel = upline.distributorLevel;
-                }
+                console.log(`[佣金] 级差链(4b) 改为逐级结算模式：在团队链循环中按“有级差算级差、无级差算团队激励”处理`);
             } else {
                 // 4c. 推荐人有分销等级但成本率为 0（分享模式）：在链路层数 cap 内找首个有成本率的分销商，给其「分销佣金」+ 再往上算级差
                 console.log(
@@ -458,36 +429,7 @@ class CommissionService {
                         idx > idxNearestFull && uplineAllowed4c.has(parseInt(u.id, 10))
                     );
                     console.log(`[佣金] 级差链(4c) 上级分销商数=${uplineDistributors.length}（已按链路层数上限）`);
-                    let downstreamCostRate = costRate;
-                    let downstreamLevel = nearestCost.distributorLevel;
-                    for (const upline of uplineDistributors) {
-                        const uplineCostRate = this.getDistributorCostRate(upline.distributorLevel);
-                        const diffRate = downstreamCostRate - uplineCostRate;
-                        const diffAmt = this.tierDiffAmountByLevels(bases, downstreamLevel, downstreamCostRate, upline.distributorLevel, uplineCostRate);
-                        if (diffAmt <= 0) {
-                            console.log(`[佣金] 级差跳过 uplineId=${upline.id} 成本额差额<=0 diffAmt=${diffAmt}（下游成本率=${downstreamCostRate}% 上级成本率=${uplineCostRate}%）`);
-                        } else {
-                            const downMoney = this.computeProcurementCostAmount(bases, downstreamLevel, downstreamCostRate);
-                            const upMoney = this.computeProcurementCostAmount(bases, upline.distributorLevel, uplineCostRate);
-                            const diffAmount = diffAmt.toFixed(2);
-                            const effectiveRate = paidOrderAmount > 0 ? parseFloat((diffAmt / paidOrderAmount * 100).toFixed(2)) : 0;
-                            calculations.push({
-                                orderId,
-                                memberId: member.id,
-                                referrerId: referrer.id,
-                                commissionType: 'network_distributor',
-                                recipientId: upline.id,
-                                orderAmount: paidOrderAmount,
-                                commissionRate: effectiveRate,
-                                commissionAmount: parseFloat(diffAmount),
-                                status: 'pending',
-                                description: `级差分销佣金：${upline.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downstreamCostRate}%) − ¥${upMoney.toFixed(2)}(本等级${uplineCostRate}%) = ¥${diffAmount}`
-                            });
-                            console.log(`[佣金] 级差分销佣金 已生成 recipientId=${upline.id} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 金额=${diffAmount}`);
-                        }
-                        downstreamCostRate = uplineCostRate;
-                        downstreamLevel = upline.distributorLevel;
-                    }
+                    console.log(`[佣金] 级差链(4c) 改为逐级结算模式：在团队链循环中按“有级差算级差、无级差算团队激励”处理`);
                 } else {
                     console.log(`[佣金] 推荐人上家链中无有成本率的分销商`);
                 }
@@ -594,58 +536,52 @@ class CommissionService {
                 continue;
             }
 
-            // 特级/合伙人或链上兜底档：若与紧邻下游存在正向成本差且前面步骤未生成级差，则补记 network_distributor，不发 team_incentive
+            // 逐级结算：当前级若与紧邻下游存在正向级差金额，则先计 network_distributor；否则计 team_incentive
             if (bases) {
-                const anchorIds = this._tierDiffAnchorMemberIds(fullChain);
-                const preferTierDiff =
-                    this._isSpecialPartnerLevel(recipient.distributorLevel) ||
-                    (Number.isFinite(rid) && anchorIds.has(rid));
-                if (preferTierDiff) {
-                    const idx = fullChain.findIndex((m) => parseInt(m.id, 10) === rid);
-                    if (idx > 0) {
-                        const downstream = fullChain[idx - 1];
-                        if (downstream && downstream.distributorLevel && recipient.distributorLevel) {
-                            const downRate = this.effectiveDistributorCostRate(downstream);
-                            const upRate = this.effectiveDistributorCostRate(recipient);
-                            const diffRate = downRate - upRate;
-                            const diffAmt = this.tierDiffAmountByLevels(
+                const idx = fullChain.findIndex((m) => parseInt(m.id, 10) === rid);
+                if (idx > 0) {
+                    const downstream = fullChain[idx - 1];
+                    if (downstream && downstream.distributorLevel && recipient.distributorLevel) {
+                        const downRate = this.effectiveDistributorCostRate(downstream);
+                        const upRate = this.effectiveDistributorCostRate(recipient);
+                        const diffRate = downRate - upRate;
+                        const diffAmtFullBase = this.tierDiffAmountByLevels(
+                            bases,
+                            downstream.distributorLevel,
+                            downRate,
+                            recipient.distributorLevel,
+                            upRate
+                        );
+                        if (diffAmtFullBase > 0) {
+                            const downMoney = this.computeProcurementCostAmount(
                                 bases,
                                 downstream.distributorLevel,
-                                downRate,
+                                downRate
+                            );
+                            const upMoney = this.computeProcurementCostAmount(
+                                bases,
                                 recipient.distributorLevel,
                                 upRate
                             );
-                            if (diffAmt > 0) {
-                                const downMoney = this.computeProcurementCostAmount(
-                                    bases,
-                                    downstream.distributorLevel,
-                                    downRate
-                                );
-                                const upMoney = this.computeProcurementCostAmount(
-                                    bases,
-                                    recipient.distributorLevel,
-                                    upRate
-                                );
-                                const amountStr = diffAmt.toFixed(2);
-                                const effectiveRate = orderAmount > 0 ? parseFloat((diffAmt / orderAmount * 100).toFixed(2)) : 0;
+                            const effectiveRate = orderAmount > 0 ? parseFloat((diffAmtFullBase / orderAmount * 100).toFixed(2)) : 0;
+                            const tierAmount = parseFloat((remainingBase * (effectiveRate / 100)).toFixed(2));
+                            if (tierAmount > 0) {
                                 calculations.push({
                                     orderId,
                                     memberId: member.id,
                                     referrerId: referrer.id,
                                     commissionType: 'network_distributor',
                                     recipientId: recipient.id,
-                                    orderAmount: orderAmount,
+                                    orderAmount: remainingBase,
                                     commissionRate: effectiveRate,
-                                    commissionAmount: parseFloat(amountStr),
+                                    commissionAmount: tierAmount,
                                     status: 'pending',
-                                    description: `级差分销佣金（团队链补计）：${recipient.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downRate}%) − ¥${upMoney.toFixed(2)}(本等级${upRate}%) = ¥${amountStr}`
+                                    description: `级差分销佣金（逐级结算）：${recipient.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downRate}%) − ¥${upMoney.toFixed(2)}(本等级${upRate}%)，按剩余基数 ¥${remainingBase.toFixed(2)} × ${effectiveRate}% = ¥${tierAmount.toFixed(2)}`
                                 });
                                 console.log(
-                                    `[佣金] 团队链特级/兜底档补级差 recipientId=${rid} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 金额=${amountStr}`
+                                    `[佣金] 逐级级差 已生成 recipientId=${rid} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 剩余基数=${remainingBase.toFixed(2)} 金额=${tierAmount.toFixed(2)}`
                                 );
-                                remainingBase = parseFloat(
-                                    (remainingBase - parseFloat(amountStr)).toFixed(2)
-                                );
+                                remainingBase = parseFloat((remainingBase - tierAmount).toFixed(2));
                                 continue;
                             }
                         }
