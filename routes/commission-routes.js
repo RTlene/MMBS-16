@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const {
     CommissionCalculation,
     CommissionExcludedProduct,
+    CommissionSettings,
     TeamIncentiveCalculation,
     Member,
     Order,
@@ -12,6 +13,55 @@ const { authenticateToken } = require('../middleware/auth');
 const CommissionService = require('../services/commissionService');
 
 const router = express.Router();
+
+const DEFAULT_CHAIN_DEPTH = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
+
+// 佣金全局设置（分销链层数等）
+router.get('/settings', authenticateToken, async (req, res) => {
+    try {
+        let row = await CommissionSettings.findByPk(1);
+        if (!row) {
+            row = await CommissionSettings.create({
+                id: 1,
+                distributorChainMaxDepth: DEFAULT_CHAIN_DEPTH
+            });
+        }
+        res.json({
+            code: 0,
+            message: '获取成功',
+            data: { distributorChainMaxDepth: row.distributorChainMaxDepth }
+        });
+    } catch (error) {
+        console.error('获取佣金设置失败:', error);
+        res.status(500).json({ code: 1, message: '获取佣金设置失败' });
+    }
+});
+
+router.put('/settings', authenticateToken, async (req, res) => {
+    try {
+        const v = parseInt(req.body && req.body.distributorChainMaxDepth, 10);
+        if (!Number.isFinite(v) || v < 1 || v > 50) {
+            return res.status(400).json({
+                code: 1,
+                message: 'distributorChainMaxDepth 须为 1～50 的整数'
+            });
+        }
+        let row = await CommissionSettings.findByPk(1);
+        if (!row) {
+            row = await CommissionSettings.create({ id: 1, distributorChainMaxDepth: v });
+        } else {
+            await row.update({ distributorChainMaxDepth: v });
+        }
+        res.json({
+            code: 0,
+            message: '已保存',
+            data: { distributorChainMaxDepth: row.distributorChainMaxDepth }
+        });
+    } catch (error) {
+        console.error('保存佣金设置失败:', error);
+        res.status(500).json({ code: 1, message: '保存佣金设置失败' });
+    }
+});
 
 // 获取佣金计算记录列表
 router.get('/calculations', authenticateToken, async (req, res) => {

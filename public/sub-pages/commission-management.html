@@ -66,11 +66,12 @@
     <div class="commission-container">
         <div class="page-header">
             <h1 class="page-title">佣金管理</h1>
-            <p class="page-description">佣金记录确认/取消、提现申请审核、佣金除外商品、小额自动通过配置</p>
+            <p class="page-description">佣金设置、佣金记录确认/取消、提现申请审核、佣金除外商品、小额自动通过配置</p>
         </div>
 
         <div class="tabs">
             <button type="button" class="tab active" data-tab="overview">概览</button>
+            <button type="button" class="tab" data-tab="settings">佣金设置</button>
             <button type="button" class="tab" data-tab="calculations">佣金记录</button>
             <button type="button" class="tab" data-tab="withdrawals">提现申请</button>
             <button type="button" class="tab" data-tab="excluded">佣金除外商品</button>
@@ -86,6 +87,27 @@
             </div>
             <p style="color:#666; margin-bottom:12px;">确认后的佣金会进入会员「可用佣金」，会员可提现或下单抵扣。</p>
             <a href="#" id="linkTestOrder" class="btn btn-primary">创建测试订单（验证佣金）</a>
+        </div>
+
+        <!-- Tab 佣金设置 -->
+        <div id="panel-settings" class="tab-panel">
+            <div class="content-card">
+                <div class="card-header">
+                    <div style="font-weight:600;">分销链层数（全局）</div>
+                </div>
+                <div style="padding:20px;">
+                    <p style="color:#666;font-size:13px;margin:0 0 16px 0;line-height:1.6;">
+                        自下单会员的<strong>直接推荐人</strong>起，沿推荐链向上最多经手若干层「有分销等级的」分销商（<strong>含首层推荐人</strong>）。<strong>级差佣金</strong>与<strong>团队拓展激励（按单）</strong>共用该上限；链上每人优先按级差，无级差再按团队激励。团队激励最后一档仍会在<strong>完整分销链</strong>上对齐<strong>特级/合伙人</strong>，若无则取链上<strong>最高分销等级</strong>兜底。
+                    </p>
+                    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;">
+                        <div class="form-group" style="margin:0;">
+                            <label>分销链最多经手层数（1～50）</label>
+                            <input type="number" id="commissionDistributorChainMaxDepth" class="form-input" min="1" max="50" step="1" style="width:120px;" />
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btnSaveCommissionSettings">保存</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Tab 佣金记录 -->

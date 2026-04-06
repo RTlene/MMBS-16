@@ -2917,6 +2917,28 @@ const CommissionExcludedProduct = sequelize.define('CommissionExcludedProduct', 
     timestamps: true
 });
 
+// 全局佣金规则（单行 id=1）：分销链层数等
+const CommissionSettings = sequelize.define('CommissionSettings', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        allowNull: false,
+        autoIncrement: false,
+        defaultValue: 1,
+        comment: '固定为 1'
+    },
+    distributorChainMaxDepth: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 5,
+        comment: '自下单会员的直接推荐人起，订单收入最多经手几层「有分销等级的」分销商（含首层）；级差与团队激励共用该上限'
+    }
+}, {
+    tableName: 'commission_settings',
+    comment: '佣金全局设置',
+    timestamps: true
+});
+
 // 团队拓展激励计算记录模型
 const TeamIncentiveCalculation = sequelize.define('TeamIncentiveCalculation', {
     id: {
@@ -3756,6 +3778,35 @@ async function init() {
       console.warn('[DB] commission_excluded_products 表创建失败(忽略):', e && e.message ? e.message : e);
     }
 
+    // ===== 自动迁移：commission_settings 佣金全局设置（单行）=====
+    try {
+      const dialect = sequelize.getDialect();
+      if (dialect === 'mysql') {
+        const [tables] = await sequelize.query(
+          "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'commission_settings'"
+        );
+        if (!tables || tables.length === 0) {
+          console.log('[DB] 创建 commission_settings 表（佣金全局设置）...');
+          await sequelize.query(`
+            CREATE TABLE \`commission_settings\` (
+              \`id\` INT NOT NULL,
+              \`distributorChainMaxDepth\` INT NOT NULL DEFAULT 5 COMMENT '分销链最多经手层数（含首层），级差与团队激励共用',
+              \`createdAt\` DATETIME NOT NULL,
+              \`updatedAt\` DATETIME NOT NULL,
+              PRIMARY KEY (\`id\`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          `);
+          await sequelize.query(`
+            INSERT INTO \`commission_settings\` (\`id\`, \`distributorChainMaxDepth\`, \`createdAt\`, \`updatedAt\`)
+            VALUES (1, 5, NOW(), NOW())
+          `);
+          console.log('[DB] commission_settings 已就绪');
+        }
+      }
+    } catch (e) {
+      console.warn('[DB] commission_settings 表创建失败(忽略):', e && e.message ? e.message : e);
+    }
+
     // 默认不在启动时做 alter 同步（云托管缩容后冷启动会非常慢）
     // 需要同步时显式设置：DB_SYNC=true（可选：DB_SYNC_ALTER=true 走 alter）
     const shouldSync = process.env.DB_SYNC === 'true';
@@ -3799,6 +3850,7 @@ async function init() {
       ['VerificationCodes', VerificationCode],
       ['CommissionCalculations', CommissionCalculation],
       ['commission_excluded_products', CommissionExcludedProduct],
+      ['commission_settings', CommissionSettings],
       ['TeamIncentiveCalculations', TeamIncentiveCalculation],
       ['OrderItems', OrderItem],
       ['OrderOperationLogs', OrderOperationLog],
@@ -3911,6 +3963,7 @@ module.exports = {
     PointSourceConfig,
     CommissionCalculation,
     CommissionExcludedProduct,
+    CommissionSettings,
     OrderOperationLog,
     TeamIncentiveCalculation
 };

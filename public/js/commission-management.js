@@ -27,6 +27,7 @@ window.CommissionManagement = {
     this.bindCalcEvents();
     this.bindWithdrawalEvents();
     this.bindExcludedEvents();
+    this.bindCommissionSettings();
     const linkTestOrder = document.getElementById('linkTestOrder');
     if (linkTestOrder) {
       linkTestOrder.href = 'javascript:void(0)';
@@ -50,11 +51,61 @@ window.CommissionManagement = {
         const panel = document.getElementById('panel-' + t);
         if (panel) panel.classList.add('active');
         if (t === 'overview') self.loadStats();
+        if (t === 'settings') self.loadCommissionSettings();
         if (t === 'calculations') self.loadCalculations();
         if (t === 'withdrawals') { self.loadWithdrawalConfig(); self.loadWithdrawals(); }
         if (t === 'excluded') self.loadExcludedProducts();
       });
     });
+  },
+
+  bindCommissionSettings() {
+    const btn = document.getElementById('btnSaveCommissionSettings');
+    if (btn) {
+      btn.addEventListener('click', () => this.saveCommissionSettings());
+    }
+  },
+
+  async loadCommissionSettings() {
+    try {
+      const res = await fetch('/api/commission/settings', { headers: this.getAuthHeaders() });
+      const result = await res.json();
+      if (result.code === 0 && result.data) {
+        const el = document.getElementById('commissionDistributorChainMaxDepth');
+        if (el) {
+          const v = result.data.distributorChainMaxDepth;
+          el.value = v != null && v !== '' ? String(v) : '5';
+        }
+      }
+    } catch (e) {
+      console.error('加载佣金设置失败', e);
+    }
+  },
+
+  async saveCommissionSettings() {
+    const el = document.getElementById('commissionDistributorChainMaxDepth');
+    const distributorChainMaxDepth = parseInt(el && el.value, 10);
+    if (!Number.isFinite(distributorChainMaxDepth) || distributorChainMaxDepth < 1 || distributorChainMaxDepth > 50) {
+      alert('分销链层数须为 1～50 的整数');
+      return;
+    }
+    try {
+      const res = await fetch('/api/commission/settings', {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ distributorChainMaxDepth })
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        alert('已保存');
+        if (result.data && el) el.value = String(result.data.distributorChainMaxDepth);
+      } else {
+        alert(result.message || '保存失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('保存失败');
+    }
   },
 
   // ---------- 概览 ----------

@@ -10,6 +10,7 @@ const {
     TeamExpansionLevel,
     CommissionCalculation,
     CommissionExcludedProduct,
+    CommissionSettings,
     TeamIncentiveCalculation
 } = require('../db');
 
@@ -25,6 +26,40 @@ class CommissionService {
         const name = String(level.name || '').toLowerCase();
         if (name.includes('合伙人') || name.includes('特级')) return true;
         return false;
+    }
+
+    /** 佣金管理 → 佣金设置；失败时回退 TEAM_INCENTIVE_MAX_DEPTH 或 5 */
+    static async getDistributorChainMaxDepth() {
+        const envFallback = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
+        try {
+            let row = await CommissionSettings.findByPk(1);
+            if (!row) {
+                row = await CommissionSettings.create({ id: 1, distributorChainMaxDepth: envFallback });
+            }
+            const n = parseInt(row.distributorChainMaxDepth, 10);
+            return Math.max(1, Number.isFinite(n) ? n : envFallback);
+        } catch (e) {
+            console.warn('[佣金] 读取 commission_settings 失败，使用环境变量层数:', e && e.message ? e.message : e);
+            return envFallback;
+        }
+    }
+
+    /** 自 referrer 起沿推荐链向上，仅包含有分销等级的会员（含团队拓展等级用于激励比例） */
+    static async buildDistributorMemberChainFromReferrer(referrerId) {
+        const chain = [];
+        let currentId = referrerId != null ? parseInt(referrerId, 10) : null;
+        while (currentId) {
+            const m = await Member.findByPk(currentId, {
+                include: [
+                    { model: DistributorLevel, as: 'distributorLevel' },
+                    { model: TeamExpansionLevel, as: 'teamExpansionLevel' }
+                ]
+            });
+            if (!m) break;
+            if (m.distributorLevel) chain.push(m);
+            currentId = m.referrerId ? parseInt(m.referrerId, 10) : null;
+        }
+        return chain;
     }
 
     /**
@@ -157,6 +192,13 @@ class CommissionService {
 
             const calculations = [];
 
+            const distributorChainMaxDepth = await this.getDistributorChainMaxDepth();
+            const distributorMemberChain = await this.buildDistributorMemberChainFromReferrer(referrer.id);
+            const chainCap = distributorMemberChain.slice(0, distributorChainMaxDepth);
+            console.log(
+                `[佣金] 分销链层数(佣金设置)=${distributorChainMaxDepth} 链上总人数=${distributorMemberChain.length} 本单参与=${chainCap.length}`
+            );
+
             // 1. 计算直接佣金（会员等级「分享赚钱」或 分销等级 的分享直接佣金率 > 0 均可）
             const canDirect = (ml && ml.isSharingEarner) || (dl && sharerDirect > 0);
             console.log(`[佣金] 直接佣金 条件满足=${canDirect} (会员等级分享赚钱=${!!(ml && ml.isSharingEarner)} 或 分销分享直接率>0=${sharerDirect > 0})`);
@@ -217,7 +259,7 @@ class CommissionService {
             const referrerCostRate = referrer.distributorLevel ? this.getDistributorCostRate(referrer.distributorLevel) : 0;
             if (!referrer.distributorLevel) {
                 const networkDistributorCommission = await this.calculateNetworkDistributorCommission(
-                    orderId, member.id, referrer.id, bases, referrer, directAmount, indirectAmount
+                    orderId, member.id, referrer.id, bases, referrer, directAmount, indirectAmount, chainCap
                 );
                 if (networkDistributorCommission) {
                     calculations.push(networkDistributorCommission);
@@ -228,8 +270,14 @@ class CommissionService {
             } else if (referrerCostRate > 0) {
                 console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是成本分销商，已计分销商佣金，避免重复）`);
                 // 4b. 推荐人本人有成本率：为上级链上的分销商计算级差
-                const uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.referrerId, referrer.id);
-                console.log(`[佣金] 级差链 从推荐人上级起查到的分销商数=${uplineDistributors.length}（仅含链上有分销等级者；同成本率不产生第二条）`);
+                let uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.referrerId, referrer.id);
+                const allowedUplineIds4b = new Set(chainCap.slice(1).map((m) => parseInt(m.id, 10)));
+                const uplineBeforeCap4b = uplineDistributors.length;
+                uplineDistributors = uplineDistributors.filter((u) => allowedUplineIds4b.has(parseInt(u.id, 10)));
+                if (uplineBeforeCap4b !== uplineDistributors.length) {
+                    console.log(`[佣金] 级差链(4b) 按层数上限裁剪 uplines ${uplineBeforeCap4b}→${uplineDistributors.length}`);
+                }
+                console.log(`[佣金] 级差链 从推荐人上级起分销商数=${uplineDistributors.length}（同成本率不产生级差）`);
                 let downstreamCostRate = referrerCostRate;
                 let downstreamLevel = referrer.distributorLevel;
                 for (const upline of uplineDistributors) {
@@ -264,9 +312,18 @@ class CommissionService {
                     downstreamLevel = upline.distributorLevel;
                 }
             } else {
-                // 4c. 推荐人有分销等级但成本率为 0（分享模式）：从推荐人上家链找第一个有成本率的分销商，给其「分销佣金」+ 再往上算级差
-                console.log(`[佣金] 推荐人为分享模式(costRate=0)，向上查找有成本率的分销商`);
-                const nearestCost = await this.findNearestCostDistributorInNetwork(referrer.id);
+                // 4c. 推荐人有分销等级但成本率为 0（分享模式）：在链路层数 cap 内找首个有成本率的分销商，给其「分销佣金」+ 再往上算级差
+                console.log(
+                    `[佣金] 推荐人为分享模式(costRate=0)，在链路前 ${distributorChainMaxDepth} 层内查找首个有成本率的分销商`
+                );
+                let nearestCost = null;
+                for (const m of chainCap) {
+                    const cr = this.getDistributorCostRate(m.distributorLevel);
+                    if (cr > 0) {
+                        nearestCost = m;
+                        break;
+                    }
+                }
                 if (nearestCost) {
                     const costRate = this.getDistributorCostRate(nearestCost.distributorLevel);
                     const costAmount = this.computeProcurementCostAmount(bases, nearestCost.distributorLevel, costRate).toFixed(2);
@@ -290,7 +347,15 @@ class CommissionService {
                         description: `分销佣金（实付毛利-直接-间接）：${nearestCost.nickname} 按 ${costRate}%×等级成本基数 计提货成本`
                     });
                     console.log(`[佣金] 分销佣金 已生成(上家首个成本分销商，毛利-直-间) recipientId=${nearestCost.id} costRate=${costRate}% 金额=${commissionAmount}`);
-                    const uplineDistributors = await this.findOtherDistributorsInNetwork(nearestCost.referrerId, nearestCost.id);
+                    const uplineDistributorsAll = await this.findOtherDistributorsInNetwork(nearestCost.referrerId, nearestCost.id);
+                    const idxNearest = chainCap.findIndex((m) => parseInt(m.id, 10) === parseInt(nearestCost.id, 10));
+                    const uplineAllowed4c = new Set(
+                        idxNearest >= 0 ? chainCap.slice(idxNearest + 1).map((m) => parseInt(m.id, 10)) : []
+                    );
+                    const uplineDistributors = uplineDistributorsAll.filter((u) =>
+                        uplineAllowed4c.has(parseInt(u.id, 10))
+                    );
+                    console.log(`[佣金] 级差链(4c) 上级分销商数=${uplineDistributors.length}（已按链路层数上限）`);
                     let downstreamCostRate = costRate;
                     let downstreamLevel = nearestCost.distributorLevel;
                     for (const upline of uplineDistributors) {
@@ -329,20 +394,27 @@ class CommissionService {
                 }
             }
 
-            // 5. 团队拓展激励（按单）：仅当分销/级差都没有产出时，按剩余基数逐级分配激励
-            const hasDistributorDiff = calculations.some((c) =>
-                (c.commissionType === 'distributor' || c.commissionType === 'network_distributor') &&
-                parseFloat(c.commissionAmount || 0) > 0
+            // 5. 团队拓展激励（按单）：链上各级「有级差算级差、无级差算团队激励」——已获 network_distributor>0 者不再占团队激励份额。
+            const skipTeamIncentiveRecipientIds = new Set(
+                calculations
+                    .filter(
+                        (c) =>
+                            c.commissionType === 'network_distributor' &&
+                            parseFloat(c.commissionAmount || 0) > 0
+                    )
+                    .map((c) => parseInt(c.recipientId, 10))
+                    .filter((id) => Number.isFinite(id))
             );
-            if (!hasDistributorDiff) {
-                await this.appendPerOrderTeamIncentiveCalculations({
-                    orderId,
-                    member,
-                    referrer,
-                    orderAmount: paidOrderAmount,
-                    calculations
-                });
-            }
+            await this.appendPerOrderTeamIncentiveCalculations({
+                orderId,
+                member,
+                referrer,
+                orderAmount: paidOrderAmount,
+                calculations,
+                skipRecipientIds: skipTeamIncentiveRecipientIds,
+                maxDepth: distributorChainMaxDepth,
+                distributorMemberChain
+            });
 
             if (calculations.length === 0) {
                 console.log(`[佣金] 订单 ${orderId} 无任何佣金记录生成（推荐人存在但各类型均未满足或比例为0）`);
@@ -350,31 +422,53 @@ class CommissionService {
             return { calculations, noReferrer: false, referrerNotFound: false };
     }
 
-    static async appendPerOrderTeamIncentiveCalculations({ orderId, member, referrer, orderAmount, calculations }) {
+    /**
+     * @param {Set<number>} [skipRecipientIds] - 本单已获 network_distributor（级差）且金额>0 的会员，不参与团队激励分配
+     * @param {number} maxDepth - 佣金设置「分销链最多经手层数」
+     * @param {object[]} [distributorMemberChain] - 自推荐人起的完整分销链（未截断）；用于最后一档特级/合伙人兜底时在深层查找
+     */
+    static async appendPerOrderTeamIncentiveCalculations({
+        orderId,
+        member,
+        referrer,
+        orderAmount,
+        calculations,
+        skipRecipientIds = null,
+        maxDepth,
+        distributorMemberChain = null
+    }) {
         const allocatedBefore = calculations.reduce((sum, c) => sum + (parseFloat(c.commissionAmount) || 0), 0);
         let remainingBase = parseFloat((orderAmount - allocatedBefore).toFixed(2));
         if (remainingBase <= 0) return;
 
-        const levelDepth = parseInt(referrer && referrer.teamExpansionLevel && referrer.teamExpansionLevel.maxDepth, 10);
-        const envDepth = parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10);
-        const maxDepth = Math.max(1, Number.isFinite(levelDepth) && levelDepth > 0 ? levelDepth : (envDepth || 5));
-        const fullChain = [];
-        let currentId = referrer && referrer.id ? referrer.id : null;
-        while (currentId) {
-            const m = await Member.findByPk(currentId, {
-                include: [
-                    { model: DistributorLevel, as: 'distributorLevel' },
-                    { model: TeamExpansionLevel, as: 'teamExpansionLevel' }
-                ]
-            });
-            if (!m) break;
-            if (m.distributorLevel) fullChain.push(m);
-            currentId = m.referrerId ? parseInt(m.referrerId, 10) : null;
+        const envDepth = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
+        const depthCap = Math.max(
+            1,
+            Number.isFinite(parseInt(maxDepth, 10)) && parseInt(maxDepth, 10) > 0 ? parseInt(maxDepth, 10) : envDepth
+        );
+
+        let fullChain;
+        if (Array.isArray(distributorMemberChain)) {
+            fullChain = distributorMemberChain;
+        } else {
+            fullChain = [];
+            let currentId = referrer && referrer.id ? referrer.id : null;
+            while (currentId) {
+                const m = await Member.findByPk(currentId, {
+                    include: [
+                        { model: DistributorLevel, as: 'distributorLevel' },
+                        { model: TeamExpansionLevel, as: 'teamExpansionLevel' }
+                    ]
+                });
+                if (!m) break;
+                if (m.distributorLevel) fullChain.push(m);
+                currentId = m.referrerId ? parseInt(m.referrerId, 10) : null;
+            }
         }
         if (fullChain.length === 0) return;
 
-        let payoutChain = fullChain.slice(0, maxDepth);
-        // 最后一级强制对齐为“最近的特级/合伙人”
+        let payoutChain = fullChain.slice(0, depthCap);
+        // 最后一级强制对齐为「最近的特级/合伙人」；链上无特级时用最「高」分销等级兜底（在全链上查找，不受 depthCap 截断限制）
         if (payoutChain.length > 0 && !this._isSpecialPartnerLevel(payoutChain[payoutChain.length - 1].distributorLevel)) {
             let special = fullChain.find((m) => this._isSpecialPartnerLevel(m.distributorLevel));
             if (!special) {
@@ -390,6 +484,13 @@ class CommissionService {
         for (let i = 0; i < payoutChain.length; i++) {
             if (remainingBase <= 0) break;
             const recipient = payoutChain[i];
+            const rid = parseInt(recipient.id, 10);
+            if (skipRecipientIds && skipRecipientIds.size > 0 && Number.isFinite(rid) && skipRecipientIds.has(rid)) {
+                console.log(
+                    `[佣金] 团队拓展激励 跳过 recipientId=${rid}（本单已享级差 network_distributor，不参与团队激励）`
+                );
+                continue;
+            }
             const rateDecimal = this._rateToDecimal(
                 recipient.teamExpansionLevel ? recipient.teamExpansionLevel.incentiveRate : 0
             );
@@ -772,15 +873,41 @@ class CommissionService {
 
     /**
      * 计算网络分销商佣金（同一订单基数按差额：分销毛利佣金 - 直接 - 间接）
+     * @param {object[]|null} chainCap - 已按佣金设置截断的分销链；与级差/团队激励共用层数上限
      */
-    static async calculateNetworkDistributorCommission(orderId, memberId, referrerId, bases, referrer, directAmount = 0, indirectAmount = 0) {
+    static async calculateNetworkDistributorCommission(
+        orderId,
+        memberId,
+        referrerId,
+        bases,
+        referrer,
+        directAmount = 0,
+        indirectAmount = 0,
+        chainCap = null
+    ) {
         const paidAmount = bases.paidAmount != null ? bases.paidAmount : bases.retailAmount;
-        const networkDistributor = await this.findNearestDistributorInNetwork(referrerId);
-        
+        let networkDistributor;
+        if (Array.isArray(chainCap) && chainCap.length > 0) {
+            networkDistributor = chainCap[0];
+        } else {
+            networkDistributor = await this.findNearestDistributorInNetwork(referrerId);
+        }
+
         if (!networkDistributor) return null;
 
-        const otherDistributors = await this.findOtherDistributorsInNetwork(referrerId, networkDistributor.id);
-        
+        const capIdSet =
+            Array.isArray(chainCap) && chainCap.length > 0
+                ? new Set(chainCap.map((m) => parseInt(m.id, 10)))
+                : null;
+
+        let otherDistributors = await this.findOtherDistributorsInNetwork(
+            networkDistributor.referrerId,
+            networkDistributor.id
+        );
+        if (capIdSet) {
+            otherDistributors = otherDistributors.filter((d) => capIdSet.has(parseInt(d.id, 10)));
+        }
+
         if (otherDistributors.length === 0) {
             const costRate = networkDistributor.personalCostRate ||
                            (networkDistributor.distributorLevel ? this.getDistributorCostRate(networkDistributor.distributorLevel) : 0);
