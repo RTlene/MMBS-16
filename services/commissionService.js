@@ -544,7 +544,6 @@ class CommissionService {
                     if (downstream && downstream.distributorLevel && recipient.distributorLevel) {
                         const downRate = this.effectiveDistributorCostRate(downstream);
                         const upRate = this.effectiveDistributorCostRate(recipient);
-                        const diffRate = downRate - upRate;
                         const diffAmtFullBase = this.tierDiffAmountByLevels(
                             bases,
                             downstream.distributorLevel,
@@ -563,9 +562,10 @@ class CommissionService {
                                 recipient.distributorLevel,
                                 upRate
                             );
-                            const effectiveRate = orderAmount > 0 ? parseFloat((diffAmtFullBase / orderAmount * 100).toFixed(2)) : 0;
-                            const tierAmount = parseFloat((remainingBase * (effectiveRate / 100)).toFixed(2));
+                            // 逐级金额法：当前剩余基数 - 本级成本额（而非“全单级差比例 × 剩余基数”）
+                            const tierAmount = parseFloat((remainingBase - upMoney).toFixed(2));
                             if (tierAmount > 0) {
+                                const effectiveRate = remainingBase > 0 ? parseFloat((tierAmount / remainingBase * 100).toFixed(2)) : 0;
                                 calculations.push({
                                     orderId,
                                     memberId: member.id,
@@ -576,10 +576,10 @@ class CommissionService {
                                     commissionRate: effectiveRate,
                                     commissionAmount: tierAmount,
                                     status: 'pending',
-                                    description: `级差分销佣金（逐级结算）：${recipient.nickname} 成本额差额 ¥${downMoney.toFixed(2)}(下游${downRate}%) − ¥${upMoney.toFixed(2)}(本等级${upRate}%)，按剩余基数 ¥${remainingBase.toFixed(2)} × ${effectiveRate}% = ¥${tierAmount.toFixed(2)}`
+                                    description: `级差分销佣金（逐级结算）：当前剩余基数 ¥${remainingBase.toFixed(2)} − 本级成本额 ¥${upMoney.toFixed(2)}(${upRate}%) = ¥${tierAmount.toFixed(2)}；下游成本参考 ¥${downMoney.toFixed(2)}(${downRate}%)`
                                 });
                                 console.log(
-                                    `[佣金] 逐级级差 已生成 recipientId=${rid} 成本率差=${diffRate}% 有效比例=${effectiveRate}% 剩余基数=${remainingBase.toFixed(2)} 金额=${tierAmount.toFixed(2)}`
+                                    `[佣金] 逐级级差 已生成 recipientId=${rid} 有效比例=${effectiveRate}% 剩余基数=${remainingBase.toFixed(2)} 本级成本额=${upMoney.toFixed(2)} 金额=${tierAmount.toFixed(2)}`
                                 );
                                 remainingBase = parseFloat((remainingBase - tierAmount).toFixed(2));
                                 continue;
