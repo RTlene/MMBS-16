@@ -107,7 +107,8 @@ router.get('/calculations', authenticateToken, async (req, res) => {
             ],
             limit: parseInt(limit),
             offset: parseInt(offset),
-            order: [['calculationDate', 'DESC']]
+            // 同一计算时间内按自增 ID 正序，确保展示顺序与生成顺序一致
+            order: [['calculationDate', 'DESC'], ['id', 'ASC']]
         });
 
         res.json({
@@ -158,7 +159,7 @@ router.get('/team-incentives', authenticateToken, async (req, res) => {
             ],
             limit: parseInt(limit),
             offset: parseInt(offset),
-            order: [['calculationDate', 'DESC']]
+            order: [['calculationDate', 'DESC'], ['id', 'ASC']]
         });
 
         res.json({

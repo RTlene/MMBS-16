@@ -328,7 +328,6 @@ class CommissionService {
             } else if (referrerCostRate > 0) {
                 console.log(`[佣金] 网络分销商佣金 跳过（推荐人已是成本分销商，已计分销商佣金，避免重复）`);
                 // 4b. 推荐人本人有成本率：为上级链上的分销商计算级差
-                let uplineDistributors = await this.findOtherDistributorsInNetwork(referrer.referrerId, referrer.id);
                 const lastInCap = chainCap[chainCap.length - 1];
                 const lastCapIdxInFull = distributorMemberChain.findIndex(
                     (m) => parseInt(m.id, 10) === parseInt(lastInCap.id, 10)
@@ -351,11 +350,7 @@ class CommissionService {
                         ? distributorMemberChain.slice(1, topIdx4b + 1).map((m) => parseInt(m.id, 10))
                         : []
                 );
-                const uplineBeforeCap4b = uplineDistributors.length;
-                uplineDistributors = uplineDistributors.filter((u) => allowedUplineIds4b.has(parseInt(u.id, 10)));
-                if (uplineBeforeCap4b !== uplineDistributors.length) {
-                    console.log(`[佣金] 级差链(4b) 按层数+特级兜底裁剪 uplines ${uplineBeforeCap4b}→${uplineDistributors.length}`);
-                }
+                let uplineDistributors = distributorMemberChain.filter((u, idx) => idx >= 1 && allowedUplineIds4b.has(parseInt(u.id, 10)));
                 console.log(`[佣金] 级差链 从推荐人上级起分销商数=${uplineDistributors.length}（同成本率不产生级差）`);
                 let downstreamCostRate = referrerCostRate;
                 let downstreamLevel = referrer.distributorLevel;
@@ -432,7 +427,6 @@ class CommissionService {
                             `[佣金] 分销佣金 金额为0，不生成记录 recipientId=${nearestCost.id} costRate=${costRate}%`
                         );
                     }
-                    const uplineDistributorsAll = await this.findOtherDistributorsInNetwork(nearestCost.referrerId, nearestCost.id);
                     const idxNearestFull = distributorMemberChain.findIndex(
                         (m) => parseInt(m.id, 10) === parseInt(nearestCost.id, 10)
                     );
@@ -460,8 +454,8 @@ class CommissionService {
                                   .map((m) => parseInt(m.id, 10))
                             : []
                     );
-                    const uplineDistributors = uplineDistributorsAll.filter((u) =>
-                        uplineAllowed4c.has(parseInt(u.id, 10))
+                    const uplineDistributors = distributorMemberChain.filter((u, idx) =>
+                        idx > idxNearestFull && uplineAllowed4c.has(parseInt(u.id, 10))
                     );
                     console.log(`[佣金] 级差链(4c) 上级分销商数=${uplineDistributors.length}（已按链路层数上限）`);
                     let downstreamCostRate = costRate;
