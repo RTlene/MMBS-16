@@ -655,6 +655,7 @@ Page({
           fail: reject
         });
       });
+      await this.ensureImageUsable(qrTempPath, '小程序码');
       const coverUrl = (this.data.carouselImages && this.data.carouselImages[0]) || '';
       const coverTempPath = await new Promise((resolve, reject) => {
         if (!coverUrl) return reject(new Error('商品主图为空'));
@@ -670,6 +671,7 @@ Page({
           fail: reject
         });
       });
+      await this.ensureImageUsable(coverTempPath, '商品主图');
 
       const posterPath = await this.drawSharePoster({
         coverPath: coverTempPath,
@@ -684,45 +686,66 @@ Page({
       });
     } catch (e) {
       console.error('[Product] 生成分享海报失败:', e);
-      wx.showToast({ title: '分享海报生成失败', icon: 'none' });
+      wx.showToast({ title: e.message ? String(e.message).slice(0, 24) : '分享海报生成失败', icon: 'none' });
     } finally {
       wx.hideLoading();
       this.setData({ generatingQr: false });
     }
   },
 
+  ensureImageUsable(filePath, tag = '图片') {
+    return new Promise((resolve, reject) => {
+      wx.getImageInfo({
+        src: filePath,
+        success: () => resolve(true),
+        fail: (err) => reject(new Error(`${tag}不可用: ${err?.errMsg || 'unknown'}`))
+      });
+    });
+  },
+
   drawSharePoster({ coverPath, qrPath, title, description }) {
     return new Promise((resolve, reject) => {
       const canvasId = 'sharePosterCanvas';
-      const width = 750;
-      const height = 1240;
+      const width = 375;
+      const height = 620;
       const ctx = wx.createCanvasContext(canvasId, this);
+      console.log('[Product] 开始绘制海报', { width, height, coverPath, qrPath });
 
-      ctx.setFillStyle('#ffffff');
+      // 背景
+      ctx.setFillStyle('#F4F6FA');
       ctx.fillRect(0, 0, width, height);
 
-      // 顶部商品主图
-      ctx.drawImage(coverPath, 0, 0, width, 750);
+      // 主卡片
+      ctx.setFillStyle('#FFFFFF');
+      ctx.fillRect(16, 16, 343, 588);
 
-      // 中部文案区
+      // 顶部商品主图
+      ctx.drawImage(coverPath, 28, 28, 319, 290);
+
+      // 品牌强调线
+      ctx.setFillStyle('#3481B8');
+      ctx.fillRect(28, 328, 46, 4);
+
+      // 标题/描述
       ctx.setFillStyle('#111111');
-      ctx.setFontSize(34);
-      this.drawMultilineText(ctx, title || '商品分享', 36, 820, 678, 2, 46);
+      ctx.setFontSize(18);
+      this.drawMultilineText(ctx, title || '商品分享', 28, 360, 319, 2, 26);
 
       ctx.setFillStyle('#666666');
-      ctx.setFontSize(26);
-      this.drawMultilineText(ctx, description || '扫码进入小程序查看商品详情', 36, 920, 678, 2, 36);
+      ctx.setFontSize(13);
+      this.drawMultilineText(ctx, description || '扫码进入小程序查看商品详情', 28, 415, 319, 2, 20);
 
-      // 二维码 + 引导文案
-      ctx.setFillStyle('#f6f7fb');
-      ctx.fillRect(0, 980, width, 260);
-      ctx.drawImage(qrPath, 52, 1010, 170, 170);
+      // 二维码信息卡
+      ctx.setFillStyle('#F7F9FC');
+      ctx.fillRect(28, 472, 319, 120);
+      ctx.drawImage(qrPath, 40, 484, 96, 96);
       ctx.setFillStyle('#222222');
-      ctx.setFontSize(30);
-      ctx.fillText('微信扫码进入小程序', 254, 1088);
-      ctx.setFillStyle('#888888');
-      ctx.setFontSize(24);
-      ctx.fillText('可直接打开当前商品页（含分享标识）', 254, 1132);
+      ctx.setFontSize(16);
+      ctx.fillText('微信扫码进入小程序', 152, 525);
+      ctx.setFillStyle('#8A94A6');
+      ctx.setFontSize(12);
+      ctx.fillText('立即查看商品详情', 152, 548);
+      ctx.fillText('长按可识别小程序码', 152, 568);
 
       ctx.draw(false, () => {
         wx.canvasToTempFilePath({
@@ -732,7 +755,10 @@ Page({
           destWidth: width,
           destHeight: height,
           quality: 1,
-          success: (res) => resolve(res.tempFilePath),
+          success: (res) => {
+            console.log('[Product] 海报绘制完成', res.tempFilePath);
+            resolve(res.tempFilePath);
+          },
           fail: reject
         }, this);
       });

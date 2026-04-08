@@ -239,6 +239,6 @@
       <button class="qr-close-btn" bindtap="closeQrPopup">关闭</button>
     </view>
   </view>
-  <canvas canvas-id="sharePosterCanvas" style="position:fixed;left:-9999rpx;top:-9999rpx;width:750rpx;height:1240rpx;"></canvas>
+  <canvas canvas-id="sharePosterCanvas" style="position:fixed;left:-9999rpx;top:-9999rpx;width:375px;height:620px;" width="375" height="620"></canvas>
 </view>
 
