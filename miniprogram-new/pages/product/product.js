@@ -89,7 +89,12 @@ Page({
     priceMax: 0,            // 多规格时最高价
     discountInfo: null,     // 优惠信息
     
-    loading: false
+    loading: false,
+    showShareOptions: false,
+    showQrPopup: false,
+    qrCodeUrl: '',
+    qrCodeTempPath: '',
+    generatingQr: false
   },
 
   /**
@@ -129,45 +134,43 @@ Page({
     this.updateCartCount();
   },
 
+  getSharePayload() {
+    const app = getApp();
+    const memberId = app.globalData.memberId || auth.getMemberId();
+    const { productBasic, carouselImages, productId } = this.data;
+    const basePath = `/pages/product/product?id=${productId}`;
+    return {
+      title: productBasic?.name || '商品详情',
+      path: memberId ? `${basePath}&referrerId=${memberId}` : basePath,
+      imageUrl: carouselImages[0] || ''
+    };
+  },
+
   /**
    * 分享到微信好友
    */
   onShareAppMessage() {
-    const app = getApp();
-    const memberId = app.globalData.memberId || auth.getMemberId();
-    const { productBasic, carouselImages, productId } = this.data;
+    const payload = this.getSharePayload();
     
-    if (!memberId) {
+    if (!auth.getMemberId()) {
       wx.showToast({
         title: '请先登录',
         icon: 'none'
       });
-      return {
-        title: productBasic?.name || '商品详情',
-        path: `/pages/product/product?id=${productId}`,
-        imageUrl: carouselImages[0] || ''
-      };
     }
-    
-    return {
-      title: productBasic?.name || '商品详情',
-      path: `/pages/product/product?id=${productId}&referrerId=${memberId}`,
-      imageUrl: carouselImages[0] || ''
-    };
+    return payload;
   },
 
   /**
    * 分享到朋友圈
    */
   onShareTimeline() {
-    const app = getApp();
-    const memberId = app.globalData.memberId || auth.getMemberId();
-    const { productBasic, carouselImages, productId } = this.data;
+    const payload = this.getSharePayload();
     
     return {
-      title: productBasic?.name || '商品详情',
-      query: `id=${productId}${memberId ? `&referrerId=${memberId}` : ''}`,
-      imageUrl: carouselImages[0] || ''
+      title: payload.title,
+      query: payload.path.replace('/pages/product/product?', ''),
+      imageUrl: payload.imageUrl
     };
   },
 
@@ -599,6 +602,219 @@ Page({
       urls: carouselImages,
       current: currentUrl
     });
+  },
+
+  onShareButtonTap() {
+    this.setData({ showShareOptions: true });
+  },
+
+  closeShareOptions() {
+    this.setData({ showShareOptions: false });
+  },
+
+  onShareWechatTap() {
+    this.closeShareOptions();
+  },
+
+  async onShareQrcodeTap() {
+    this.closeShareOptions();
+    await this.generateSharePoster();
+  },
+
+  async generateSharePoster() {
+    const payload = this.getSharePayload();
+    const app = getApp();
+    const referrerId = app.globalData.memberId || auth.getMemberId();
+    const qrApiPath = replaceUrlParams(API.PRODUCT.SHARE_QRCODE, { id: this.data.productId });
+    const qrUrl = `${API_BASE_URL}${qrApiPath}${referrerId ? `?referrerId=${encodeURIComponent(referrerId)}` : ''}`;
+    this.setData({
+      showQrPopup: true,
+      qrCodeUrl: '',
+      qrCodeTempPath: '',
+      generatingQr: true
+    });
+    wx.showLoading({ title: '生成分享海报中...' });
+    try {
+      const qrTempPath = await new Promise((resolve, reject) => {
+        wx.downloadFile({
+          url: qrUrl,
+          success: (res) => {
+            if (res.statusCode === 200 && res.tempFilePath) {
+              resolve(res.tempFilePath);
+            } else {
+              let detail = '';
+              if (res.tempFilePath) {
+                try {
+                  const fs = wx.getFileSystemManager();
+                  detail = fs.readFileSync(res.tempFilePath, 'utf8');
+                } catch (_) {}
+              }
+              reject(new Error(`下载小程序码失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
+            }
+          },
+          fail: reject
+        });
+      });
+      const coverUrl = (this.data.carouselImages && this.data.carouselImages[0]) || '';
+      const coverTempPath = await new Promise((resolve, reject) => {
+        if (!coverUrl) return reject(new Error('商品主图为空'));
+        wx.downloadFile({
+          url: coverUrl,
+          success: (res) => {
+            if (res.statusCode === 200 && res.tempFilePath) {
+              resolve(res.tempFilePath);
+            } else {
+              reject(new Error(`下载商品主图失败 status=${res.statusCode}`));
+            }
+          },
+          fail: reject
+        });
+      });
+
+      const posterPath = await this.drawSharePoster({
+        coverPath: coverTempPath,
+        qrPath: qrTempPath,
+        title: payload.title,
+        description: this.data.productBasic?.description || ''
+      });
+
+      this.setData({
+        qrCodeTempPath: posterPath,
+        qrCodeUrl: posterPath
+      });
+    } catch (e) {
+      console.error('[Product] 生成分享海报失败:', e);
+      wx.showToast({ title: '分享海报生成失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+      this.setData({ generatingQr: false });
+    }
+  },
+
+  drawSharePoster({ coverPath, qrPath, title, description }) {
+    return new Promise((resolve, reject) => {
+      const canvasId = 'sharePosterCanvas';
+      const width = 750;
+      const height = 1240;
+      const ctx = wx.createCanvasContext(canvasId, this);
+
+      ctx.setFillStyle('#ffffff');
+      ctx.fillRect(0, 0, width, height);
+
+      // 顶部商品主图
+      ctx.drawImage(coverPath, 0, 0, width, 750);
+
+      // 中部文案区
+      ctx.setFillStyle('#111111');
+      ctx.setFontSize(34);
+      this.drawMultilineText(ctx, title || '商品分享', 36, 820, 678, 2, 46);
+
+      ctx.setFillStyle('#666666');
+      ctx.setFontSize(26);
+      this.drawMultilineText(ctx, description || '扫码进入小程序查看商品详情', 36, 920, 678, 2, 36);
+
+      // 二维码 + 引导文案
+      ctx.setFillStyle('#f6f7fb');
+      ctx.fillRect(0, 980, width, 260);
+      ctx.drawImage(qrPath, 52, 1010, 170, 170);
+      ctx.setFillStyle('#222222');
+      ctx.setFontSize(30);
+      ctx.fillText('微信扫码进入小程序', 254, 1088);
+      ctx.setFillStyle('#888888');
+      ctx.setFontSize(24);
+      ctx.fillText('可直接打开当前商品页（含分享标识）', 254, 1132);
+
+      ctx.draw(false, () => {
+        wx.canvasToTempFilePath({
+          canvasId,
+          width,
+          height,
+          destWidth: width,
+          destHeight: height,
+          quality: 1,
+          success: (res) => resolve(res.tempFilePath),
+          fail: reject
+        }, this);
+      });
+    });
+  },
+
+  drawMultilineText(ctx, text, x, y, maxWidth, maxLines, lineHeight) {
+    const value = String(text || '');
+    if (!value) return;
+    let line = '';
+    let row = 0;
+    for (let i = 0; i < value.length; i++) {
+      const ch = value[i];
+      const testLine = line + ch;
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && line) {
+        row += 1;
+        if (row >= maxLines) {
+          ctx.fillText(line.slice(0, Math.max(0, line.length - 1)) + '...', x, y + (row - 1) * lineHeight);
+          return;
+        }
+        ctx.fillText(line, x, y + (row - 1) * lineHeight);
+        line = ch;
+      } else {
+        line = testLine;
+      }
+    }
+    row += 1;
+    if (row <= maxLines) {
+      ctx.fillText(line, x, y + (row - 1) * lineHeight);
+    }
+  },
+
+  closeQrPopup() {
+    this.setData({ showQrPopup: false });
+  },
+
+  onPreviewQrCode() {
+    const current = this.data.qrCodeTempPath || this.data.qrCodeUrl;
+    if (!current) return;
+    wx.previewImage({
+      urls: [current],
+      current
+    });
+  },
+
+  onSaveQrCode() {
+    const filePath = this.data.qrCodeTempPath;
+    if (!filePath) {
+      wx.showToast({ title: '海报未生成完成', icon: 'none' });
+      return;
+    }
+    wx.saveImageToPhotosAlbum({
+      filePath,
+      success: () => {
+        wx.showToast({ title: '已保存到相册', icon: 'success' });
+      },
+      fail: (err) => {
+        console.error('[Product] 保存海报失败:', err);
+        wx.showToast({ title: '保存失败，请检查相册权限', icon: 'none' });
+      }
+    });
+  },
+
+  onShareQrCodeToWechat() {
+    const filePath = this.data.qrCodeTempPath;
+    if (!filePath) {
+      wx.showToast({ title: '海报未生成完成', icon: 'none' });
+      return;
+    }
+    if (typeof wx.showShareImageMenu === 'function') {
+      wx.showShareImageMenu({
+        path: filePath,
+        success: () => {},
+        fail: (err) => {
+          console.error('[Product] 分享二维码失败:', err);
+          wx.showToast({ title: '请先保存后在微信发送', icon: 'none' });
+        }
+      });
+      return;
+    }
+    wx.showToast({ title: '当前微信版本不支持，建议先保存', icon: 'none' });
   },
 
   /**

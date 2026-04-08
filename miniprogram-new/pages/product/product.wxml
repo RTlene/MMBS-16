@@ -208,8 +208,37 @@
   </view>
 
   <!-- 浮动分享按钮（小圆形） -->
-  <button class="share-button" open-type="share" hover-class="share-button-hover">
+  <button class="share-button" bindtap="onShareButtonTap" hover-class="share-button-hover">
     <text class="share-icon">📤</text>
   </button>
+
+  <!-- 分享方式弹层 -->
+  <view class="share-sheet {{showShareOptions ? 'show' : ''}}">
+    <view class="share-sheet-mask" bindtap="closeShareOptions"></view>
+    <view class="share-sheet-content">
+      <view class="share-sheet-title">选择分享方式</view>
+      <button class="share-sheet-btn" open-type="share" bindtap="onShareWechatTap">分享到微信</button>
+      <button class="share-sheet-btn share-sheet-btn-secondary" bindtap="onShareQrcodeTap">生成分享海报（保存/分享）</button>
+      <button class="share-sheet-cancel" bindtap="closeShareOptions">取消</button>
+    </view>
+  </view>
+
+  <!-- 二维码弹层 -->
+  <view class="qr-popup {{showQrPopup ? 'show' : ''}}">
+    <view class="qr-popup-mask" bindtap="closeQrPopup"></view>
+    <view class="qr-popup-content">
+      <view class="qr-popup-title">分享海报</view>
+      <view class="qr-image-wrap" bindtap="onPreviewQrCode">
+        <image class="qr-image" src="{{qrCodeTempPath || qrCodeUrl}}" mode="aspectFit" wx:if="{{qrCodeTempPath || qrCodeUrl}}" />
+            <text class="qr-hint" wx:if="{{generatingQr}}">海报生成中...</text>
+      </view>
+      <view class="qr-actions">
+        <button class="qr-action-btn" bindtap="onSaveQrCode">保存海报</button>
+        <button class="qr-action-btn qr-action-btn-secondary" bindtap="onShareQrCodeToWechat">分享海报到微信</button>
+      </view>
+      <button class="qr-close-btn" bindtap="closeQrPopup">关闭</button>
+    </view>
+  </view>
+  <canvas canvas-id="sharePosterCanvas" style="position:fixed;left:-9999rpx;top:-9999rpx;width:750rpx;height:1240rpx;"></canvas>
 </view>
 

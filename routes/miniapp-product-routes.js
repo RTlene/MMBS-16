@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const { Op, Sequelize } = require('sequelize');
 const { Product, Category, ProductSKU, ProductAttribute, sequelize } = require('../db');
 const { mergeWhereWithCategoryFilter, enrichProductCategoryArrays } = require('../utils/productCategoryHelpers');
@@ -7,8 +8,37 @@ const { optionalAuthenticate } = require('../middleware/miniapp-auth');
 const PromotionService = require('../services/promotionService');
 const cosStorage = require('../services/cosStorage');
 const wxCloudStorage = require('../services/wxCloudStorage');
+const { mergeAxiosHttpsOpts } = require('../utils/wechatHttpsAgent');
 
 const router = express.Router();
+const WX_TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/token';
+const WX_CODE_UNLIMITED_URL = 'https://api.weixin.qq.com/wxa/getwxacodeunlimit';
+let miniappAccessTokenCache = { token: '', expireAt: 0 };
+
+async function getMiniappAccessToken() {
+    const now = Date.now();
+    if (miniappAccessTokenCache.token && miniappAccessTokenCache.expireAt - now > 60 * 1000) {
+        return miniappAccessTokenCache.token;
+    }
+    const appid = String(process.env.WX_APPID || '').trim();
+    const secret = String(process.env.WX_APPSECRET || '').trim();
+    if (!appid || !secret) throw new Error('缺少 WX_APPID 或 WX_APPSECRET');
+    const resp = await axios.get(
+        WX_TOKEN_URL,
+        mergeAxiosHttpsOpts({
+            params: { grant_type: 'client_credential', appid, secret },
+            timeout: 10000
+        })
+    );
+    const data = resp.data || {};
+    if (!data.access_token) throw new Error(data.errmsg || '获取小程序 access_token 失败');
+    const expiresIn = Number(data.expires_in || 7200);
+    miniappAccessTokenCache = {
+        token: data.access_token,
+        expireAt: Date.now() + expiresIn * 1000
+    };
+    return data.access_token;
+}
 
 function normalizeImageRef(item) {
     if (typeof item === 'string') {
@@ -708,6 +738,57 @@ router.get('/products/:id/sku-images', async (req, res) => {
 });
 
 // 获取商品详情（应用运营工具）- 必须放在 /products/:id 之前，因为更具体的路由要优先匹配
+router.get('/products/:id/share-qrcode', optionalAuthenticate, async (req, res) => {
+    try {
+        const productId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(productId)) {
+            return res.status(400).json({ code: 1, message: '商品ID无效' });
+        }
+        const product = await Product.findByPk(productId, { attributes: ['id', 'name', 'status'] });
+        if (!product) {
+            return res.status(404).json({ code: 1, message: '商品不存在' });
+        }
+        const reqReferrer = parseInt(req.query.referrerId, 10);
+        const referrerId = Number.isFinite(req.memberId) ? req.memberId : (Number.isFinite(reqReferrer) ? reqReferrer : null);
+        const scene = referrerId ? `p=${productId}&r=${referrerId}` : `p=${productId}`;
+        const accessToken = await getMiniappAccessToken();
+        const wxResp = await axios.post(
+            `${WX_CODE_UNLIMITED_URL}?access_token=${encodeURIComponent(accessToken)}`,
+            {
+                scene,
+                page: 'pages/product/product',
+                check_path: false,
+                env_version: process.env.WX_MINIPROGRAM_ENV_VERSION || 'release',
+                width: 430,
+                auto_color: true
+            },
+            mergeAxiosHttpsOpts({
+                responseType: 'arraybuffer',
+                timeout: 15000
+            })
+        );
+        const contentType = String(wxResp.headers['content-type'] || '');
+        if (contentType.includes('application/json')) {
+            const txt = Buffer.from(wxResp.data).toString('utf8');
+            let obj = {};
+            try { obj = JSON.parse(txt); } catch (_) {}
+            return res.status(500).json({
+                code: 1,
+                message: `生成小程序码失败: ${obj.errcode || ''} ${obj.errmsg || ''}`.trim()
+            });
+        }
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(Buffer.from(wxResp.data));
+    } catch (error) {
+        console.error('[MiniappProduct] 生成分享小程序码失败:', error);
+        res.status(500).json({
+            code: 1,
+            message: error.message || '生成分享小程序码失败'
+        });
+    }
+});
+
 router.get('/products/:id/detail', optionalAuthenticate, async (req, res) => {
     const start = Date.now();
     const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);

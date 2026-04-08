@@ -59,6 +59,7 @@ const API = {
   PRODUCT: {
     LIST: '/api/miniapp/products',              // 商品列表
     DETAIL: '/api/miniapp/products/:id/detail', // 商品详情（含运营工具）
+    SHARE_QRCODE: '/api/miniapp/products/:id/share-qrcode', // 商品分享小程序码（带referrerId）
     DETAIL_IMAGES: '/api/miniapp/products/:id/detail-images', // 商品详情图（分段加载）
     SKU_IMAGES: '/api/miniapp/products/:id/sku-images', // SKU图片（分段加载）
     CALCULATE_PRICE: '/api/miniapp/products/calculate-price', // 计算价格
