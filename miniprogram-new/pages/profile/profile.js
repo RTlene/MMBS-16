@@ -519,13 +519,14 @@ Page({
       ctx.fillText('进入首页查看最新内容与活动', 110, 454);
 
       ctx.draw(false, () => {
-        const exportScale = 2; // 2x导出清晰度，兼顾速度
+        const exportWidth = 1080;
+        const exportHeight = 1786; // 按 375:620 等比换算
         wx.canvasToTempFilePath({
           canvasId,
           width,
           height,
-          destWidth: width * exportScale,
-          destHeight: height * exportScale,
+          destWidth: exportWidth,
+          destHeight: exportHeight,
           quality: 1,
           success: (res) => resolve(res.tempFilePath),
           fail: reject
