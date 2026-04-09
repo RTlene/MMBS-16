@@ -636,20 +636,10 @@ Page({
       const qrTempPath = await this.getProductQrcodeTempPath(referrerId);
       await this.ensureImageUsable(qrTempPath, '小程序码');
       const coverUrl = (this.data.carouselImages && this.data.carouselImages[0]) || '';
-      const coverTempPath = await new Promise((resolve, reject) => {
-        if (!coverUrl) return reject(new Error('商品主图为空'));
-        wx.downloadFile({
-          url: coverUrl,
-          success: (res) => {
-            if (res.statusCode === 200 && res.tempFilePath) {
-              resolve(res.tempFilePath);
-            } else {
-              reject(new Error(`下载商品主图失败 status=${res.statusCode}`));
-            }
-          },
-          fail: reject
-        });
-      });
+      if (!coverUrl) throw new Error('商品主图为空');
+      // 使用云托管图片解析链路，避免 downloadFile 域名白名单限制
+      const coverTempPath = await util.resolveImageUrlForDisplay(coverUrl);
+      if (!coverTempPath) throw new Error('获取商品主图失败');
       await this.ensureImageUsable(coverTempPath, '商品主图');
 
       const posterPath = await this.drawSharePoster({
