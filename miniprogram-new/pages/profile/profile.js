@@ -48,7 +48,7 @@ Page({
   getHomeSharePayload() {
     const memberId = auth.getMemberId();
     const path = memberId ? `/pages/index/index?referrerId=${memberId}` : '/pages/index/index';
-    const title = '邀请你体验小程序';
+    const title = '邀请你加入我们';
     return { title, path };
   },
 
@@ -339,7 +339,7 @@ Page({
       await this.ensureImageUsable(qrTempPath, '小程序码');
       const posterPath = await this.drawHomeSharePoster({
         qrPath: qrTempPath,
-        title: '邀请你体验小程序',
+        title: '邀请你加入我们',
         subtitle: '扫码进入小程序首页'
       });
       this.setData({ posterTempPath: posterPath, qrCodeUrl: posterPath });
@@ -366,7 +366,7 @@ Page({
 
       ctx.setFillStyle('#111111');
       ctx.setFontSize(22);
-      ctx.fillText(title || '邀请你体验小程序', 28, 86);
+      ctx.fillText(title || '邀请你加入我们', 28, 86);
       ctx.setFillStyle('#7A869A');
       ctx.setFontSize(14);
       ctx.fillText(subtitle || '扫码进入小程序首页', 28, 116);
