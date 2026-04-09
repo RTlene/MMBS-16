@@ -8,6 +8,8 @@ const router = express.Router();
 const WX_TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/token';
 const WX_CODE_UNLIMITED_URL = 'https://api.weixin.qq.com/wxa/getwxacodeunlimit';
 let miniappAccessTokenCache = { token: '', expireAt: 0 };
+const homeQrcodeCache = new Map();
+const HOME_QRCODE_TTL_MS = 30 * 60 * 1000;
 
 async function getMiniappAccessToken() {
   const now = Date.now();
@@ -66,6 +68,12 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
       ? req.memberId
       : (Number.isFinite(reqReferrer) ? reqReferrer : null);
     const scene = referrerId ? `h=1&r=${referrerId}` : 'h=1';
+    const cached = homeQrcodeCache.get(scene);
+    if (cached && cached.expireAt > Date.now() && cached.buffer) {
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      return res.send(cached.buffer);
+    }
     const accessToken = await getMiniappAccessToken();
     const wxResp = await axios.post(
       `${WX_CODE_UNLIMITED_URL}?access_token=${encodeURIComponent(accessToken)}`,
@@ -92,9 +100,22 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
         message: `生成首页小程序码失败: ${obj.errcode || ''} ${obj.errmsg || ''}`.trim()
       });
     }
+    const pngBuffer = Buffer.from(wxResp.data);
+    homeQrcodeCache.set(scene, {
+      buffer: pngBuffer,
+      expireAt: Date.now() + HOME_QRCODE_TTL_MS
+    });
+    // 简单清理，防止 Map 增长
+    if (homeQrcodeCache.size > 500) {
+      for (const [k, v] of homeQrcodeCache.entries()) {
+        if (!v || v.expireAt <= Date.now()) {
+          homeQrcodeCache.delete(k);
+        }
+      }
+    }
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'no-store');
-    res.send(Buffer.from(wxResp.data));
+    res.setHeader('Cache-Control', 'private, max-age=600');
+    res.send(pngBuffer);
   } catch (e) {
     console.error('[MiniappConfig] 生成首页小程序码失败:', e.message);
     res.status(500).json({ code: 1, message: '生成首页小程序码失败', error: e.message });

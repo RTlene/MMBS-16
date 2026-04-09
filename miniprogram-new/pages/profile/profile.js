@@ -317,25 +317,7 @@ Page({
     });
     wx.showLoading({ title: '生成分享海报中...' });
     try {
-      const qrTempPath = await new Promise((resolve, reject) => {
-        wx.downloadFile({
-          url: qrUrl,
-          success: (res) => {
-            if (res.statusCode === 200 && res.tempFilePath) {
-              resolve(res.tempFilePath);
-            } else {
-              let detail = '';
-              if (res.tempFilePath) {
-                try {
-                  detail = wx.getFileSystemManager().readFileSync(res.tempFilePath, 'utf8');
-                } catch (_) {}
-              }
-              reject(new Error(`下载小程序码失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
-            }
-          },
-          fail: reject
-        });
-      });
+      const qrTempPath = await this.downloadFileWithRetry(qrUrl, '小程序码', 2);
       await this.ensureImageUsable(qrTempPath, '小程序码');
       const posterPath = await this.drawHomeSharePoster({
         qrPath: qrTempPath,
@@ -350,6 +332,44 @@ Page({
       wx.hideLoading();
       this.setData({ generatingQr: false });
     }
+  },
+
+  downloadFileWithRetry(url, tag = '文件', retries = 2) {
+    const runOnce = () => new Promise((resolve, reject) => {
+      wx.downloadFile({
+        url,
+        timeout: 15000,
+        success: (res) => {
+          if (res.statusCode === 200 && res.tempFilePath) {
+            resolve(res.tempFilePath);
+          } else {
+            let detail = '';
+            if (res.tempFilePath) {
+              try {
+                detail = wx.getFileSystemManager().readFileSync(res.tempFilePath, 'utf8');
+              } catch (_) {}
+            }
+            reject(new Error(`下载${tag}失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
+          }
+        },
+        fail: (err) => reject(new Error(`下载${tag}失败: ${err?.errMsg || 'network error'}`))
+      });
+    });
+    return new Promise(async (resolve, reject) => {
+      let lastErr = null;
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const path = await runOnce();
+          return resolve(path);
+        } catch (e) {
+          lastErr = e;
+          if (i < retries) {
+            await new Promise(r => setTimeout(r, 250 * (i + 1)));
+          }
+        }
+      }
+      reject(lastErr || new Error(`下载${tag}失败`));
+    });
   },
 
   drawHomeSharePoster({ qrPath, title, subtitle }) {
@@ -408,6 +428,10 @@ Page({
   },
 
   onSavePoster() {
+    if (this.data.generatingQr) {
+      wx.showToast({ title: '海报正在生成中', icon: 'none' });
+      return;
+    }
     const filePath = this.data.posterTempPath;
     if (!filePath) {
       wx.showToast({ title: '海报未生成完成', icon: 'none' });
@@ -421,6 +445,10 @@ Page({
   },
 
   onSharePosterToWechat() {
+    if (this.data.generatingQr) {
+      wx.showToast({ title: '海报正在生成中', icon: 'none' });
+      return;
+    }
     const filePath = this.data.posterTempPath;
     if (!filePath) {
       wx.showToast({ title: '海报未生成完成', icon: 'none' });

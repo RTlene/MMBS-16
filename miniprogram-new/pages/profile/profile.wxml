@@ -159,8 +159,8 @@
         <text class="qr-hint" wx:if="{{generatingQr}}">海报生成中...</text>
       </view>
       <view class="qr-actions">
-        <button class="qr-action-btn" bindtap="onSavePoster">保存海报</button>
-        <button class="qr-action-btn qr-action-btn-secondary" bindtap="onSharePosterToWechat">分享海报到微信</button>
+        <button class="qr-action-btn" bindtap="onSavePoster" disabled="{{generatingQr}}">{{generatingQr ? '生成中...' : '保存海报'}}</button>
+        <button class="qr-action-btn qr-action-btn-secondary" bindtap="onSharePosterToWechat" disabled="{{generatingQr}}">{{generatingQr ? '生成中...' : '分享海报到微信'}}</button>
       </view>
       <button class="qr-close-btn" bindtap="closeQrPopup">关闭</button>
     </view>
