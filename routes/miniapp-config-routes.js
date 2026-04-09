@@ -69,7 +69,31 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
       : (Number.isFinite(reqReferrer) ? reqReferrer : null);
     const scene = referrerId ? `h=1&r=${referrerId}` : 'h=1';
     const cached = homeQrcodeCache.get(scene);
+    const wantsJson = String(req.query.format || '').toLowerCase() === 'json';
+    console.log('[MiniappConfig] home-qrcode request:', {
+      scene,
+      wantsJson,
+      hasMemberId: Number.isFinite(req.memberId),
+      queryReferrerId: req.query.referrerId || null
+    });
     if (cached && cached.expireAt > Date.now() && cached.buffer) {
+      console.log('[MiniappConfig] home-qrcode cache hit:', {
+        scene,
+        wantsJson,
+        bytes: cached.buffer.length
+      });
+      if (wantsJson) {
+        const imageBase64 = cached.buffer.toString('base64');
+        return res.json({
+          code: 0,
+          message: '获取成功',
+          data: {
+            imageBase64,
+            source: 'cache',
+            imageBase64Length: imageBase64.length
+          }
+        });
+      }
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'private, max-age=600');
       return res.send(cached.buffer);
@@ -91,6 +115,11 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
       })
     );
     const contentType = String(wxResp.headers['content-type'] || '');
+    console.log('[MiniappConfig] home-qrcode wechat response:', {
+      scene,
+      contentType,
+      byteLength: wxResp && wxResp.data ? Buffer.from(wxResp.data).length : 0
+    });
     if (contentType.includes('application/json')) {
       const txt = Buffer.from(wxResp.data).toString('utf8');
       let obj = {};
@@ -112,6 +141,18 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
           homeQrcodeCache.delete(k);
         }
       }
+    }
+    if (wantsJson) {
+      const imageBase64 = pngBuffer.toString('base64');
+      return res.json({
+        code: 0,
+        message: '获取成功',
+        data: {
+          imageBase64,
+          source: 'wechat',
+          imageBase64Length: imageBase64.length
+        }
+      });
     }
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'private, max-age=600');
