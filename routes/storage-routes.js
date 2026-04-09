@@ -2,6 +2,7 @@
  * 存储相关接口：云托管 file_id 换临时链接；COS 私有桶 URL 换签名链接（供 H5 展示）
  */
 const express = require('express');
+const axios = require('axios');
 const wxCloudStorage = require('../services/wxCloudStorage');
 const cosStorage = require('../services/cosStorage');
 const router = express.Router();
@@ -57,6 +58,34 @@ router.get('/temp-url', async (req, res) => {
     } catch (err) {
         console.warn('[Storage] getTempDownloadUrl 失败:', err.message);
         res.status(500).json({ code: 1, message: err.message || '获取临时链接失败' });
+    }
+});
+
+/** 云托管 file_id 直接返回二进制文件（用于小程序 callContainer 拉流后本地落盘） */
+router.get('/temp-file', async (req, res) => {
+    const fileId = req.query.fileId;
+    if (!fileId || typeof fileId !== 'string' || !fileId.startsWith('cloud://')) {
+        return res.status(400).json({ code: 1, message: '缺少或无效的 fileId（需为 cloud:// 开头）' });
+    }
+    if (!wxCloudStorage.isConfigured()) {
+        return res.status(503).json({ code: 1, message: '未配置云托管存储' });
+    }
+    try {
+        const downloadUrl = await wxCloudStorage.getTempDownloadUrl(fileId.trim(), 3600);
+        if (!downloadUrl) {
+            return res.status(404).json({ code: 1, message: '无法获取下载链接' });
+        }
+        const fileResp = await axios.get(downloadUrl, {
+            responseType: 'arraybuffer',
+            timeout: 15000
+        });
+        const contentType = String(fileResp.headers['content-type'] || 'image/jpeg');
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'private, max-age=600');
+        return res.send(Buffer.from(fileResp.data));
+    } catch (err) {
+        console.warn('[Storage] temp-file 失败:', err.message);
+        res.status(500).json({ code: 1, message: err.message || '获取临时文件失败' });
     }
 });
 

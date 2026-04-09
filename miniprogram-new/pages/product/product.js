@@ -637,8 +637,7 @@ Page({
       await this.ensureImageUsable(qrTempPath, '小程序码');
       const coverUrl = (this.data.carouselImages && this.data.carouselImages[0]) || '';
       if (!coverUrl) throw new Error('商品主图为空');
-      // 使用云托管图片解析链路，避免 downloadFile 域名白名单限制
-      const coverTempPath = await util.resolveImageUrlForDisplay(coverUrl);
+      const coverTempPath = await this.getPosterCoverTempPath(coverUrl);
       if (!coverTempPath) throw new Error('获取商品主图失败');
       await this.ensureImageUsable(coverTempPath, '商品主图');
 
@@ -804,6 +803,71 @@ Page({
         success: () => resolve(true),
         fail: (err) => reject(new Error(`${tag}不可用: ${err?.errMsg || 'unknown'}`))
       });
+    });
+  },
+
+  async getPosterCoverTempPath(coverUrl) {
+    const fileId = this.extractCloudFileIdFromUrl(coverUrl);
+    if (fileId) {
+      const localPath = await this.getTempPathFromCloudFileId(fileId);
+      if (localPath) return localPath;
+    }
+    return util.resolveImageUrlForDisplay(coverUrl);
+  },
+
+  extractCloudFileIdFromUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    if (/^cloud:\/\//.test(url)) return url;
+    const match = url.match(/[?&]fileId=([^&]+)/);
+    if (!match || !match[1]) return '';
+    try {
+      const fileId = decodeURIComponent(match[1]);
+      return /^cloud:\/\//.test(fileId) ? fileId : '';
+    } catch (_) {
+      return '';
+    }
+  },
+
+  getTempPathFromCloudFileId(fileId) {
+    return new Promise((resolve) => {
+      try {
+        if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+          resolve('');
+          return;
+        }
+        try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+        const token = wx.getStorageSync('token') || '';
+        const path = `/api/storage/temp-file?fileId=${encodeURIComponent(fileId)}`;
+        wx.cloud.callContainer({
+          path,
+          method: 'GET',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          config: { env: CLOUD_ENV },
+          service: CLOUD_SERVICE_NAME,
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          success: (res) => {
+            const statusCode = res && res.statusCode;
+            const data = res && res.data;
+            if (!(statusCode >= 200 && statusCode < 300) || !data) {
+              resolve('');
+              return;
+            }
+            const fs = wx.getFileSystemManager();
+            const filePath = `${wx.env.USER_DATA_PATH}/product-cover-${Date.now()}.jpg`;
+            fs.writeFile({
+              filePath,
+              data,
+              encoding: 'binary',
+              success: () => resolve(filePath),
+              fail: () => resolve('')
+            });
+          },
+          fail: () => resolve('')
+        });
+      } catch (_) {
+        resolve('');
+      }
     });
   },
 
