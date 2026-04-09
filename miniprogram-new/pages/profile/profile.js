@@ -317,7 +317,7 @@ Page({
     });
     wx.showLoading({ title: '生成分享海报中...' });
     try {
-      const qrTempPath = await this.downloadFileWithRetry(qrUrl, '小程序码', 2);
+      const qrTempPath = await this.requestArrayBufferToTempFileWithRetry(qrUrl, '小程序码', 2);
       await this.ensureImageUsable(qrTempPath, '小程序码');
       const posterPath = await this.drawHomeSharePoster({
         qrPath: qrTempPath,
@@ -334,25 +334,35 @@ Page({
     }
   },
 
-  downloadFileWithRetry(url, tag = '文件', retries = 2) {
+  requestArrayBufferToTempFileWithRetry(url, tag = '文件', retries = 2) {
     const runOnce = () => new Promise((resolve, reject) => {
-      wx.downloadFile({
+      wx.request({
         url,
+        method: 'GET',
+        responseType: 'arraybuffer',
         timeout: 15000,
         success: (res) => {
-          if (res.statusCode === 200 && res.tempFilePath) {
-            resolve(res.tempFilePath);
-          } else {
+          if (res.statusCode !== 200 || !res.data) {
             let detail = '';
-            if (res.tempFilePath) {
-              try {
-                detail = wx.getFileSystemManager().readFileSync(res.tempFilePath, 'utf8');
-              } catch (_) {}
-            }
-            reject(new Error(`下载${tag}失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
+            try {
+              if (res.data) {
+                detail = String.fromCharCode.apply(null, new Uint8Array(res.data).slice(0, 200));
+              }
+            } catch (_) {}
+            reject(new Error(`请求${tag}失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
+            return;
           }
+          const fs = wx.getFileSystemManager();
+          const filePath = `${wx.env.USER_DATA_PATH}/profile-home-qrcode-${Date.now()}.png`;
+          fs.writeFile({
+            filePath,
+            data: res.data,
+            encoding: 'binary',
+            success: () => resolve(filePath),
+            fail: (err) => reject(new Error(`写入${tag}临时文件失败: ${err?.errMsg || 'unknown'}`))
+          });
         },
-        fail: (err) => reject(new Error(`下载${tag}失败: ${err?.errMsg || 'network error'}`))
+        fail: (err) => reject(new Error(`请求${tag}失败: ${err?.errMsg || 'network error'}`))
       });
     });
     return new Promise(async (resolve, reject) => {
