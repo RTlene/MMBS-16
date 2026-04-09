@@ -3,7 +3,7 @@
  */
 
 const request = require('../../utils/request.js');
-const { API } = require('../../config/api.js');
+const { API, API_BASE_URL } = require('../../config/api.js');
 const auth = require('../../utils/auth.js');
 const { buildOptimizedImageUrl } = require('../../utils/util.js');
 
@@ -28,7 +28,12 @@ Page({
       completed: 0   // 已完成
     },
     aboutClickCount: 0,  // 关于我们点击次数
-    aboutClickTimer: null  // 点击计时器
+    aboutClickTimer: null,  // 点击计时器
+    showShareOptions: false,
+    showQrPopup: false,
+    qrCodeUrl: '',
+    posterTempPath: '',
+    generatingQr: false
   },
 
   onShow() {
@@ -38,6 +43,25 @@ Page({
       this.loadOrderStats();
       this.loadLevelCard();
     }
+  },
+
+  getHomeSharePayload() {
+    const memberId = auth.getMemberId();
+    const path = memberId ? `/pages/index/index?referrerId=${memberId}` : '/pages/index/index';
+    const title = '邀请你体验小程序';
+    return { title, path };
+  },
+
+  onShareAppMessage() {
+    return this.getHomeSharePayload();
+  },
+
+  onShareTimeline() {
+    const payload = this.getHomeSharePayload();
+    return {
+      title: payload.title,
+      query: payload.path.replace('/pages/index/index?', '')
+    };
   },
 
   /**
@@ -253,6 +277,163 @@ Page({
     wx.navigateTo({
       url: '/pages/customer-service/customer-service'
     });
+  },
+
+  onShareButtonTap() {
+    this.setData({ showShareOptions: true });
+  },
+
+  closeShareOptions() {
+    this.setData({ showShareOptions: false });
+  },
+
+  onShareWechatTap() {
+    this.closeShareOptions();
+  },
+
+  async onShareQrcodeTap() {
+    this.closeShareOptions();
+    await this.generateHomeSharePoster();
+  },
+
+  ensureImageUsable(filePath, tag = '图片') {
+    return new Promise((resolve, reject) => {
+      wx.getImageInfo({
+        src: filePath,
+        success: () => resolve(true),
+        fail: (err) => reject(new Error(`${tag}不可用: ${err?.errMsg || 'unknown'}`))
+      });
+    });
+  },
+
+  async generateHomeSharePoster() {
+    const memberId = auth.getMemberId();
+    const qrUrl = `${API_BASE_URL}${API.CONFIG.SHARE_HOME_QRCODE}${memberId ? `?referrerId=${encodeURIComponent(memberId)}` : ''}`;
+    this.setData({
+      showQrPopup: true,
+      qrCodeUrl: '',
+      posterTempPath: '',
+      generatingQr: true
+    });
+    wx.showLoading({ title: '生成分享海报中...' });
+    try {
+      const qrTempPath = await new Promise((resolve, reject) => {
+        wx.downloadFile({
+          url: qrUrl,
+          success: (res) => {
+            if (res.statusCode === 200 && res.tempFilePath) {
+              resolve(res.tempFilePath);
+            } else {
+              let detail = '';
+              if (res.tempFilePath) {
+                try {
+                  detail = wx.getFileSystemManager().readFileSync(res.tempFilePath, 'utf8');
+                } catch (_) {}
+              }
+              reject(new Error(`下载小程序码失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
+            }
+          },
+          fail: reject
+        });
+      });
+      await this.ensureImageUsable(qrTempPath, '小程序码');
+      const posterPath = await this.drawHomeSharePoster({
+        qrPath: qrTempPath,
+        title: '邀请你体验小程序',
+        subtitle: '扫码进入小程序首页'
+      });
+      this.setData({ posterTempPath: posterPath, qrCodeUrl: posterPath });
+    } catch (e) {
+      console.error('[Profile] 生成首页分享海报失败:', e);
+      wx.showToast({ title: e.message ? String(e.message).slice(0, 24) : '海报生成失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+      this.setData({ generatingQr: false });
+    }
+  },
+
+  drawHomeSharePoster({ qrPath, title, subtitle }) {
+    return new Promise((resolve, reject) => {
+      const canvasId = 'profileSharePosterCanvas';
+      const width = 375;
+      const height = 620;
+      const ctx = wx.createCanvasContext(canvasId, this);
+
+      ctx.setFillStyle('#F4F6FA');
+      ctx.fillRect(0, 0, width, height);
+      ctx.setFillStyle('#FFFFFF');
+      ctx.fillRect(16, 16, 343, 588);
+
+      ctx.setFillStyle('#111111');
+      ctx.setFontSize(22);
+      ctx.fillText(title || '邀请你体验小程序', 28, 86);
+      ctx.setFillStyle('#7A869A');
+      ctx.setFontSize(14);
+      ctx.fillText(subtitle || '扫码进入小程序首页', 28, 116);
+
+      ctx.setFillStyle('#EAF2FF');
+      ctx.fillRect(28, 150, 319, 360);
+      ctx.drawImage(qrPath, 82, 186, 210, 210);
+
+      ctx.setFillStyle('#3481B8');
+      ctx.setFontSize(16);
+      ctx.fillText('长按识别小程序码', 126, 430);
+      ctx.setFillStyle('#8A94A6');
+      ctx.setFontSize(12);
+      ctx.fillText('进入首页查看最新内容与活动', 110, 454);
+
+      ctx.draw(false, () => {
+        wx.canvasToTempFilePath({
+          canvasId,
+          width,
+          height,
+          destWidth: width,
+          destHeight: height,
+          quality: 1,
+          success: (res) => resolve(res.tempFilePath),
+          fail: reject
+        }, this);
+      });
+    });
+  },
+
+  closeQrPopup() {
+    this.setData({ showQrPopup: false });
+  },
+
+  onPreviewPoster() {
+    const current = this.data.posterTempPath || this.data.qrCodeUrl;
+    if (!current) return;
+    wx.previewImage({ urls: [current], current });
+  },
+
+  onSavePoster() {
+    const filePath = this.data.posterTempPath;
+    if (!filePath) {
+      wx.showToast({ title: '海报未生成完成', icon: 'none' });
+      return;
+    }
+    wx.saveImageToPhotosAlbum({
+      filePath,
+      success: () => wx.showToast({ title: '已保存到相册', icon: 'success' }),
+      fail: () => wx.showToast({ title: '保存失败，请检查权限', icon: 'none' })
+    });
+  },
+
+  onSharePosterToWechat() {
+    const filePath = this.data.posterTempPath;
+    if (!filePath) {
+      wx.showToast({ title: '海报未生成完成', icon: 'none' });
+      return;
+    }
+    if (typeof wx.showShareImageMenu === 'function') {
+      wx.showShareImageMenu({
+        path: filePath,
+        fail: () => wx.showToast({ title: '请先保存后在微信发送', icon: 'none' })
+      });
+    } else {
+      wx.showToast({ title: '当前微信版本不支持，建议先保存', icon: 'none' });
+    }
   },
 
   /**

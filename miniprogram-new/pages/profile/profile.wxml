@@ -93,6 +93,11 @@
 
   <!-- 功能菜单 -->
   <view class="menu-section">
+    <view class="menu-item" bindtap="onShareButtonTap">
+      <image class="menu-icon menu-icon-img" src="/images/icons/qrcode.svg" mode="aspectFit" />
+      <text class="menu-label">分享小程序</text>
+      <text class="menu-arrow">›</text>
+    </view>
     <view class="menu-item" bindtap="goToAddress">
       <image class="menu-icon menu-icon-img" src="/images/icons/order.svg" mode="aspectFit" />
       <text class="menu-label">收货地址</text>
@@ -132,5 +137,34 @@
 
   <!-- 底部安全区 -->
   <view class="safe-area-bottom"></view>
+
+  <!-- 分享方式弹层 -->
+  <view class="share-sheet {{showShareOptions ? 'show' : ''}}">
+    <view class="share-sheet-mask" bindtap="closeShareOptions"></view>
+    <view class="share-sheet-content">
+      <view class="share-sheet-title">选择分享方式</view>
+      <button class="share-sheet-btn" open-type="share" bindtap="onShareWechatTap">分享到微信</button>
+      <button class="share-sheet-btn share-sheet-btn-secondary" bindtap="onShareQrcodeTap">生成分享海报</button>
+      <button class="share-sheet-cancel" bindtap="closeShareOptions">取消</button>
+    </view>
+  </view>
+
+  <!-- 海报弹层 -->
+  <view class="qr-popup {{showQrPopup ? 'show' : ''}}">
+    <view class="qr-popup-mask" bindtap="closeQrPopup"></view>
+    <view class="qr-popup-content">
+      <view class="qr-popup-title">小程序分享海报</view>
+      <view class="qr-image-wrap" bindtap="onPreviewPoster">
+        <image class="qr-image" src="{{posterTempPath || qrCodeUrl}}" mode="aspectFit" wx:if="{{posterTempPath || qrCodeUrl}}" />
+        <text class="qr-hint" wx:if="{{generatingQr}}">海报生成中...</text>
+      </view>
+      <view class="qr-actions">
+        <button class="qr-action-btn" bindtap="onSavePoster">保存海报</button>
+        <button class="qr-action-btn qr-action-btn-secondary" bindtap="onSharePosterToWechat">分享海报到微信</button>
+      </view>
+      <button class="qr-close-btn" bindtap="closeQrPopup">关闭</button>
+    </view>
+  </view>
+  <canvas canvas-id="profileSharePosterCanvas" style="position:fixed;left:-9999rpx;top:-9999rpx;width:375px;height:620px;" width="375" height="620"></canvas>
 </view>
 

@@ -74,7 +74,8 @@ const API = {
 
   // 小程序公开配置
   CONFIG: {
-    PUBLIC: '/api/miniapp/config'
+    PUBLIC: '/api/miniapp/config',
+    SHARE_HOME_QRCODE: '/api/miniapp/share/home-qrcode'
   },
   
   // 分类相关
