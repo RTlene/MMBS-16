@@ -14,6 +14,8 @@ const router = express.Router();
 const WX_TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/token';
 const WX_CODE_UNLIMITED_URL = 'https://api.weixin.qq.com/wxa/getwxacodeunlimit';
 let miniappAccessTokenCache = { token: '', expireAt: 0 };
+const productQrcodeCache = new Map();
+const PRODUCT_QRCODE_TTL_MS = 30 * 60 * 1000;
 
 async function getMiniappAccessToken() {
     const now = Date.now();
@@ -751,6 +753,26 @@ router.get('/products/:id/share-qrcode', optionalAuthenticate, async (req, res) 
         const reqReferrer = parseInt(req.query.referrerId, 10);
         const referrerId = Number.isFinite(req.memberId) ? req.memberId : (Number.isFinite(reqReferrer) ? reqReferrer : null);
         const scene = referrerId ? `p=${productId}&r=${referrerId}` : `p=${productId}`;
+        const wantsJson = String(req.query.format || '').toLowerCase() === 'json';
+        const cacheKey = scene;
+        const cached = productQrcodeCache.get(cacheKey);
+        if (cached && cached.expireAt > Date.now() && cached.buffer) {
+            if (wantsJson) {
+                const imageBase64 = cached.buffer.toString('base64');
+                return res.json({
+                    code: 0,
+                    message: '获取成功',
+                    data: {
+                        imageBase64,
+                        source: 'cache',
+                        imageBase64Length: imageBase64.length
+                    }
+                });
+            }
+            res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Cache-Control', 'private, max-age=600');
+            return res.send(cached.buffer);
+        }
         const accessToken = await getMiniappAccessToken();
         const wxResp = await axios.post(
             `${WX_CODE_UNLIMITED_URL}?access_token=${encodeURIComponent(accessToken)}`,
@@ -777,9 +799,33 @@ router.get('/products/:id/share-qrcode', optionalAuthenticate, async (req, res) 
                 message: `生成小程序码失败: ${obj.errcode || ''} ${obj.errmsg || ''}`.trim()
             });
         }
+        const pngBuffer = Buffer.from(wxResp.data);
+        productQrcodeCache.set(cacheKey, {
+            buffer: pngBuffer,
+            expireAt: Date.now() + PRODUCT_QRCODE_TTL_MS
+        });
+        if (productQrcodeCache.size > 1000) {
+            for (const [k, v] of productQrcodeCache.entries()) {
+                if (!v || v.expireAt <= Date.now()) {
+                    productQrcodeCache.delete(k);
+                }
+            }
+        }
+        if (wantsJson) {
+            const imageBase64 = pngBuffer.toString('base64');
+            return res.json({
+                code: 0,
+                message: '获取成功',
+                data: {
+                    imageBase64,
+                    source: 'wechat',
+                    imageBase64Length: imageBase64.length
+                }
+            });
+        }
         res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'no-store');
-        res.send(Buffer.from(wxResp.data));
+        res.setHeader('Cache-Control', 'private, max-age=600');
+        res.send(pngBuffer);
     } catch (error) {
         console.error('[MiniappProduct] 生成分享小程序码失败:', error);
         res.status(500).json({

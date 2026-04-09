@@ -3,7 +3,7 @@
  */
 
 const request = require('../../utils/request.js');
-const { API, replaceUrlParams, API_BASE_URL } = require('../../config/api.js');
+const { API, replaceUrlParams, API_BASE_URL, CLOUD_ENV, CLOUD_SERVICE_NAME } = require('../../config/api.js');
 const util = require('../../utils/util.js');
 const auth = require('../../utils/auth.js');
 
@@ -625,8 +625,6 @@ Page({
     const payload = this.getSharePayload();
     const app = getApp();
     const referrerId = app.globalData.memberId || auth.getMemberId();
-    const qrApiPath = replaceUrlParams(API.PRODUCT.SHARE_QRCODE, { id: this.data.productId });
-    const qrUrl = `${API_BASE_URL}${qrApiPath}${referrerId ? `?referrerId=${encodeURIComponent(referrerId)}` : ''}`;
     this.setData({
       showQrPopup: true,
       qrCodeUrl: '',
@@ -635,26 +633,7 @@ Page({
     });
     wx.showLoading({ title: '生成分享海报中...' });
     try {
-      const qrTempPath = await new Promise((resolve, reject) => {
-        wx.downloadFile({
-          url: qrUrl,
-          success: (res) => {
-            if (res.statusCode === 200 && res.tempFilePath) {
-              resolve(res.tempFilePath);
-            } else {
-              let detail = '';
-              if (res.tempFilePath) {
-                try {
-                  const fs = wx.getFileSystemManager();
-                  detail = fs.readFileSync(res.tempFilePath, 'utf8');
-                } catch (_) {}
-              }
-              reject(new Error(`下载小程序码失败 status=${res.statusCode}${detail ? ` detail=${detail}` : ''}`));
-            }
-          },
-          fail: reject
-        });
-      });
+      const qrTempPath = await this.getProductQrcodeTempPath(referrerId);
       await this.ensureImageUsable(qrTempPath, '小程序码');
       const coverUrl = (this.data.carouselImages && this.data.carouselImages[0]) || '';
       const coverTempPath = await new Promise((resolve, reject) => {
@@ -691,6 +670,141 @@ Page({
       wx.hideLoading();
       this.setData({ generatingQr: false });
     }
+  },
+
+  async getProductQrcodeTempPath(referrerId) {
+    const productId = this.data.productId;
+    const base64FromContainer = await this.getProductQrcodeBase64ByCallContainer(productId, referrerId);
+    if (base64FromContainer) {
+      console.log('[Product] qrcode source=callContainer-json, base64Length=', base64FromContainer.length);
+      return this.writeBase64ToTempPng(base64FromContainer);
+    }
+    const binaryPathFromContainer = await this.getProductQrcodeTempPathByCallContainerBinary(productId, referrerId);
+    if (binaryPathFromContainer) {
+      console.log('[Product] qrcode source=callContainer-binary, tempPath=', binaryPathFromContainer);
+      return binaryPathFromContainer;
+    }
+
+    const apiPath = replaceUrlParams(API.PRODUCT.SHARE_QRCODE, { id: productId });
+    const result = await request.get(apiPath, {
+      format: 'json',
+      referrerId: referrerId || undefined
+    }, {
+      showLoading: false,
+      showError: false,
+      needAuth: true,
+      debug: false
+    });
+    const base64 = this.extractImageBase64(result);
+    console.log('[Product] qrcode source=request-json, hasData=', !!base64, 'length=', base64 ? base64.length : 0);
+    if (!base64) {
+      throw new Error('获取小程序码失败：返回为空');
+    }
+    return this.writeBase64ToTempPng(base64);
+  },
+
+  extractImageBase64(payload) {
+    if (!payload) return '';
+    if (typeof payload === 'string') return payload;
+    if (payload.imageBase64) return payload.imageBase64;
+    if (payload.data && payload.data.imageBase64) return payload.data.imageBase64;
+    if (payload.result && payload.result.imageBase64) return payload.result.imageBase64;
+    if (payload.result && payload.result.data && payload.result.data.imageBase64) return payload.result.data.imageBase64;
+    return '';
+  },
+
+  writeBase64ToTempPng(base64) {
+    const fs = wx.getFileSystemManager();
+    const filePath = `${wx.env.USER_DATA_PATH}/product-share-qrcode-${Date.now()}.png`;
+    return new Promise((resolve, reject) => {
+      fs.writeFile({
+        filePath,
+        data: base64,
+        encoding: 'base64',
+        success: () => resolve(filePath),
+        fail: (err) => reject(new Error(`写入小程序码临时文件失败: ${err?.errMsg || 'unknown'}`))
+      });
+    });
+  },
+
+  getProductQrcodeBase64ByCallContainer(productId, referrerId) {
+    return new Promise((resolve) => {
+      try {
+        if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+          resolve('');
+          return;
+        }
+        try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+        const token = wx.getStorageSync('token') || '';
+        const path = `/api/miniapp/products/${encodeURIComponent(productId)}/share-qrcode?format=json${referrerId ? `&referrerId=${encodeURIComponent(referrerId)}` : ''}`;
+        wx.cloud.callContainer({
+          path,
+          method: 'GET',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          config: { env: CLOUD_ENV },
+          service: CLOUD_SERVICE_NAME,
+          timeout: 15000,
+          success: (res) => {
+            const statusCode = res && res.statusCode;
+            const data = res && res.data;
+            const imageBase64 = this.extractImageBase64(data);
+            console.log('[Product] callContainer json result:', {
+              statusCode,
+              hasImageBase64: !!imageBase64
+            });
+            if (statusCode >= 200 && statusCode < 300 && imageBase64) {
+              resolve(imageBase64);
+              return;
+            }
+            resolve('');
+          },
+          fail: () => resolve('')
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
+  },
+
+  getProductQrcodeTempPathByCallContainerBinary(productId, referrerId) {
+    return new Promise((resolve) => {
+      try {
+        if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+          resolve('');
+          return;
+        }
+        try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+        const token = wx.getStorageSync('token') || '';
+        const path = `/api/miniapp/products/${encodeURIComponent(productId)}/share-qrcode${referrerId ? `?referrerId=${encodeURIComponent(referrerId)}` : ''}`;
+        wx.cloud.callContainer({
+          path,
+          method: 'GET',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          config: { env: CLOUD_ENV },
+          service: CLOUD_SERVICE_NAME,
+          timeout: 15000,
+          success: (res) => {
+            const statusCode = res && res.statusCode;
+            if (!(statusCode >= 200 && statusCode < 300) || !res || !res.data) {
+              resolve('');
+              return;
+            }
+            const fs = wx.getFileSystemManager();
+            const filePath = `${wx.env.USER_DATA_PATH}/product-share-qrcode-bin-${Date.now()}.png`;
+            fs.writeFile({
+              filePath,
+              data: res.data,
+              encoding: 'binary',
+              success: () => resolve(filePath),
+              fail: () => resolve('')
+            });
+          },
+          fail: () => resolve('')
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
   },
 
   ensureImageUsable(filePath, tag = '图片') {
