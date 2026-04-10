@@ -8,6 +8,34 @@ const { API_BASE_URL, ENV_INFO, CLOUD_ENV, CLOUD_SERVICE_NAME } = require('../co
 // 生产环境降级到 wx.request 时只打一次提示
 let _productionFallbackWarned = false;
 
+// 云托管偶发 5xx / 网络波动：有限次重试
+const CLOUD_RETRY_MAX = 2;
+const CLOUD_RETRY_BASE_MS = 450;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 是否属于可重试的瞬时故障（云托管重启、网关抖动等） */
+function isTransientRequestError(err) {
+  if (!err) return false;
+  const code = err.code;
+  if (code === 401 || code === 403 || code === 404) return false;
+  if (typeof code === 'number' && code >= 500 && code < 600) return true;
+  const msg = String(err.message || '').toLowerCase();
+  if (msg.includes('timeout')) return true;
+  if (msg.includes('请求超时')) return true;
+  if (msg.includes('网络连接失败')) return true;
+  if (msg.includes('服务器错误')) return true;
+  if (msg.includes('服务器返回数据为空')) return true;
+  const em = String((err.error && err.error.errMsg) || '').toLowerCase();
+  if (em.includes('timeout')) return true;
+  if (em.includes('url not in domain')) return false;
+  if (em.includes('fail') && (em.includes('socket') || em.includes('network') || em.includes('connection'))) return true;
+  if (err.error && err.error.errno === 600002) return false;
+  return false;
+}
+
 // ==================== 请求配置 ====================
 
 const DEFAULT_CONFIG = {
@@ -93,11 +121,12 @@ async function ensureAuthReady(config) {
  * @returns {Promise} 处理后的响应
  */
 function afterResponse(response, config) {
-  // 隐藏 loading
-  if (config.showLoading) {
+  const retrying = !!(config.showLoading && config.__retryWillContinue);
+  // 重试过程中不在此处统一关 loading，成功或最终失败时再关
+  if (config.showLoading && !retrying) {
     wx.hideLoading();
   }
-  
+
   const { statusCode, data, header } = response;
   
   console.log(`[Request] afterResponse 开始处理: statusCode=${statusCode}`);
@@ -111,9 +140,10 @@ function afterResponse(response, config) {
       header,
       responseKeys: Object.keys(response || {})
     });
+    if (config.showLoading && !config.__retryWillContinue) wx.hideLoading();
     return Promise.reject({
       message: '服务器返回数据为空，可能是响应体过大导致传输失败',
-      code: statusCode,
+      code: statusCode || 0,
       data: null
     });
   }
@@ -140,6 +170,7 @@ function afterResponse(response, config) {
         message: data.message,
         data: data
       });
+      if (config.showLoading) wx.hideLoading();
       return Promise.reject({
         message: data.message || data.errMsg || '请求失败',
         code: data.code,
@@ -148,32 +179,38 @@ function afterResponse(response, config) {
     }
     
     console.log(`[Request] ✅ 响应处理成功，返回数据`);
+    if (config.showLoading) wx.hideLoading();
     return Promise.resolve(data);
   } else if (statusCode === 401) {
     // 未认证，清除登录信息
     wx.removeStorageSync('openid');
     wx.removeStorageSync('memberId');
     
+    if (config.showLoading) wx.hideLoading();
     return Promise.reject({
       message: '请先登录',
       code: 401
     });
   } else if (statusCode === 403) {
+    if (config.showLoading) wx.hideLoading();
     return Promise.reject({
       message: '无权限访问',
       code: 403
     });
   } else if (statusCode === 404) {
+    if (config.showLoading) wx.hideLoading();
     return Promise.reject({
       message: '请求的资源不存在',
       code: 404
     });
   } else if (statusCode >= 500) {
+    if (config.showLoading && !retrying) wx.hideLoading();
     return Promise.reject({
       message: '服务器错误',
       code: statusCode
     });
   } else {
+    if (config.showLoading) wx.hideLoading();
     return Promise.reject({
       message: data.message || '请求失败',
       code: statusCode
@@ -187,13 +224,11 @@ function afterResponse(response, config) {
  * @param {object} config - 请求配置
  */
 function handleError(error, config) {
-  // 隐藏 loading
-  if (config.showLoading) {
+  if (config.showLoading && !config.__retryWillContinue) {
     wx.hideLoading();
   }
-  
-  // 显示错误提示
-  if (config.showError) {
+
+  if (config.showError && !config.__retryWillContinue) {
     wx.showToast({
       title: error.message || '网络请求失败',
       icon: 'none',
@@ -245,10 +280,12 @@ function requestWithCallContainer(url, config) {
       fail: (err) => {
         const requestDuration = Date.now() - requestStartTime;
         console.error(`[Request] callContainer 失败: ${path}, 耗时=${requestDuration}ms`, err);
-        if (config.showLoading) wx.hideLoading();
+        if (config.showLoading && !config.__retryWillContinue) wx.hideLoading();
         const msg = (err.errMsg || err.message || '网络请求失败').replace(/^request:fail\s*/i, '');
-        if (config.showError) wx.showToast({ title: msg, icon: 'none', duration: 2000 });
-        reject({ message: msg, error: err });
+        if (config.showError && !config.__retryWillContinue) {
+          wx.showToast({ title: msg, icon: 'none', duration: 2000 });
+        }
+        reject({ message: msg, error: err, code: 0 });
       }
     });
   });
@@ -259,7 +296,7 @@ function requestWithCallContainer(url, config) {
 /**
  * 通用请求方法
  * @param {string} url - 请求地址（如 /api/miniapp/orders 或带 query 的路径）
- * @param {object} options - 请求选项
+ * @param {object} options - 请求选项；可设 skipCloudRetry: true 关闭云托管瞬时故障重试（默认最多重试 2 次）
  * @returns {Promise} 请求结果
  */
 function request(url, options = {}) {
@@ -278,14 +315,17 @@ function request(url, options = {}) {
     await ensureAuthReady(config);
     const processedConfig = beforeRequest(config);
 
-    const doRequest = () => {
+    const skipRetry = options.skipCloudRetry === true;
+    const maxAttempts = skipRetry ? 1 : (1 + CLOUD_RETRY_MAX);
+
+    const doSingleRequest = (cfg) => {
       // 生产环境：优先用云托管 callContainer（无需配置 request 合法域名）
       if (ENV_INFO.isProduction) {
         if (typeof wx !== 'undefined' && wx.cloud) {
           wx.cloud.init({ env: CLOUD_ENV, traceUser: true });
         }
         if (wx.cloud && typeof wx.cloud.callContainer === 'function') {
-          return requestWithCallContainer(url, processedConfig);
+          return requestWithCallContainer(url, cfg);
         }
         if (!_productionFallbackWarned) {
           _productionFallbackWarned = true;
@@ -304,7 +344,7 @@ function request(url, options = {}) {
 
       return new Promise((resolve, reject) => {
         const requestConfig = {
-          ...processedConfig,
+          ...cfg,
           timeout: config.timeout || DEFAULT_CONFIG.timeout,
         };
         const requestStartTime = Date.now();
@@ -316,7 +356,7 @@ function request(url, options = {}) {
             const requestDuration = Date.now() - requestStartTime;
             console.log(`[Request] 请求成功: ${config.method} ${config.url}, 耗时=${requestDuration}ms`);
             console.log(`[Request] 响应状态码: ${response.statusCode}`);
-            afterResponse(response, config).then(resolve).catch(reject);
+            afterResponse(response, cfg).then(resolve).catch(reject);
           },
           fail: (error) => {
             const requestDuration = Date.now() - requestStartTime;
@@ -328,14 +368,33 @@ function request(url, options = {}) {
               else if (error.errMsg.includes('abort')) errorMessage = '请求被取消';
               else errorMessage = `网络错误: ${error.errMsg}`;
             }
-            handleError({ message: errorMessage, error: error }, config).catch(reject);
+            handleError({ message: errorMessage, error: error }, cfg).catch(reject);
           }
         });
       });
     };
 
     try {
-      return await doRequest();
+      let lastErr;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const willRetryMore = attempt < maxAttempts - 1;
+        const cfg = { ...processedConfig, __retryWillContinue: willRetryMore };
+        try {
+          return await doSingleRequest(cfg);
+        } catch (err) {
+          lastErr = err;
+          if (!willRetryMore || !isTransientRequestError(err)) {
+            throw err;
+          }
+          const waitMs = CLOUD_RETRY_BASE_MS * Math.pow(2, attempt);
+          console.warn(
+            `[Request] 请求失败，${attempt + 1}/${maxAttempts} 次，${waitMs}ms 后重试（云托管瞬时故障）:`,
+            err && err.message ? err.message : err
+          );
+          await delay(waitMs);
+        }
+      }
+      throw lastErr;
     } catch (err) {
       const code = err && err.code;
       const msg = (err && err.message) || '';
