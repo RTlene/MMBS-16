@@ -17,6 +17,43 @@ let miniappAccessTokenCache = { token: '', expireAt: 0 };
 const productQrcodeCache = new Map();
 const PRODUCT_QRCODE_TTL_MS = 30 * 60 * 1000;
 
+/**
+ * 从 order_items + orders 汇总销量（件数），供列表/推荐/搜索展示
+ * @param {number[]} productIds
+ * @returns {Promise<Map<number, number>>}
+ */
+async function mapProductSalesByIds(productIds) {
+    try {
+        const ids = [...new Set((productIds || [])
+            .map((id) => parseInt(id, 10))
+            .filter((n) => Number.isFinite(n) && n > 0))];
+        if (ids.length === 0) return new Map();
+        const placeholders = ids.map(() => '?').join(', ');
+        const sql = `
+            SELECT oi.productId AS productId, COALESCE(SUM(oi.quantity), 0) AS sales
+            FROM order_items oi
+            INNER JOIN orders o ON o.id = oi.orderId
+            WHERE o.status IN ('paid', 'shipped', 'delivered', 'completed')
+              AND oi.productId IN (${placeholders})
+            GROUP BY oi.productId
+        `;
+        const rows = await sequelize.query(sql, {
+            replacements: ids,
+            type: Sequelize.QueryTypes.SELECT
+        });
+        const map = new Map();
+        for (const row of rows || []) {
+            const pid = parseInt(row.productId, 10);
+            const s = parseInt(row.sales, 10) || 0;
+            if (Number.isFinite(pid)) map.set(pid, s);
+        }
+        return map;
+    } catch (e) {
+        console.warn('[MiniappProduct] 销量汇总失败:', e && e.message ? e.message : e);
+        return new Map();
+    }
+}
+
 async function getMiniappAccessToken() {
     const now = Date.now();
     if (miniappAccessTokenCache.token && miniappAccessTokenCache.expireAt - now > 60 * 1000) {
@@ -310,6 +347,9 @@ router.get('/products', async (req, res) => {
             };
         });
 
+        const salesMap = await mapProductSalesByIds(products.map((p) => p.id));
+        products.forEach((p) => { p.sales = salesMap.get(p.id) || 0; });
+
         // 数据库为空时正常返回空数组，不是错误
         res.json({
             code: 0,
@@ -418,6 +458,9 @@ router.get('/products/recommended', async (req, res) => {
                 isFeatured: product.isFeatured
             };
         });
+
+        const recSalesMap = await mapProductSalesByIds(recommendedProducts.map((p) => p.id));
+        recommendedProducts.forEach((p) => { p.sales = recSalesMap.get(p.id) || 0; });
 
         // 数据库为空时正常返回空数组，不是错误
         res.json({
@@ -552,9 +595,12 @@ router.get('/products/search', async (req, res) => {
                     price: primarySku.price,
                     images: primarySku.images || []
                 } : null,
-                sales: product.sales || 0
+                sales: 0
             };
         });
+
+        const searchSalesMap = await mapProductSalesByIds(searchResults.map((p) => p.id));
+        searchResults.forEach((p) => { p.sales = searchSalesMap.get(p.id) || 0; });
 
         res.json({
             code: 0,
