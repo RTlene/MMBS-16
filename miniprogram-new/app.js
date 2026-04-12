@@ -5,6 +5,7 @@
 
 const auth = require('./utils/auth.js');
 const request = require('./utils/request.js');
+const { parseLaunchSceneParams, persistReferrerFromSceneParams } = require('./utils/sceneLaunch.js');
 const { API_BASE_URL, ENV, ENV_INFO, CLOUD_ENV, API } = require('./config/api.js');
 
 App({
@@ -16,6 +17,17 @@ App({
     console.log('[App] 运行环境:', ENV);
     console.log('[App] API 地址:', API_BASE_URL);
     console.log('[App] 环境信息:', ENV_INFO);
+
+    // 小程序码 scene（p=…&r=… / h=1&r=…）需在 autoLogin 前写入，否则首登无法绑定推荐人
+    try {
+      const parsed = parseLaunchSceneParams(options);
+      persistReferrerFromSceneParams(parsed);
+      if (parsed && Object.keys(parsed).length) {
+        console.log('[App] 解析启动 scene:', parsed);
+      }
+    } catch (e) {
+      console.warn('[App] 解析 scene 失败', e);
+    }
 
     // 从分享/冷启动参数中尽早保存推荐人ID，供自动登录时注册为推荐人粉丝（必须在 autoLogin 前写入 storage）
     if (options && options.query && options.query.referrerId) {
@@ -65,6 +77,11 @@ App({
     
     // 记录启动场景
     this.globalData.scene = options && options.scene;
+
+    try {
+      const parsed = parseLaunchSceneParams(options);
+      persistReferrerFromSceneParams(parsed);
+    } catch (_) {}
     
     // 从分享进入或带 query 的进入：把推荐人ID 写入 storage，确保后续登录时能绑定为推荐人粉丝
     if (options && options.query && options.query.referrerId) {

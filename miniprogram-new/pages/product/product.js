@@ -6,6 +6,7 @@ const request = require('../../utils/request.js');
 const { API, replaceUrlParams, API_BASE_URL, CLOUD_ENV, CLOUD_SERVICE_NAME } = require('../../config/api.js');
 const util = require('../../utils/util.js');
 const auth = require('../../utils/auth.js');
+const { parseLaunchSceneParams, persistReferrerFromSceneParams } = require('../../utils/sceneLaunch.js');
 
 /**
  * 将可能为字符串/JSON 的字段转成数组
@@ -101,8 +102,17 @@ Page({
    * 页面加载
    */
   onLoad(options) {
-    const { id, referrerId } = options;
-    
+    // 小程序码扫码：推荐人与商品 ID 在 scene 里（p=…&r=…），不会出现在 options.id / referrerId
+    const parsed = parseLaunchSceneParams(options);
+    persistReferrerFromSceneParams(parsed);
+
+    const id = (options.id != null && String(options.id).trim() !== '')
+      ? String(options.id).trim()
+      : (parsed.p != null && String(parsed.p).trim() !== '' ? String(parsed.p).trim() : '');
+    const referrerId = (options.referrerId != null && String(options.referrerId).trim() !== '')
+      ? String(options.referrerId).trim()
+      : (parsed.r != null && String(parsed.r).trim() !== '' ? String(parsed.r).trim() : '');
+
     if (!id) {
       wx.showToast({
         title: '商品不存在',

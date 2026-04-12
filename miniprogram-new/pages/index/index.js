@@ -4,6 +4,7 @@
 
 const request = require('../../utils/request.js');
 const auth = require('../../utils/auth.js');
+const { parseLaunchSceneParams, persistReferrerFromSceneParams } = require('../../utils/sceneLaunch.js');
 const { API, replaceUrlParams, API_BASE_URL } = require('../../config/api.js');
 const { buildAbsoluteUrl, buildOptimizedImageUrl, formatMoney } = require('../../utils/util.js');
 
@@ -51,6 +52,10 @@ Page({
    */
   onLoad(options) {
     console.log('[Index] 页面加载', options);
+
+    // 首页小程序码：scene 为 h=1&r=推荐人ID，需写入 storage 供注册绑定
+    const parsed = parseLaunchSceneParams(options);
+    persistReferrerFromSceneParams(parsed);
 
     // 首次进入时若未登录则触发登录（不阻塞首屏）
     const app = getApp();
