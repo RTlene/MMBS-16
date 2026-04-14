@@ -11,6 +11,15 @@ let miniappAccessTokenCache = { token: '', expireAt: 0 };
 const homeQrcodeCache = new Map();
 const HOME_QRCODE_TTL_MS = 30 * 60 * 1000;
 
+function sendQrcodeBase64Compat(res, imageBase64, source = 'wechat') {
+  const base64 = String(imageBase64 || '').trim();
+  // 兼容部分端上 callContainer 将 JSON body 透传为 string 的差异，直接返回纯 base64 文本。
+  res.setHeader('X-Qrcode-Source', source);
+  res.setHeader('X-Qrcode-Base64-Length', String(base64.length));
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  return res.send(base64);
+}
+
 async function getMiniappAccessToken() {
   const now = Date.now();
   if (miniappAccessTokenCache.token && miniappAccessTokenCache.expireAt - now > 60 * 1000) {
@@ -84,15 +93,7 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
       });
       if (wantsJson) {
         const imageBase64 = cached.buffer.toString('base64');
-        return res.json({
-          code: 0,
-          message: '获取成功',
-          data: {
-            imageBase64,
-            source: 'cache',
-            imageBase64Length: imageBase64.length
-          }
-        });
+        return sendQrcodeBase64Compat(res, imageBase64, 'cache');
       }
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'private, max-age=600');
@@ -144,15 +145,7 @@ router.get('/share/home-qrcode', optionalAuthenticate, async (req, res) => {
     }
     if (wantsJson) {
       const imageBase64 = pngBuffer.toString('base64');
-      return res.json({
-        code: 0,
-        message: '获取成功',
-        data: {
-          imageBase64,
-          source: 'wechat',
-          imageBase64Length: imageBase64.length
-        }
-      });
+      return sendQrcodeBase64Compat(res, imageBase64, 'wechat');
     }
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'private, max-age=600');

@@ -17,6 +17,16 @@ let miniappAccessTokenCache = { token: '', expireAt: 0 };
 const productQrcodeCache = new Map();
 const PRODUCT_QRCODE_TTL_MS = 30 * 60 * 1000;
 
+function sendQrcodeBase64Compat(res, imageBase64, source = 'wechat') {
+    const base64 = String(imageBase64 || '').trim();
+    // 为兼容部分端上 callContainer 将 JSON 当字符串返回的情况，直接返回纯 base64 文本
+    // 这样前端无需改动，extractImageBase64 对 string 分支可直接落盘。
+    res.setHeader('X-Qrcode-Source', source);
+    res.setHeader('X-Qrcode-Base64-Length', String(base64.length));
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.send(base64);
+}
+
 /**
  * 从 order_items + orders 汇总销量（件数），供列表/推荐/搜索展示
  * @param {number[]} productIds
@@ -805,15 +815,7 @@ router.get('/products/:id/share-qrcode', optionalAuthenticate, async (req, res) 
         if (cached && cached.expireAt > Date.now() && cached.buffer) {
             if (wantsJson) {
                 const imageBase64 = cached.buffer.toString('base64');
-                return res.json({
-                    code: 0,
-                    message: '获取成功',
-                    data: {
-                        imageBase64,
-                        source: 'cache',
-                        imageBase64Length: imageBase64.length
-                    }
-                });
+                return sendQrcodeBase64Compat(res, imageBase64, 'cache');
             }
             res.setHeader('Content-Type', 'image/png');
             res.setHeader('Cache-Control', 'private, max-age=600');
@@ -859,15 +861,7 @@ router.get('/products/:id/share-qrcode', optionalAuthenticate, async (req, res) 
         }
         if (wantsJson) {
             const imageBase64 = pngBuffer.toString('base64');
-            return res.json({
-                code: 0,
-                message: '获取成功',
-                data: {
-                    imageBase64,
-                    source: 'wechat',
-                    imageBase64Length: imageBase64.length
-                }
-            });
+            return sendQrcodeBase64Compat(res, imageBase64, 'wechat');
         }
         res.setHeader('Content-Type', 'image/png');
         res.setHeader('Cache-Control', 'private, max-age=600');
