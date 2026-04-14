@@ -71,7 +71,13 @@ class CommissionService {
     static async buildDistributorMemberChainFromReferrer(referrerId) {
         const chain = [];
         let currentId = referrerId != null ? parseInt(referrerId, 10) : null;
+        const visited = new Set();
         while (currentId) {
+            if (visited.has(currentId)) {
+                console.warn(`[佣金] 分销链检测到推荐关系环，已中断 currentId=${currentId}`);
+                break;
+            }
+            visited.add(currentId);
             const m = await Member.findByPk(currentId, {
                 include: [
                     { model: DistributorLevel, as: 'distributorLevel' },
@@ -82,7 +88,29 @@ class CommissionService {
             if (m.distributorLevel) chain.push(m);
             currentId = m.referrerId ? parseInt(m.referrerId, 10) : null;
         }
-        return chain;
+        return this._dedupeDistributorChainByMemberId(chain);
+    }
+
+    /** 分销链去重：同一会员只保留首次出现（更靠近下游的一次） */
+    static _dedupeDistributorChainByMemberId(chain) {
+        if (!Array.isArray(chain) || chain.length <= 1) return Array.isArray(chain) ? chain : [];
+        const seen = new Set();
+        const deduped = [];
+        let dupCount = 0;
+        for (const m of chain) {
+            const id = parseInt(m && m.id, 10);
+            if (!Number.isFinite(id)) continue;
+            if (seen.has(id)) {
+                dupCount += 1;
+                continue;
+            }
+            seen.add(id);
+            deduped.push(m);
+        }
+        if (dupCount > 0) {
+            console.warn(`[佣金] 分销链发现重复会员并已去重 count=${dupCount}`);
+        }
+        return deduped;
     }
 
     /**
@@ -484,6 +512,12 @@ class CommissionService {
         const allocatedBefore = calculations.reduce((sum, c) => sum + (parseFloat(c.commissionAmount) || 0), 0);
         let remainingBase = parseFloat((orderAmount - allocatedBefore).toFixed(2));
         if (remainingBase <= 0) return;
+        const nonTeamPayoutRecipientIds = new Set(
+            (calculations || [])
+                .filter((c) => c && (c.commissionType === 'distributor' || c.commissionType === 'network_distributor'))
+                .map((c) => parseInt(c.recipientId, 10))
+                .filter((id) => Number.isFinite(id))
+        );
 
         const envDepth = Math.max(1, parseInt(process.env.TEAM_INCENTIVE_MAX_DEPTH || '5', 10) || 5);
         const depthCap = Math.max(
@@ -497,7 +531,13 @@ class CommissionService {
         } else {
             fullChain = [];
             let currentId = referrer && referrer.id ? referrer.id : null;
+            const visited = new Set();
             while (currentId) {
+                if (visited.has(currentId)) {
+                    console.warn(`[佣金] 团队链检测到推荐关系环，已中断 currentId=${currentId}`);
+                    break;
+                }
+                visited.add(currentId);
                 const m = await Member.findByPk(currentId, {
                     include: [
                         { model: DistributorLevel, as: 'distributorLevel' },
@@ -509,6 +549,7 @@ class CommissionService {
                 currentId = m.referrerId ? parseInt(m.referrerId, 10) : null;
             }
         }
+        fullChain = this._dedupeDistributorChainByMemberId(fullChain);
         if (fullChain.length === 0) return;
 
         let payoutChain = fullChain.slice(0, depthCap);
@@ -581,12 +622,21 @@ class CommissionService {
                                 console.log(
                                     `[佣金] 逐级级差 已生成 recipientId=${rid} 有效比例=${effectiveRate}% 剩余基数=${remainingBase.toFixed(2)} 本级成本额=${upMoney.toFixed(2)} 金额=${tierAmount.toFixed(2)}`
                                 );
+                                nonTeamPayoutRecipientIds.add(rid);
                                 remainingBase = parseFloat((remainingBase - tierAmount).toFixed(2));
                                 continue;
                             }
                         }
                     }
                 }
+            }
+
+            // 同一接收人在同一订单中，若已拿到分销/级差佣金，则不再发团队激励，避免重复入账。
+            if (Number.isFinite(rid) && nonTeamPayoutRecipientIds.has(rid)) {
+                console.log(
+                    `[佣金] 团队拓展激励 跳过 recipientId=${rid}（本单已享分销或级差佣金，不重复发团队激励）`
+                );
+                continue;
             }
 
             const rateDecimal = this._rateToDecimal(
