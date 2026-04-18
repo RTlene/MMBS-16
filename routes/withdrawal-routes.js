@@ -88,6 +88,8 @@ router.get('/', authenticateToken, async (req, res) => {
         memberNickname: m.nickname,
         memberPhone: m.phone,
         amount: w.amount,
+        feeAmount: parseFloat(w.feeAmount || 0),
+        netAmount: w.netAmount != null ? parseFloat(w.netAmount) : parseFloat(w.amount),
         accountType: w.accountType,
         accountTypeText: w.accountType === 'wechat' ? '微信钱包' : w.accountType === 'alipay' ? '支付宝' : '银行',
         accountName: w.accountName,
@@ -133,6 +135,7 @@ router.get('/config', authenticateToken, async (req, res) => {
   try {
     const section = configStore.getSection('withdrawal') || {};
     const autoApprove = section.autoApprove || { enabled: false, maxAmount: 0 };
+    const feeCfg = section.commissionWithdrawalFee || {};
     res.json({
       code: 0,
       message: '获取成功',
@@ -140,6 +143,10 @@ router.get('/config', authenticateToken, async (req, res) => {
         autoApprove: {
           enabled: !!autoApprove.enabled,
           maxAmount: Math.max(0, parseFloat(autoApprove.maxAmount) || 0)
+        },
+        commissionWithdrawalFee: {
+          percent: Math.max(0, Math.min(100, parseFloat(feeCfg.percent) || 0)),
+          fixedYuan: Math.max(0, parseFloat(feeCfg.fixedYuan) || 0)
         }
       }
     });
@@ -155,17 +162,26 @@ router.get('/config', authenticateToken, async (req, res) => {
  */
 router.put('/config', authenticateToken, async (req, res) => {
   try {
-    const { autoApprove } = req.body || {};
+    const { autoApprove, commissionWithdrawalFee } = req.body || {};
     const section = configStore.getSection('withdrawal') || {};
     section.autoApprove = {
       enabled: !!autoApprove?.enabled,
       maxAmount: Math.max(0, parseFloat(autoApprove?.maxAmount) || 0)
     };
+    if (commissionWithdrawalFee && typeof commissionWithdrawalFee === 'object') {
+      section.commissionWithdrawalFee = {
+        percent: Math.max(0, Math.min(100, parseFloat(commissionWithdrawalFee.percent) || 0)),
+        fixedYuan: Math.max(0, parseFloat(commissionWithdrawalFee.fixedYuan) || 0)
+      };
+    }
     await configStore.setSection('withdrawal', section);
     res.json({
       code: 0,
       message: '配置已保存',
-      data: { autoApprove: section.autoApprove }
+      data: {
+        autoApprove: section.autoApprove,
+        commissionWithdrawalFee: section.commissionWithdrawalFee || { percent: 0, fixedYuan: 0 }
+      }
     });
   } catch (e) {
     console.error('[Withdrawals] 保存配置失败:', e);
@@ -206,6 +222,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
           memberNickname: m.nickname,
           memberPhone: m.phone,
           amount: withdrawal.amount,
+          feeAmount: parseFloat(withdrawal.feeAmount || 0),
+          netAmount: withdrawal.netAmount != null ? parseFloat(withdrawal.netAmount) : parseFloat(withdrawal.amount),
           accountType: withdrawal.accountType,
           accountTypeText: withdrawal.accountType === 'wechat' ? '微信钱包' : withdrawal.accountType === 'alipay' ? '支付宝' : '银行',
           accountName: withdrawal.accountName,

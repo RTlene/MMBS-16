@@ -18,6 +18,10 @@
         />
         <text class="link" bindtap="onSelectAll">全部</text>
       </view>
+      <view class="fee-estimate" wx:if="{{feePreview}}">
+        <text class="fee-line">预计手续费：¥{{feePreview.feeAmount}}</text>
+        <text class="fee-line">预计到账：¥{{feePreview.netAmount}}</text>
+      </view>
     </view>
 
     <view class="form-item">
@@ -107,9 +111,10 @@
     <view class="record-title">近期提现</view>
     <view class="record-item" wx:for="{{withdrawalList}}" wx:key="id">
       <view class="record-row">
-        <text class="record-amount">¥{{item.amount}}</text>
+        <text class="record-amount">申请 ¥{{item.amount}}</text>
         <text class="record-status status-{{item.status}}">{{item.statusText}}</text>
       </view>
+      <view class="record-row record-meta" wx:if="{{item.feeAmount}}">手续费 ¥{{item.feeAmount}} · 到账 ¥{{item.netAmount}}</view>
       <view class="record-row record-meta">{{item.accountTypeText}} · {{item.createdAtText}}</view>
       <view class="record-action" wx:if="{{item.needConfirmReceipt}}">
         <button class="confirm-receipt-btn" data-id="{{item.id}}" bindtap="onConfirmReceipt">去微信确认收款</button>

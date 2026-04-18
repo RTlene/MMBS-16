@@ -1751,7 +1751,18 @@ const CommissionWithdrawal = sequelize.define('CommissionWithdrawal', {
     amount: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
-        comment: '提现金额'
+        comment: '提现申请金额（从可用佣金扣除的总额，含手续费）'
+    },
+    feeAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0,
+        comment: '提现手续费（元），从申请金额中扣减'
+    },
+    netAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        comment: '扣除手续费后应付用户金额（元）；历史数据为空时视为等于申请金额'
     },
     accountType: {
         type: DataTypes.ENUM('wechat', 'alipay', 'bank'),

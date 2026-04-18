@@ -148,6 +148,7 @@ const API = {
     LIST: '/api/miniapp/withdrawals',             // 提现申请列表
     DETAIL: '/api/miniapp/withdrawals/:id',       // 提现申请详情
     CANCEL: '/api/miniapp/withdrawals/:id/cancel', // 取消提现申请
+    FEE_ESTIMATE: '/api/miniapp/withdrawals/fee-estimate', // 预估提现手续费
   },
   
   // 积分相关

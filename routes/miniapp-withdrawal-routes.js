@@ -4,6 +4,7 @@ const { CommissionWithdrawal, Member } = require('../db');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 const configStore = require('../services/configStore');
 const withdrawalService = require('../services/withdrawalService');
+const { computeCommissionWithdrawalFee } = require('../services/withdrawalFeeHelper');
 
 const router = express.Router();
 
@@ -15,6 +16,25 @@ function generateWithdrawalNo() {
     const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     return `WD${timestamp}${random}`;
 }
+
+/**
+ * 预估佣金提现手续费（须登录）
+ * GET /api/miniapp/withdrawals/fee-estimate?amount=100
+ */
+router.get('/withdrawals/fee-estimate', authenticateMiniappUser, async (req, res) => {
+    try {
+        const gross = parseFloat(req.query.amount);
+        if (!Number.isFinite(gross) || gross <= 0) {
+            return res.status(400).json({ code: 1, message: '请提供有效的 amount 参数' });
+        }
+        const withdrawalSection = configStore.getSection('withdrawal') || {};
+        const data = computeCommissionWithdrawalFee(gross, withdrawalSection);
+        res.json({ code: 0, message: 'ok', data });
+    } catch (error) {
+        console.error('[MiniappWithdrawal] fee-estimate', error);
+        res.status(500).json({ code: 1, message: '计算失败', error: error.message });
+    }
+});
 
 /**
  * 创建提现申请（小程序端）
@@ -107,11 +127,22 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
             });
         }
 
-        // 创建提现申请
+        const withdrawalSection = configStore.getSection('withdrawal') || {};
+        const feeBreakdown = computeCommissionWithdrawalFee(withdrawalAmount, withdrawalSection);
+        if (feeBreakdown.netAmount < 0.01) {
+            return res.status(400).json({
+                code: 1,
+                message: '当前金额在扣除手续费后实际到账不足 0.01 元，请提高提现金额或联系管理员调整手续费规则'
+            });
+        }
+
+        // 创建提现申请（amount 为申请扣减总额；netAmount 为应付用户净额）
         const withdrawal = await CommissionWithdrawal.create({
             withdrawalNo: generateWithdrawalNo(),
             memberId: member.id,
-            amount: withdrawalAmount,
+            amount: feeBreakdown.grossYuan,
+            feeAmount: feeBreakdown.feeAmount,
+            netAmount: feeBreakdown.netAmount,
             accountType,
             accountName: accountName.trim(),
             accountNumber: accountNumber.trim(),
@@ -165,6 +196,8 @@ router.post('/withdrawals', authenticateMiniappUser, async (req, res) => {
                 id: finalWithdrawal.id,
                 withdrawalNo: finalWithdrawal.withdrawalNo,
                 amount: finalWithdrawal.amount,
+                feeAmount: parseFloat(finalWithdrawal.feeAmount || 0),
+                netAmount: finalWithdrawal.netAmount != null ? parseFloat(finalWithdrawal.netAmount) : parseFloat(finalWithdrawal.amount),
                 status: finalWithdrawal.status,
                 createdAt: finalWithdrawal.createdAt
             },
@@ -225,6 +258,8 @@ router.get('/withdrawals', authenticateMiniappUser, async (req, res) => {
                 id: w.id,
                 withdrawalNo: w.withdrawalNo,
                 amount: w.amount,
+                feeAmount: parseFloat(w.feeAmount || 0),
+                netAmount: w.netAmount != null ? parseFloat(w.netAmount) : parseFloat(w.amount),
                 accountType: w.accountType,
                 accountTypeText: w.accountType === 'wechat' ? '微信钱包' : '银行',
                 accountName: w.accountName,
@@ -290,6 +325,8 @@ router.get('/withdrawals/:id', authenticateMiniappUser, async (req, res) => {
             id: withdrawal.id,
             withdrawalNo: withdrawal.withdrawalNo,
             amount: withdrawal.amount,
+            feeAmount: parseFloat(withdrawal.feeAmount || 0),
+            netAmount: withdrawal.netAmount != null ? parseFloat(withdrawal.netAmount) : parseFloat(withdrawal.amount),
             accountType: withdrawal.accountType,
             accountTypeText: withdrawal.accountType === 'wechat' ? '微信钱包' : '银行',
             accountName: withdrawal.accountName,

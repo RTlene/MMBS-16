@@ -5,6 +5,8 @@ const auth = require('../../utils/auth');
 Page({
   data: {
     availableCommission: 0,
+    feePreview: null,
+    _feeDebounce: null,
     form: {
       amount: '',
       accountType: 'wechat',
@@ -137,6 +139,8 @@ Page({
     this.setData({
       'form.amount': value
     });
+    if (this._feeDebounce) clearTimeout(this._feeDebounce);
+    this._feeDebounce = setTimeout(() => this.refreshFeeEstimate(), 400);
   },
 
   /**
@@ -146,6 +150,29 @@ Page({
     this.setData({
       'form.amount': this.data.availableCommission.toFixed(2)
     });
+    this.refreshFeeEstimate();
+  },
+
+  async refreshFeeEstimate() {
+    const amt = parseFloat(this.data.form.amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      this.setData({ feePreview: null });
+      return;
+    }
+    try {
+      const res = await request.get(
+        API.WITHDRAWAL.FEE_ESTIMATE,
+        { amount: String(amt) },
+        { needAuth: true, showLoading: false }
+      );
+      if (res.code === 0 && res.data) {
+        this.setData({ feePreview: res.data });
+      } else {
+        this.setData({ feePreview: null });
+      }
+    } catch (_) {
+      this.setData({ feePreview: null });
+    }
   },
 
   /**
@@ -261,6 +288,7 @@ Page({
       }, { needAuth: true });
 
       if (res.code === 0) {
+        this.setData({ feePreview: null });
         const content = res.message || '提现申请已提交，请等待审核';
         const data = res.data || {};
         // 升级版商家转账：需用户在小程序内确认收款才会到账，调起微信确认收款页

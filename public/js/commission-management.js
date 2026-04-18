@@ -273,6 +273,11 @@ window.CommissionManagement = {
         const inp = document.getElementById('autoApproveMaxAmount');
         if (cb) cb.checked = !!a.enabled;
         if (inp) inp.value = a.maxAmount != null ? a.maxAmount : '';
+        const f = result.data.commissionWithdrawalFee || {};
+        const fp = document.getElementById('withdrawalFeePercent');
+        const ff = document.getElementById('withdrawalFeeFixed');
+        if (fp) fp.value = f.percent != null ? f.percent : '';
+        if (ff) ff.value = f.fixedYuan != null ? f.fixedYuan : '';
       }
     } catch (e) {
       console.error('加载提现配置失败', e);
@@ -282,11 +287,16 @@ window.CommissionManagement = {
   async saveWithdrawalConfig() {
     const enabled = document.getElementById('autoApproveEnabled')?.checked ?? false;
     const maxAmount = parseFloat(document.getElementById('autoApproveMaxAmount')?.value) || 0;
+    const percent = parseFloat(document.getElementById('withdrawalFeePercent')?.value) || 0;
+    const fixedYuan = parseFloat(document.getElementById('withdrawalFeeFixed')?.value) || 0;
     try {
       const res = await fetch('/api/withdrawals/config', {
         method: 'PUT',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify({ autoApprove: { enabled, maxAmount } })
+        body: JSON.stringify({
+          autoApprove: { enabled, maxAmount },
+          commissionWithdrawalFee: { percent, fixedYuan }
+        })
       });
       const result = await res.json();
       if (result.code === 0) alert('配置已保存');
@@ -331,14 +341,16 @@ window.CommissionManagement = {
     const tbody = document.getElementById('withdrawalTableBody');
     const list = this.data.withdrawals;
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#999;">暂无提现申请</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#999;">暂无提现申请</td></tr>';
       return;
     }
     tbody.innerHTML = list.map(w => {
       const statusCell = '<span class="badge ' + this.withdrawalStatusClass(w.status) + '">' + (w.statusText || this.withdrawalStatusText(w.status)) + '</span>';
       const time = w.createdAt ? new Date(w.createdAt).toLocaleString() : '-';
+      const fee = parseFloat(w.feeAmount) || 0;
+      const net = w.netAmount != null ? parseFloat(w.netAmount) : parseFloat(w.amount) || 0;
       return '<tr><td>' + (w.withdrawalNo || '-') + '</td><td>' + (w.memberNickname || '-') + '<br><small>' + (w.memberPhone || '') + '</small></td>' +
-        '<td>¥' + (parseFloat(w.amount) || 0).toFixed(2) + '</td><td>' + (w.accountTypeText || w.accountType || '-') + '</td>' +
+        '<td>¥' + (parseFloat(w.amount) || 0).toFixed(2) + '</td><td>¥' + fee.toFixed(2) + '</td><td>¥' + net.toFixed(2) + '</td><td>' + (w.accountTypeText || w.accountType || '-') + '</td>' +
         '<td>' + statusCell + '</td><td>' + time + '</td>' +
         '<td><button class="btn btn-primary btn-sm" onclick="window.CommissionManagement.openWithdrawalDetail(' + w.id + ')">查看</button></td></tr>';
     }).join('');
@@ -391,6 +403,8 @@ window.CommissionManagement = {
       set('dWithdrawalNo', w.withdrawalNo || '-');
       set('dMember', (w.memberNickname || '-') + ' ' + (w.memberPhone || ''));
       set('dAmount', '¥' + (parseFloat(w.amount) || 0).toFixed(2));
+      set('dFeeAmount', '¥' + (parseFloat(w.feeAmount) || 0).toFixed(2));
+      set('dNetAmount', '¥' + (w.netAmount != null ? parseFloat(w.netAmount) : parseFloat(w.amount) || 0).toFixed(2));
       set('dAccountType', w.accountTypeText || w.accountType || '-');
       set('dAccountName', w.accountName || '-');
       set('dAccountNumber', w.accountNumber || '-');

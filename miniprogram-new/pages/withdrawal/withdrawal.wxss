@@ -38,6 +38,20 @@
   border-bottom: none;
 }
 
+.fee-estimate {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  background: #f7fafc;
+  border-radius: 8rpx;
+}
+
+.fee-estimate .fee-line {
+  display: block;
+  font-size: 24rpx;
+  color: #555;
+  line-height: 1.6;
+}
+
 .form-item .label {
   display: block;
   font-size: 28rpx;
