@@ -9,9 +9,9 @@ from docx import Document
 from docx.shared import Pt
 
 
-def set_run_font(run):
+def set_run_font(run, size_pt=11):
     run.font.name = "Microsoft YaHei"
-    run.font.size = Pt(11)
+    run.font.size = Pt(size_pt)
 
 
 def set_heading_run_font(run, size_pt=14):
@@ -19,10 +19,10 @@ def set_heading_run_font(run, size_pt=14):
     run.font.size = Pt(size_pt)
 
 
-def add_para(doc, text):
+def add_para(doc, text, size_pt=11):
     p = doc.add_paragraph(text)
     for r in p.runs:
-        set_run_font(r)
+        set_run_font(r, size_pt)
 
 
 def add_heading(doc, text, level=1):
@@ -30,6 +30,37 @@ def add_heading(doc, text, level=1):
     for r in h.runs:
         set_heading_run_font(r, 16 if level == 1 else 13)
     return h
+
+
+def _style_table_cell(cell, text, size_pt=10):
+    cell.text = text
+    for p in cell.paragraphs:
+        for r in p.runs:
+            set_run_font(r, size_pt)
+
+
+def add_distributor_level_simple_table(doc, data_rows=5):
+    """简单分销等级表（示意），供平台填写后公示。"""
+    headers = ["等级名称", "次序", "核心说明", "备注"]
+    table = doc.add_table(rows=1 + data_rows, cols=len(headers))
+    table.style = "Table Grid"
+    for c, h in enumerate(headers):
+        _style_table_cell(table.rows[0].cells[c], h, 10)
+    for r in range(1, 1 + data_rows):
+        for c in range(len(headers)):
+            _style_table_cell(table.rows[r].cells[c], "—", 10)
+
+    add_heading(doc, "表后说明：各列含义", level=3)
+    col_help = [
+        "「等级名称」：您在小程序或合作资料中看到的分销身份名称，如「合作店」「区域伙伴」等，以平台实际配置为准。",
+        "「次序」：用于区分等级高低的序号；数字大小与「越高或越低」的对应关系以平台规则为准，便于理解链条中的先后关系。",
+        "「核心说明」：对该等级在拿货成本、推广奖励、团队权益等方面的概括性一句话，便于伙伴对照自身身份；具体数值以合同、后台或活动页公示为准。",
+        "「备注」：可填写升级条件提示、有效期、特殊政策等补充信息；无则保持空白或横线即可。",
+    ]
+    for line in col_help:
+        p = doc.add_paragraph(line, style="List Bullet")
+        for r in p.runs:
+            set_run_font(r, 10)
 
 
 def build_document(path: Path) -> None:
@@ -58,19 +89,26 @@ def build_document(path: Path) -> None:
         for r in p.runs:
             set_run_font(r)
 
-    add_heading(doc, "三、奖励从哪里来", level=2)
+    add_heading(doc, "三、分销等级一览（简表）", level=2)
+    add_para(
+        doc,
+        "为便于理解不同合作身份对应的权益差异，平台以简表形式列出分销等级框架。下表为示意模板，**各等级名称、次序及说明由平台填写后向用户公示**；若与线上一致，您可直接对照小程序内展示。",
+    )
+    add_distributor_level_simple_table(doc, data_rows=5)
+
+    add_heading(doc, "四、奖励从哪里来", level=2)
     add_para(
         doc,
         "奖励来源于订单在扣除商品成本、平台基础运营成本及依法应由商户承担的费用之后，预留用于市场拓展与渠道激励的部分。并非每一笔订单都会产生全部类型的奖励，是否发放、发放对象与金额，取决于订单是否有效完成、是否属于参与计奖的商品范围、以及当时适用的活动与等级政策。",
     )
 
-    add_heading(doc, "四、分配方式（原则说明）", level=2)
+    add_heading(doc, "五、分配方式（原则说明）", level=2)
     add_para(
         doc,
         "为兼顾「鼓励分享」与「渠道公平」，平台通常按以下思路分配（实际以系统执行与公示规则为准）：优先保障直接分享所产生的推广激励；在存在多级合作结构时，再按等级与团队贡献规则，在剩余空间内进行二次分配。您无需自行计算，订单完成后可在「佣金/奖励」相关页面查看明细。",
     )
 
-    add_heading(doc, "五、团队激励说明", level=2)
+    add_heading(doc, "六、团队激励说明", level=2)
     add_para(
         doc,
         "在推广佣金之外，若您已具备平台认定的团队拓展身份或等级，且相关功能已开启，您还有机会获得「团队激励」类奖励，用于回报您在团队培育、动销带动等方面的贡献。该类奖励与单笔订单的推广佣金性质不同，平台可能在账户中单独展示为「团队激励余额」或类似名称，以便您区分管理。",
@@ -84,7 +122,7 @@ def build_document(path: Path) -> None:
         "关于使用方式：团队激励余额与「可提现佣金」在系统中通常分列管理。若平台允许将团队激励用于商城抵扣、提现或转入其他权益，将以收银台、提现页及公告为准；若某渠道暂未开放，亦请以页面提示为准，避免误解。",
     )
 
-    add_heading(doc, "六、收益如何落实到您手中", level=2)
+    add_heading(doc, "七、收益如何落实到您手中", level=2)
     add_para(
         doc,
         "经平台确认后的奖励，会计入您账户中的「可提现佣金」或同类余额字段，您可通过以下方式使用：",
@@ -99,23 +137,27 @@ def build_document(path: Path) -> None:
         for r in p.runs:
             set_run_font(r)
 
-    add_heading(doc, "七、关于提现手续费与到账金额", level=2)
+    add_heading(doc, "八、关于提现手续费与到账金额", level=2)
     add_para(
         doc,
-        "为覆盖提现审核、资金划转与对账等运营成本，平台可对「佣金提现」设置手续费。手续费由运营在后台配置（常见形式为：按提现金额的百分比收取，和/或每笔收取固定金额），二者可同时存在。举例：若您申请提现 100 元，手续费合计 2 元，则实际到账为 98 元；该 100 元将从您的可提现佣金余额中冻结并扣减。若手续费规则导致到账金额低于法定或平台最低打款标准，系统将提示您调整申请金额。",
+        "在您申请将推广佣金提现至微信、银行等外部账户时，平台需依法配合涉税信息管理、代扣代缴或申报辅导，并承担支付通道、对账、反洗钱合规及账务处理等综合成本。**因此，平台所设提现手续费，首要用途为覆盖与提现相关的税费及上述合规与运营支出**；具体费率由平台在后台配置（常见为按提现金额的一定比例和/或每笔固定金额），二者可同时存在。",
+    )
+    add_para(
+        doc,
+        "举例：若您申请提现 100 元，手续费合计 2 元，则实际划付至您外部账户的金额为 98 元；该 100 元仍从您的可提现佣金余额中扣减。若手续费规则导致到账金额低于法定或平台最低打款标准，系统将提示您调整申请金额。手续费不构成对商品或服务的加价，亦不作为平台对您的经营性加价利润。",
     )
     add_para(
         doc,
         "再次说明：上述手续费仅针对「提现至外部账户」的行为；使用佣金在本平台直接抵扣购物款时，不收取该提现类手续费。",
     )
 
-    add_heading(doc, "八、合规与诚信提示", level=2)
+    add_heading(doc, "九、合规与诚信提示", level=2)
     add_para(
         doc,
         "请遵守国家广告法、反不正当竞争及平台关于真实宣传、禁止传销等规定。奖励属于个人经营或劳务所得的，请依法履行纳税申报义务。平台有权根据监管要求与经营需要调整规则，并将通过合理方式提前或及时公示。",
     )
 
-    add_heading(doc, "九、进一步了解", level=2)
+    add_heading(doc, "十、进一步了解", level=2)
     add_para(
         doc,
         "若您需要了解当前等级、可提现余额、单笔抵扣上限或提现手续费标准，请登录小程序或联系平台客服，以实时展示与人工答复为准。",
@@ -129,8 +171,14 @@ def build_document(path: Path) -> None:
 def main():
     out = Path("e:/MMBS16/docs/分销奖励与收益说明.docx")
     out.parent.mkdir(parents=True, exist_ok=True)
-    build_document(out)
-    print("written:", out)
+    try:
+        build_document(out)
+        print("written:", out)
+    except PermissionError:
+        alt = out.with_name("分销奖励与收益说明_生成版.docx")
+        build_document(alt)
+        print("written (原文件被占用，已写入):", alt)
+        print("请关闭 Word 后删除或替换原文件，再将本文件重命名为：分销奖励与收益说明.docx")
 
 
 if __name__ == "__main__":
