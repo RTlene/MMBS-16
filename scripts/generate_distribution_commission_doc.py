@@ -39,23 +39,51 @@ def _style_table_cell(cell, text, size_pt=10):
             set_run_font(r, size_pt)
 
 
-def add_distributor_level_simple_table(doc, data_rows=5):
-    """简单分销等级表（示意），供平台填写后公示。"""
-    headers = ["等级名称", "次序", "核心说明", "备注"]
-    table = doc.add_table(rows=1 + data_rows, cols=len(headers))
+def add_distributor_level_simple_table(doc):
+    """
+    分销等级对照表：至少展示两档差异（示例两行 + 预留行），列上突出「相对基础档」的差异维度。
+    """
+    headers = [
+        "等级名称",
+        "档位排序",
+        "推广与分润\n（相对基础档）",
+        "供货成本与团队激励\n（相对基础档）",
+        "备注",
+    ]
+    # 1 表头 + 2 行「两档差异」示例 + 2 行预留
+    example_rows = [
+        [
+            "基础分销档（示例）",
+            "入门档",
+            "以直接分享、促成下单为主；享受基础推广奖励与常规分享比例，适合起步伙伴。",
+            "对应常规供货或成本政策；团队激励按入门规则参与，侧重学习与跑通流程。",
+            "示例仅供理解结构；名称、比例以平台公示为准。",
+        ],
+        [
+            "进阶分销档（示例）",
+            "高于入门档",
+            "在入门档之上，通常享有更高分享比例或更大单笔可分润空间（是否叠加活动以公示为准）。",
+            "通常对应更优惠的供货或成本条件，并可能获得更高权重的团队激励与渠道支持。",
+            "示例仅供理解结构；名称、比例以平台公示为准。",
+        ],
+        ["（平台自填等级）", "—", "—", "—", "可写升级条件、有效期等。"],
+        ["（平台自填等级）", "—", "—", "—", "—"],
+    ]
+    table = doc.add_table(rows=1 + len(example_rows), cols=len(headers))
     table.style = "Table Grid"
     for c, h in enumerate(headers):
-        _style_table_cell(table.rows[0].cells[c], h, 10)
-    for r in range(1, 1 + data_rows):
-        for c in range(len(headers)):
-            _style_table_cell(table.rows[r].cells[c], "—", 10)
+        _style_table_cell(table.rows[0].cells[c], h, 9)
+    for r, row_cells in enumerate(example_rows, start=1):
+        for c, val in enumerate(row_cells):
+            _style_table_cell(table.rows[r].cells[c], val, 9)
 
     add_heading(doc, "表后说明：各列含义", level=3)
     col_help = [
-        "「等级名称」：您在小程序或合作资料中看到的分销身份名称，如「合作店」「区域伙伴」等，以平台实际配置为准。",
-        "「次序」：用于区分等级高低的序号；数字大小与「越高或越低」的对应关系以平台规则为准，便于理解链条中的先后关系。",
-        "「核心说明」：对该等级在拿货成本、推广奖励、团队权益等方面的概括性一句话，便于伙伴对照自身身份；具体数值以合同、后台或活动页公示为准。",
-        "「备注」：可填写升级条件提示、有效期、特殊政策等补充信息；无则保持空白或横线即可。",
+        "「等级名称」：您在小程序或合作资料中看到的分销身份名称；上表前两行为**对照示例**，展示「入门档」与「更高一档」在表述上的典型差异，便于读者理解；**非对贵司实际等级的承诺**，贵司应将示例替换为真实等级名称。",
+        "「档位排序」：标明各档之间相对高低或先后关系（如入门、进阶等），具体以贵司规则为准。",
+        "「推广与分润（相对基础档）」：用一句话概括该档在**直接/间接推广奖励、分享比例**等方面，相对最低档或基础档**多了什么、优在哪里**；不写具体公式。",
+        "「供货成本与团队激励（相对基础档）」：概括该档在**进货/成本政策**以及**团队激励权重或资格**上，相对基础档**有何不同**；具体数值以合同、后台或活动页为准。",
+        "「备注」：可写升级条件、考核周期、区域限制、与活动叠加以何者优先等；无则填横线。",
     ]
     for line in col_help:
         p = doc.add_paragraph(line, style="List Bullet")
@@ -92,9 +120,9 @@ def build_document(path: Path) -> None:
     add_heading(doc, "三、分销等级一览（简表）", level=2)
     add_para(
         doc,
-        "为便于理解不同合作身份对应的权益差异，平台以简表形式列出分销等级框架。下表为示意模板，**各等级名称、次序及说明由平台填写后向用户公示**；若与线上一致，您可直接对照小程序内展示。",
+        "为便于理解**至少两档分销身份**在权益上的典型差异，下表采用「对照式」列设计：除等级名称与排序外，专门从「推广与分润」「供货成本与团队激励」两个维度，说明**相对基础档**多出的价值。表中**前两行为结构示例**，贵司应替换为真实等级名称与表述；后两行为预留行，可增列更多档位。若与线上一致，读者也可直接对照小程序内展示。",
     )
-    add_distributor_level_simple_table(doc, data_rows=5)
+    add_distributor_level_simple_table(doc)
 
     add_heading(doc, "四、奖励从哪里来", level=2)
     add_para(
