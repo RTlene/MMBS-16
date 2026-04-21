@@ -1518,6 +1518,11 @@ const Store = sequelize.define('Store', {
         allowNull: true,
         comment: '营业时间'
     },
+    managerMemberId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '门店管理者会员ID'
+    },
     status: {
         type: DataTypes.ENUM('active', 'inactive'),
         allowNull: false,
@@ -3323,6 +3328,8 @@ Order.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
 Order.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 Order.belongsTo(Store, { foreignKey: 'storeId', as: 'store' });
 Store.hasMany(Order, { foreignKey: 'storeId', as: 'orders' });
+Store.belongsTo(Member, { foreignKey: 'managerMemberId', as: 'managerMember' });
+Member.hasMany(Store, { foreignKey: 'managerMemberId', as: 'managedStores' });
 Member.hasMany(Order, { foreignKey: 'memberId', as: 'orders' });
 Product.hasMany(Order, { foreignKey: 'productId', as: 'orders' });
 
@@ -3725,6 +3732,28 @@ async function init() {
       }
     } catch (e) {
       console.warn('[DB] Products deliveryConstraint 自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
+    // ===== 自动迁移：stores 增加 managerMemberId（门店管理者会员）=====
+    try {
+      const qi = sequelize.getQueryInterface();
+      const hasCol = (desc, name) =>
+        desc &&
+        Object.keys(desc).some(
+          (k) => k.toLowerCase().replace(/_/g, '') === name.toLowerCase().replace(/_/g, '')
+        );
+      const storeDesc = await qi.describeTable('stores').catch(() => ({}));
+      if (storeDesc && Object.keys(storeDesc).length > 0 && !hasCol(storeDesc, 'managerMemberId')) {
+        console.log('[DB] stores 表缺少 managerMemberId，开始自动迁移(加列)...');
+        await qi.addColumn('stores', 'managerMemberId', {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          comment: '门店管理者会员ID'
+        });
+        console.log('[DB] stores.managerMemberId 迁移完成');
+      }
+    } catch (e) {
+      console.warn('[DB] stores managerMemberId 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
     // ===== 自动迁移：distributor_levels 分销升级条件增加积分列（部署启动时执行，无需单独跑脚本/SQL）=====
