@@ -4,6 +4,7 @@
 
 const auth = require('../../utils/auth.js');
 const util = require('../../utils/util.js');
+const { computeCartDeliveryOptions } = require('../../utils/deliveryConstraint.js');
 
 Page({
   data: {
@@ -174,6 +175,19 @@ Page({
       });
       return;
     }
+
+    const forCheck = selectedItems.map((item) => ({
+      deliveryConstraint: item.deliveryConstraint || 'both'
+    }));
+    const opt = computeCartDeliveryOptions(forCheck);
+    if (!opt.ok) {
+      wx.showModal({
+        title: '无法一起结算',
+        content: opt.message,
+        showCancel: false
+      });
+      return;
+    }
     
     const app = getApp();
     app.globalData.pendingOrder = {
@@ -185,7 +199,8 @@ Page({
         image: item.image,
         price: parseFloat(item.price || 0),
         quantity: item.quantity,
-        skuName: item.skuName
+        skuName: item.skuName,
+        deliveryConstraint: item.deliveryConstraint || 'both'
       }))
     };
     

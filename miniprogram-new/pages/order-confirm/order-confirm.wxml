@@ -8,7 +8,7 @@
     </view>
     <view class="delivery-type-card">
       <view 
-        class="delivery-option {{deliveryType === 'delivery' ? 'active' : ''}}"
+        class="delivery-option {{deliveryType === 'delivery' ? 'active' : ''}} {{deliveryAllowExpress ? '' : 'disabled'}}"
         data-type="delivery"
         bindtap="onDeliveryTypeChange"
       >
@@ -16,7 +16,7 @@
         <text class="option-desc">快递配送到家</text>
       </view>
       <view 
-        class="delivery-option {{deliveryType === 'pickup' ? 'active' : ''}}"
+        class="delivery-option {{deliveryType === 'pickup' ? 'active' : ''}} {{deliveryAllowPickup ? '' : 'disabled'}}"
         data-type="pickup"
         bindtap="onDeliveryTypeChange"
       >
@@ -24,6 +24,7 @@
         <text class="option-desc">到店自提</text>
       </view>
     </view>
+    <view class="delivery-constraint-hint" wx:if="{{deliveryConstraintHint}}">{{deliveryConstraintHint}}</view>
   </view>
 
   <!-- 收货信息（仅配送上门显示） -->

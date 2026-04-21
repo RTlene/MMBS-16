@@ -5,6 +5,7 @@
 const request = require('../../utils/request.js');
 const { API } = require('../../config/api.js');
 const { splitRegionDetail } = require('../../utils/address.js');
+const { computeCartDeliveryOptions } = require('../../utils/deliveryConstraint.js');
 
 // 与后端/地址字段长度一致
 const LIMITS = { receiverName: 50, receiverPhone: 20, shippingAddress: 200 };
@@ -49,7 +50,11 @@ Page({
     promotionDiscountTotal: 0,
     subtotalAfterPromo: 0,
     pricingDiscounts: [],
-    promotionDiscountInvalidatedByCoupon: 0  // 选不可与促销同享的券时，保存被失效的促销金额用于展示划掉
+    promotionDiscountInvalidatedByCoupon: 0,  // 选不可与促销同享的券时，保存被失效的促销金额用于展示划掉
+    deliveryAllowExpress: true,
+    deliveryAllowPickup: true,
+    deliveryConstraintHint: '',
+    deliveryForcedType: null
   },
 
   onLoad() {
@@ -70,6 +75,33 @@ Page({
     this.pendingOrder = pendingOrder;
     const items = pendingOrder.items;
 
+    const deliveryOpt = computeCartDeliveryOptions(
+      items.map((it) => ({ deliveryConstraint: it.deliveryConstraint || 'both' }))
+    );
+    if (!deliveryOpt.ok) {
+      wx.showModal({
+        title: '无法结算',
+        content: deliveryOpt.message,
+        showCancel: false,
+        success: () => wx.navigateBack()
+      });
+      return;
+    }
+    let initialDeliveryType = this.data.deliveryType;
+    if (deliveryOpt.forcedDeliveryType) {
+      initialDeliveryType = deliveryOpt.forcedDeliveryType;
+    } else if (!deliveryOpt.allowDelivery && deliveryOpt.allowPickup) {
+      initialDeliveryType = 'pickup';
+    } else if (deliveryOpt.allowDelivery && !deliveryOpt.allowPickup) {
+      initialDeliveryType = 'delivery';
+    }
+    let deliveryConstraintHint = '';
+    if (deliveryOpt.forcedDeliveryType === 'pickup') {
+      deliveryConstraintHint = '本单商品仅支持门店自提';
+    } else if (deliveryOpt.forcedDeliveryType === 'delivery') {
+      deliveryConstraintHint = '本单商品仅支持快递配送';
+    }
+
     const localOriginal = items.reduce((sum, item) => {
       return sum + (parseFloat(item.price || 0) * (item.quantity || 1));
     }, 0);
@@ -89,7 +121,13 @@ Page({
       availableCoupons: [],
       receiverName: appMember.realName || appMember.nickname || '',
       receiverPhone: appMember.phone || appMember.mobile || '',
-      shippingAddress: ''
+      shippingAddress: '',
+      deliveryType: initialDeliveryType,
+      selectedStore: initialDeliveryType === 'delivery' ? null : this.data.selectedStore,
+      deliveryAllowExpress: deliveryOpt.allowDelivery,
+      deliveryAllowPickup: deliveryOpt.allowPickup,
+      deliveryConstraintHint,
+      deliveryForcedType: deliveryOpt.forcedDeliveryType
     });
 
     this.loadOrderPricing();
@@ -242,6 +280,15 @@ Page({
   onDeliveryTypeChange(e) {
     const type = e.currentTarget.dataset.type;
     if (type === this.data.deliveryType) return;
+    const { deliveryAllowExpress, deliveryAllowPickup } = this.data;
+    if (type === 'delivery' && !deliveryAllowExpress) {
+      wx.showToast({ title: '本单不可选快递配送', icon: 'none' });
+      return;
+    }
+    if (type === 'pickup' && !deliveryAllowPickup) {
+      wx.showToast({ title: '本单不可选门店自提', icon: 'none' });
+      return;
+    }
     this.setData({
       deliveryType: type,
       selectedStore: type === 'delivery' ? null : this.data.selectedStore

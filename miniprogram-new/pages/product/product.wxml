@@ -46,6 +46,10 @@
       <view class="product-subtitle" wx:if="{{productBasic.description}}">
         {{productBasic.description}}
       </view>
+      <view class="delivery-attr-row" wx:if="{{productBasic.deliveryConstraintText}}">
+        <text class="delivery-attr-label">配送</text>
+        <text class="delivery-attr-value">{{productBasic.deliveryConstraintText}}</text>
+      </view>
       
       <!-- 优惠信息 -->
       <view class="discount-info" wx:if="{{discountInfo}}">

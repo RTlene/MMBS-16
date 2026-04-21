@@ -36,6 +36,10 @@
         <text class="order-no">订单号：{{item.orderNo}}</text>
         <text class="order-status {{item.status}}">{{item.statusText}}</text>
       </view>
+      <view class="order-delivery-row" wx:if="{{item.deliveryTypeText}}">
+        <text class="order-delivery-label">配送</text>
+        <text class="order-delivery-value">{{item.deliveryTypeText}}</text>
+      </view>
 
       <!-- 商品信息 -->
       <view class="order-product">

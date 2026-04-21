@@ -743,6 +743,8 @@ async function editProduct(id) {
                 cb.checked = idSet.has(Number(cb.value));
             });
             document.getElementById('productType').value = product.productType || 'physical';
+            var dcEl = document.getElementById('deliveryConstraint');
+            if (dcEl) dcEl.value = product.deliveryConstraint || 'both';
             document.getElementById('productStatus').value = product.status || 'active';
             document.getElementById('productDescription').value = product.description || '';
             document.getElementById('productIsHot').checked = !!product.isHot;

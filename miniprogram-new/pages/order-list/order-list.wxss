@@ -80,6 +80,21 @@
   border-bottom: 1rpx solid #F0F0F0;
 }
 
+.order-delivery-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: -8rpx 0 16rpx;
+  font-size: 24rpx;
+}
+.order-delivery-label {
+  color: #999;
+}
+.order-delivery-value {
+  color: #333;
+  font-weight: 500;
+}
+
 .order-no {
   font-size: 24rpx;
   color: #999999;

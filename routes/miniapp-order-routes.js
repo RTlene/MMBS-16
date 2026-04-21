@@ -6,6 +6,12 @@ const configStore = require('../services/configStore');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const { enrichPickupStoreOnOrderJson, persistMiniappOrderPickupFields } = require('../utils/orderStoreEnrich');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
+const {
+    normalizeDeliveryConstraint,
+    intersectDeliveryTypesForProducts,
+    deliveryConstraintLabel,
+    orderDeliveryTypeLabel
+} = require('../utils/deliveryConstraint');
 
 // 尝试加载 PromotionService，如果失败则设为 null
 let PromotionService = null;
@@ -27,6 +33,32 @@ function normalizeMiniappDeliveryType(raw) {
     const s = String(raw == null ? '' : raw).trim().toLowerCase();
     if (s === 'pickup' || s === '自提' || s === 'store_pickup' || s === 'store') return 'pickup';
     return 'delivery';
+}
+
+/** 下单失败错误映射（统一中文友好提示，避免透出英文技术细节） */
+function mapCreateOrderErrorToZh(err) {
+    const msg = String((err && err.message) || '').toLowerCase();
+    const raw = String((err && err.message) || '');
+
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+        return { message: '下单超时，请稍后重试', errorCode: 'ORDER_TIMEOUT' };
+    }
+    if (msg.includes('econnreset') || msg.includes('econnrefused') || msg.includes('etimedout')) {
+        return { message: '网络繁忙，请稍后重试', errorCode: 'ORDER_NETWORK_ERROR' };
+    }
+    if (msg.includes('sequelizedatabaseerror') || msg.includes('database') || msg.includes('sql')) {
+        return { message: '系统繁忙，请稍后重试', errorCode: 'ORDER_DB_ERROR' };
+    }
+    if (raw.includes('库存不足')) {
+        return { message: raw, errorCode: 'ORDER_STOCK_SHORTAGE' };
+    }
+    if (raw.includes('配送方式冲突')) {
+        return { message: raw, errorCode: 'ORDER_DELIVERY_CONFLICT' };
+    }
+    if (raw.includes('配送要求不符')) {
+        return { message: raw, errorCode: 'ORDER_DELIVERY_NOT_ALLOWED' };
+    }
+    return { message: '下单失败，请稍后重试', errorCode: 'ORDER_CREATE_FAILED' };
 }
 
 /** 订单是否门店自提（列表筛选 / 文案展示） */
@@ -131,10 +163,83 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
         if (!Array.isArray(appliedCoupons)) appliedCoupons = [];
         if (!Array.isArray(appliedPromotions)) appliedPromotions = [];
 
+        const member = req.member;
+
+        // 重新加载会员信息以获取最新的佣金和积分余额
+        const freshMember = await Member.findByPk(member.id);
+        if (!freshMember) {
+            return res.status(404).json({
+                code: 1,
+                message: '会员不存在'
+            });
+        }
+
+        // 兼容旧参数，自动转换为单商品结算
+        if ((!items || items.length === 0) && productId && skuId) {
+            items = [{ productId, skuId, quantity }];
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                code: 1,
+                message: '请至少选择一个商品'
+            });
+        }
+
+        for (const rawItem of items) {
+            const { productId: pid0, skuId: sid0, quantity: qty0 } = rawItem || {};
+            if (!pid0 || !sid0 || !qty0) {
+                return res.status(400).json({
+                    code: 1,
+                    message: '商品信息不完整'
+                });
+            }
+        }
+
+        const productIdSet = [
+            ...new Set(
+                items
+                    .map((it) => parseInt(it.productId, 10))
+                    .filter((n) => Number.isFinite(n) && n > 0)
+            )
+        ];
+        const productRows = await Product.findAll({ where: { id: { [Op.in]: productIdSet } } });
+        const pmap = new Map(productRows.map((p) => [p.id, p]));
+        if (productRows.length !== productIdSet.length) {
+            return res.status(400).json({
+                code: 1,
+                message: '商品不存在或已下架'
+            });
+        }
+        for (const pid of productIdSet) {
+            const p = pmap.get(pid);
+            if (!p || p.status !== 'active') {
+                return res.status(400).json({
+                    code: 1,
+                    message: '商品不存在或已下架'
+                });
+            }
+        }
+
+        const constraintValues = productIdSet.map((pid) =>
+            normalizeDeliveryConstraint(pmap.get(pid).deliveryConstraint)
+        );
+        const allowedByProducts = intersectDeliveryTypesForProducts(constraintValues);
+        if (allowedByProducts.size === 0) {
+            return res.status(400).json({
+                code: 1,
+                message:
+                    '订单内商品配送方式冲突：存在仅支持快递与仅支持自提的商品，请拆分为多笔订单后再结算。'
+            });
+        }
+
+        const hasServiceProduct = productRows.some((p) => p.productType === 'service');
+
         /**
          * 配送方式最终值：
          * - 客户端若漏传 deliveryType（网关/旧版/序列化问题），只要带了有效 storeId，仍按自提落库。
          * - 仅当请求里明确传 delivery / 快递 意图时强制快递，并忽略 storeId（防止脏字段）。
+         * - 再根据商品 deliveryConstraint 取交集；若仅一种可选则强制该方式。
          */
         const explicitExpress =
             String(deliveryTypeRaw || '').trim().toLowerCase() === 'delivery' ||
@@ -157,38 +262,28 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             deliveryType = 'pickup';
         }
 
+        if (allowedByProducts.size === 1) {
+            const only = [...allowedByProducts][0];
+            deliveryType = only;
+            if (only === 'delivery') {
+                storeId = null;
+            }
+        } else if (!allowedByProducts.has(deliveryType)) {
+            return res.status(400).json({
+                code: 1,
+                message: '所选配送方式与商品配送要求不符'
+            });
+        }
+
         console.log('[MiniappOrder] POST /orders parsed', {
             deliveryType,
             storeId,
             explicitExpress,
             hasValidStore,
             itemCount: items.length,
+            allowedByProducts: [...allowedByProducts],
             bodyKeysSample: (_rawKeys || []).slice(0, 15)
         });
-
-        const member = req.member;
-        
-        // 重新加载会员信息以获取最新的佣金和积分余额
-        const freshMember = await Member.findByPk(member.id);
-        if (!freshMember) {
-            return res.status(404).json({
-                code: 1,
-                message: '会员不存在'
-            });
-        }
-
-        // 检查订单中是否包含服务商品
-        let hasServiceProduct = false;
-        for (const rawItem of items) {
-            const { productId } = rawItem;
-            if (productId) {
-                const product = await Product.findByPk(productId);
-                if (product && product.productType === 'service') {
-                    hasServiceProduct = true;
-                    break;
-                }
-            }
-        }
 
         const isPickup = deliveryType === 'pickup';
         if (!hasServiceProduct) {
@@ -207,18 +302,6 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             }
         }
 
-        // 兼容旧参数，自动转换为单商品结算
-        if ((!items || items.length === 0) && productId && skuId) {
-            items = [{ productId, skuId, quantity }];
-        }
-
-        if (!Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({
-                code: 1,
-                message: '请至少选择一个商品'
-            });
-        }
-
         const normalizedItems = [];
         let orderTotalAmount = 0;
         let totalQuantity = 0;
@@ -233,7 +316,8 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 });
             }
 
-            const product = await Product.findByPk(productId);
+            const pidNum = parseInt(productId, 10);
+            const product = pmap.get(pidNum);
             if (!product || product.status !== 'active') {
                 return res.status(400).json({
                     code: 1,
@@ -333,7 +417,9 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                 productSnapshot: {
                     id: product.id,
                     name: product.name,
-                    brand: product.brand || null
+                    brand: product.brand || null,
+                    deliveryConstraint: normalizeDeliveryConstraint(product.deliveryConstraint),
+                    deliveryConstraintText: deliveryConstraintLabel(product.deliveryConstraint)
                 },
                 skuSnapshot: {
                     id: sku.id,
@@ -652,10 +738,11 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
         });
     } catch (error) {
         console.error('创建订单失败:', error);
+        const mapped = mapCreateOrderErrorToZh(error);
         res.status(500).json({
             code: 1,
-            message: '创建订单失败',
-            error: error.message
+            message: mapped.message,
+            errorCode: mapped.errorCode
         });
     }
 });
@@ -795,6 +882,7 @@ router.get('/orders', authenticateMiniappUser, async (req, res) => {
                 totalAmount: order.totalAmount,
                 status: order.status,
                 deliveryType: order.deliveryType || null,
+                deliveryTypeText: orderDeliveryTypeLabel(order.deliveryType),
                 shippingMethod: order.shippingMethod || null,
                 statusText:
                     hasServiceProduct && order.status === 'paid' && hasUnusedCodes
@@ -1072,6 +1160,7 @@ router.get('/orders/:id', authenticateMiniappUser, async (req, res) => {
             paymentMethodText: getPaymentMethodText(order.paymentMethod),
             paymentTime: order.paymentTime,
             deliveryType: order.deliveryType || 'delivery',
+            deliveryTypeText: orderDeliveryTypeLabel(order.deliveryType),
             storeId: order.storeId,
             store: order.store
                 ? {
@@ -1607,6 +1696,8 @@ function formatOrderItems(rawItems = []) {
             || (productSnapshot && Array.isArray(productSnapshot.images) && productSnapshot.images[0]) 
             || null;
 
+        const dcRaw = productSnapshot && productSnapshot.deliveryConstraint;
+        const dcNorm = normalizeDeliveryConstraint(dcRaw);
         return {
             id: item.id,
             productId: item.productId,
@@ -1618,6 +1709,10 @@ function formatOrderItems(rawItems = []) {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             totalAmount: item.totalAmount,
+            deliveryConstraint: dcNorm,
+            deliveryConstraintText:
+                (productSnapshot && productSnapshot.deliveryConstraintText) ||
+                deliveryConstraintLabel(dcNorm),
             appliedCoupons: item.appliedCoupons || [],
             appliedPromotions: item.appliedPromotions || [],
             discounts: item.discounts || []

@@ -86,6 +86,26 @@
   line-height: 1.5;
 }
 
+.delivery-attr-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  background: #f0f7ff;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+.delivery-attr-label {
+  color: #666;
+  flex-shrink: 0;
+}
+.delivery-attr-value {
+  color: #333;
+  font-weight: 500;
+}
+
 .discount-info {
   display: flex;
   align-items: center;

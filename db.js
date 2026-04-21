@@ -219,6 +219,12 @@ const Product = sequelize.define('Product', {
         defaultValue: 'physical',
         comment: '商品类型：physical-实物商品，service-服务商品'
     },
+    deliveryConstraint: {
+        type: DataTypes.ENUM('express_only', 'pickup_only', 'both'),
+        allowNull: false,
+        defaultValue: 'both',
+        comment: '配送限制：express_only-仅快递，pickup_only-仅自提，both-快递或自提均可'
+    },
     createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -3696,6 +3702,29 @@ async function init() {
       }
     } catch (e) {
       console.warn('[DB] product_categories 自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
+    // ===== 自动迁移：Products 增加 deliveryConstraint（商品配送方式限制）=====
+    try {
+      const qi = sequelize.getQueryInterface();
+      const hasCol = (desc, name) =>
+        desc &&
+        Object.keys(desc).some(
+          (k) => k.toLowerCase().replace(/_/g, '') === name.toLowerCase().replace(/_/g, '')
+        );
+      const prodDesc = await qi.describeTable('Products').catch(() => ({}));
+      if (prodDesc && Object.keys(prodDesc).length > 0 && !hasCol(prodDesc, 'deliveryConstraint')) {
+        console.log('[DB] Products 表缺少 deliveryConstraint，开始自动迁移(加列)...');
+        await qi.addColumn('Products', 'deliveryConstraint', {
+          type: DataTypes.ENUM('express_only', 'pickup_only', 'both'),
+          allowNull: true,
+          defaultValue: 'both',
+          comment: '配送限制：express_only-仅快递，pickup_only-仅自提，both-均可'
+        });
+        console.log('[DB] Products.deliveryConstraint 迁移完成');
+      }
+    } catch (e) {
+      console.warn('[DB] Products deliveryConstraint 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
     // ===== 自动迁移：distributor_levels 分销升级条件增加积分列（部署启动时执行，无需单独跑脚本/SQL）=====

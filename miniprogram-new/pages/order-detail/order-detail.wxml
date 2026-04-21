@@ -21,6 +21,10 @@
       </view>
       <text class="status-text">{{order.statusText}}</text>
       <text class="order-no">订单号：{{order.orderNo}}</text>
+      <view class="delivery-type-banner" wx:if="{{order.deliveryTypeText}}">
+        <text class="delivery-type-label">配送方式</text>
+        <text class="delivery-type-value">{{order.deliveryTypeText}}</text>
+      </view>
     </view>
 
     <!-- 收货信息（配送上门） -->
@@ -72,6 +76,7 @@
         <view class="item-info">
           <text class="item-name">{{item.productName}}</text>
           <text class="item-sku" wx:if="{{item.skuName}}">{{item.skuName}}</text>
+          <text class="item-delivery-attr" wx:if="{{item.deliveryConstraintText}}">商品配送：{{item.deliveryConstraintText}}</text>
           <view class="item-meta">
             <text class="item-price">¥{{item.unitPrice}}</text>
             <text class="item-qty">x{{item.quantity}}</text>

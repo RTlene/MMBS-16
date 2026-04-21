@@ -845,6 +845,18 @@
                         </select>
                     </div>
                 </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex:1;min-width:260px;">
+                        <label for="deliveryConstraint">配送方式限制 *</label>
+                        <select id="deliveryConstraint" name="deliveryConstraint" required>
+                            <option value="both">快递或门店自提均可</option>
+                            <option value="express_only">仅支持快递配送</option>
+                            <option value="pickup_only">仅支持门店自提</option>
+                        </select>
+                        <small style="display:block;margin-top:6px;color:#666;font-size:12px;">同一笔订单内商品须能统一为快递或自提；「仅快递」与「仅自提」不可混单结算。</small>
+                    </div>
+                </div>
                 
                 <div class="form-row">
                     <div class="form-group">

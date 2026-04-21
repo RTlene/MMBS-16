@@ -7,6 +7,7 @@ const { API, replaceUrlParams, API_BASE_URL, CLOUD_ENV, CLOUD_SERVICE_NAME } = r
 const util = require('../../utils/util.js');
 const auth = require('../../utils/auth.js');
 const { parseLaunchSceneParams, persistReferrerFromSceneParams } = require('../../utils/sceneLaunch.js');
+const { deliveryConstraintLabel, normalizeDeliveryConstraint } = require('../../utils/deliveryConstraint.js');
 
 /**
  * 将可能为字符串/JSON 的字段转成数组
@@ -271,6 +272,13 @@ Page({
       
       // 确保获取商品类型（优先从product对象获取，其次从detail根对象）
       const productType = product.productType || detail.productType || 'physical';
+      const deliveryConstraint = normalizeDeliveryConstraint(
+        product.deliveryConstraint != null ? product.deliveryConstraint : detail.deliveryConstraint
+      );
+      const deliveryConstraintText =
+        product.deliveryConstraintText ||
+        detail.deliveryConstraintText ||
+        deliveryConstraintLabel(deliveryConstraint);
       
       // 价格区间：多规格时用于统一展示「¥min - ¥max」
       const basePrice = Number(product.price) || 0;
@@ -301,7 +309,9 @@ Page({
           originalPrice: Number(product.originalPrice) || 0,
           stock: totalStock,
           status: product.status,
-          productType: productType
+          productType: productType,
+          deliveryConstraint,
+          deliveryConstraintText
         },
         carouselImages,
         carouselItems,
@@ -1187,7 +1197,8 @@ Page({
       image: images[0] || '',
       price: sku.price || product.price,
       skuName: sku.name,
-      productType: product.productType
+      productType: product.productType,
+      deliveryConstraint: product.deliveryConstraint || 'both'
     }, this.data.quantity);
     
     // 隐藏弹窗
@@ -1244,7 +1255,8 @@ Page({
         image: (this.data.carouselImages && this.data.carouselImages[0]) || '',
         price: parseFloat(sku.price || product.price || 0),
         quantity: this.data.quantity,
-        skuName: sku.name
+        skuName: sku.name,
+        deliveryConstraint: product.deliveryConstraint || 'both'
       }]
     };
     

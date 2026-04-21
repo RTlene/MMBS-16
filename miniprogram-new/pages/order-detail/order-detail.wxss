@@ -68,6 +68,20 @@
   opacity: 0.9;
 }
 
+.delivery-type-banner {
+  margin-top: 20rpx;
+  padding: 16rpx 20rpx;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  font-size: 26rpx;
+}
+.delivery-type-label { opacity: 0.9; }
+.delivery-type-value { font-weight: 600; }
+
 /* 区块标题 */
 .section-title {
   font-size: 28rpx;
@@ -192,6 +206,12 @@
 .item-sku {
   font-size: 24rpx;
   color: #999999;
+}
+
+.item-delivery-attr {
+  font-size: 22rpx;
+  color: #3481b8;
+  line-height: 1.4;
 }
 
 .item-meta {

@@ -282,6 +282,7 @@ router.get('/export', async (req, res) => {
       'categoryIds',
       'categoryName',
       'productType',
+      'deliveryConstraint',
       'productStatus',
       'isHot',
       'productSortOrder',
@@ -334,6 +335,7 @@ router.get('/export', async (req, res) => {
           categoryIds: (j.categoryIds || []).join(';'),
           categoryName: catNames || (p.category && p.category.name) || '',
           productType: p.productType,
+          deliveryConstraint: p.deliveryConstraint ?? 'both',
           productStatus: p.status,
           isHot: p.isHot,
           productSortOrder: p.sortOrder ?? ''
@@ -404,6 +406,7 @@ router.get('/import-template', async (req, res) => {
     'categoryIds',
     'brand',
     'productType',
+    'deliveryConstraint',
     'price',
     'originalPrice',
     'stock',
@@ -411,7 +414,7 @@ router.get('/import-template', async (req, res) => {
     'status'
   ];
   const sample = [
-    ['', '示例商品', '1', '1;2', '示例品牌', 'physical', '9.99', '19.99', '100', '0', 'active']
+    ['', '示例商品', '1', '1;2', '示例品牌', 'physical', 'both', '9.99', '19.99', '100', '0', 'active']
   ];
   const csv = toCsv(headers, sample);
   sendCsv(res, 'products_import_template.csv', csv);
@@ -445,11 +448,19 @@ router.post('/import', upload.single('file'), async (req, res) => {
         continue;
       }
 
+      const deliveryConstraintRaw = (r.deliveryConstraint || '').trim() || 'both';
+      if (!['express_only', 'pickup_only', 'both'].includes(deliveryConstraintRaw)) {
+        results.skipped += 1;
+        results.errors.push({ line, reason: `deliveryConstraint 不合法: ${deliveryConstraintRaw}` });
+        continue;
+      }
+
       const catIds = parseCategoryIdsFromCsvRow(r);
       const payload = {
         name,
         brand: (r.brand || '').trim() || null,
         productType,
+        deliveryConstraint: deliveryConstraintRaw,
         price: r.price !== '' ? Number(r.price) : undefined,
         originalPrice: r.originalPrice !== '' ? Number(r.originalPrice) : undefined,
         stock: safeInt(r.stock) ?? undefined,

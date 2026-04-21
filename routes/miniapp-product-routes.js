@@ -3,6 +3,7 @@ const axios = require('axios');
 const { Op, Sequelize } = require('sequelize');
 const { Product, Category, ProductSKU, ProductAttribute, sequelize } = require('../db');
 const { mergeWhereWithCategoryFilter, enrichProductCategoryArrays } = require('../utils/productCategoryHelpers');
+const { normalizeDeliveryConstraint, deliveryConstraintLabel } = require('../utils/deliveryConstraint');
 const { authenticateToken } = require('../middleware/auth');
 const { optionalAuthenticate } = require('../middleware/miniapp-auth');
 const PromotionService = require('../services/promotionService');
@@ -275,7 +276,7 @@ router.get('/products', async (req, res) => {
             rows = await Product.findAll({
                 where: { id: { [Op.in]: pageIds } },
                 attributes: isLite
-                    ? ['id', 'name', 'images', 'isFeatured', 'isHot', 'sortOrder', 'createdAt']
+                    ? ['id', 'name', 'images', 'isFeatured', 'isHot', 'sortOrder', 'createdAt', 'deliveryConstraint']
                     : undefined,
                 include: listIncludes,
                 subQuery: false
@@ -289,6 +290,7 @@ router.get('/products', async (req, res) => {
             if (isLite) {
                 const { priceMin, priceMax, totalStock } = priceRangeFromSkus(product);
                 const firstImage = pickLiteImage(product.images);
+                const dcL = normalizeDeliveryConstraint(product.deliveryConstraint);
                 return {
                     id: product.id,
                     name: product.name,
@@ -304,7 +306,9 @@ router.get('/products', async (req, res) => {
                     isFeatured: product.isFeatured || false,
                     isHot: product.isHot || false,
                     status: 'active',
-                    createdAt: product.createdAt
+                    createdAt: product.createdAt,
+                    deliveryConstraint: dcL,
+                    deliveryConstraintText: deliveryConstraintLabel(dcL)
                 };
             }
             // 从SKU中获取价格区间和库存
@@ -324,6 +328,7 @@ router.get('/products', async (req, res) => {
             }
             
             const pj = enrichProductCategoryArrays(product.toJSON());
+            const dcN = normalizeDeliveryConstraint(product.deliveryConstraint);
             return {
                 id: product.id,
                 name: product.name,
@@ -353,7 +358,9 @@ router.get('/products', async (req, res) => {
                 isFeatured: product.isFeatured || false,
                 isHot: product.isHot || false,
                 status: product.status,
-                createdAt: product.createdAt
+                createdAt: product.createdAt,
+                deliveryConstraint: dcN,
+                deliveryConstraintText: deliveryConstraintLabel(dcN)
             };
         });
 
@@ -432,7 +439,8 @@ router.get('/products/recommended', async (req, res) => {
                 'isFeatured',
                 'isHot',
                 'sortOrder',
-                'createdAt'
+                'createdAt',
+                'deliveryConstraint'
             ],
             include: recIncludes,
             limit: limitNum,
@@ -446,6 +454,7 @@ router.get('/products/recommended', async (req, res) => {
             const primarySku = getSkuWithMostStock(activeSkus);
             const productImages = Array.isArray(product.images) ? product.images : [];
             const firstImage = pickLiteImage(productImages);
+            const dcR = normalizeDeliveryConstraint(product.deliveryConstraint);
             return {
                 id: product.id,
                 name: product.name,
@@ -465,7 +474,9 @@ router.get('/products/recommended', async (req, res) => {
                     images: primarySku.images || []
                 } : null,
                 sales: 0,
-                isFeatured: product.isFeatured
+                isFeatured: product.isFeatured,
+                deliveryConstraint: dcR,
+                deliveryConstraintText: deliveryConstraintLabel(dcR)
             };
         });
 
@@ -586,6 +597,7 @@ router.get('/products/search', async (req, res) => {
             const priceMin = prices.length > 0 ? Math.min(...prices) : (parseFloat(product.price) || 0);
             const priceMax = prices.length > 0 ? Math.max(...prices) : (parseFloat(product.price) || 0);
             const primarySku = getSkuWithMostStock(activeSkus);
+            const dcS = normalizeDeliveryConstraint(product.deliveryConstraint);
             return {
                 id: product.id,
                 name: product.name,
@@ -605,7 +617,9 @@ router.get('/products/search', async (req, res) => {
                     price: primarySku.price,
                     images: primarySku.images || []
                 } : null,
-                sales: 0
+                sales: 0,
+                deliveryConstraint: dcS,
+                deliveryConstraintText: deliveryConstraintLabel(dcS)
             };
         });
 
@@ -1023,6 +1037,7 @@ router.get('/products/:id', async (req, res) => {
         }
 
         const enriched = enrichProductCategoryArrays(product.toJSON());
+        const dcD = normalizeDeliveryConstraint(product.deliveryConstraint);
 
         // 处理商品详情数据
         const productDetail = {
@@ -1036,6 +1051,9 @@ router.get('/products/:id', async (req, res) => {
             price: product.price,
             originalPrice: product.originalPrice,
             brand: product.brand,
+            productType: product.productType || 'physical',
+            deliveryConstraint: dcD,
+            deliveryConstraintText: deliveryConstraintLabel(dcD),
             categoryIds: enriched.categoryIds || [],
             categories: enriched.categories || [],
             category: product.category ? {

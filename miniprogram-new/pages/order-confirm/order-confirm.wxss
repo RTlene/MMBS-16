@@ -130,6 +130,15 @@
 .delivery-option .option-label { font-size: 28rpx; font-weight: 600; color: #333; display: block; }
 .delivery-option .option-desc { font-size: 24rpx; color: #999; margin-top: 6rpx; display: block; }
 .delivery-option.active .option-label { color: #ff6b35; }
+.delivery-option.disabled {
+  opacity: 0.42;
+}
+.delivery-constraint-hint {
+  font-size: 24rpx;
+  color: #666;
+  margin-top: 16rpx;
+  line-height: 1.5;
+}
 
 /* 自提门店 */
 .store-card {

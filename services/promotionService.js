@@ -14,6 +14,10 @@ const {
     Category
 } = require('../db');
 const { enrichProductCategoryArrays } = require('../utils/productCategoryHelpers');
+const {
+    normalizeDeliveryConstraint,
+    deliveryConstraintLabel
+} = require('../utils/deliveryConstraint');
 const PromotionRulesService = require('./promotionRulesService');
 
 /** 解析促销 rules（DB 可能返回 JSON 字符串） */
@@ -190,6 +194,7 @@ class PromotionService {
             });
 
             // 构建返回数据
+            const dcNorm = normalizeDeliveryConstraint(product.deliveryConstraint);
             const result = {
                 product: {
                     id: product.id,
@@ -206,7 +211,9 @@ class PromotionService {
                     categoryIds: catEnriched.categoryIds || [],
                     categories: (catEnriched.categories || []).slice(0, 20),
                     status: product.status,
-                    productType: productType // 使用提取的商品类型
+                    productType: productType, // 使用提取的商品类型
+                    deliveryConstraint: dcNorm,
+                    deliveryConstraintText: deliveryConstraintLabel(dcNorm)
                     // 移除 createdAt，减少数据量
                 },
                 skus: skusList,  // 添加完整的SKU列表
