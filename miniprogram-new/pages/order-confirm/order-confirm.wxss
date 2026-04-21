@@ -243,6 +243,12 @@
   color: #999999;
 }
 
+.item-delivery-attr {
+  font-size: 22rpx;
+  color: #3481b8;
+  line-height: 1.4;
+}
+
 .item-meta {
   display: flex;
   justify-content: space-between;

@@ -123,6 +123,9 @@
       <view class="item-info">
         <text class="item-name">{{item.name}}</text>
         <text class="item-sku" wx:if="{{item.skuName}}">{{item.skuName}}</text>
+        <text class="item-delivery-attr" wx:if="{{item.deliveryConstraintText}}">
+          配送属性：{{item.deliveryConstraintText}}
+        </text>
         <view class="item-meta">
           <text class="item-price">¥{{item.price}}</text>
           <text class="item-qty">x{{item.quantity}}</text>

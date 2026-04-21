@@ -13,6 +13,65 @@ window.memberManagementData = {
     grantCouponMemberIds: []  // 发放优惠券弹窗当前选中的会员ID列表
 };
 
+const MEMBER_FORM_SEARCHABLE_SELECT_IDS = ['memberLevelId', 'distributorLevelId', 'teamExpansionLevelId', 'referrerId'];
+
+function getMemberFormSelects(selectId) {
+    return Array.from(document.querySelectorAll(`select#${selectId}`));
+}
+
+function enhanceMemberFormSelectSearch(selectId, placeholderText) {
+    const selects = getMemberFormSelects(selectId);
+    selects.forEach((selectEl) => {
+        if (!selectEl || selectEl.dataset.searchEnhanced === '1') return;
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'form-input member-select-search-input';
+        searchInput.placeholder = placeholderText || '输入关键字搜索';
+        searchInput.style.marginBottom = '8px';
+        searchInput.autocomplete = 'off';
+        searchInput.dataset.selectId = selectId;
+
+        searchInput.addEventListener('input', function () {
+            const keyword = String(this.value || '').trim().toLowerCase();
+            Array.from(selectEl.options || []).forEach((opt, idx) => {
+                if (idx === 0) {
+                    opt.hidden = false;
+                    return;
+                }
+                const text = String(opt.textContent || '').toLowerCase();
+                opt.hidden = !keyword || text.includes(keyword) ? false : true;
+            });
+        });
+
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') e.preventDefault();
+        });
+
+        selectEl.parentNode.insertBefore(searchInput, selectEl);
+        selectEl.dataset.searchEnhanced = '1';
+    });
+}
+
+function setupMemberFormSearchableSelects() {
+    enhanceMemberFormSelectSearch('memberLevelId', '搜索会员等级');
+    enhanceMemberFormSelectSearch('distributorLevelId', '搜索分销等级');
+    enhanceMemberFormSelectSearch('teamExpansionLevelId', '搜索团队拓展等级');
+    enhanceMemberFormSelectSearch('referrerId', '搜索推荐人（昵称/编号）');
+}
+
+function clearMemberFormSelectSearchFilters() {
+    const inputs = document.querySelectorAll('.member-select-search-input');
+    inputs.forEach((inputEl) => {
+        inputEl.value = '';
+        const sid = inputEl.dataset.selectId;
+        if (!sid) return;
+        getMemberFormSelects(sid).forEach((selectEl) => {
+            Array.from(selectEl.options || []).forEach((opt) => { opt.hidden = false; });
+        });
+    });
+}
+
 // 直接调用初始化（移除DOMContentLoaded事件监听器）
 console.log('Member Management JS loaded');
 initMemberManagement();
@@ -276,6 +335,7 @@ async function importMembers(file) {
 // 初始化会员管理
 async function initMemberManagement() {
     console.log('Initializing member management...');
+    setupMemberFormSearchableSelects();
     await loadStats();
     await loadMembers();
     
@@ -396,8 +456,8 @@ async function loadMemberLevels() {
                 return (parseInt(a.level, 10) || 0) - (parseInt(b.level, 10) || 0);
             });
 
-            const select = document.getElementById('memberLevelId');
-            if (select) {
+            const selects = getMemberFormSelects('memberLevelId');
+            selects.forEach((select) => {
                 select.innerHTML = '<option value="">请选择会员等级</option>';
                 levels.forEach(level => {
                     const option = document.createElement('option');
@@ -406,7 +466,7 @@ async function loadMemberLevels() {
                     option.textContent = (level.name || '') + inactive;
                     select.appendChild(option);
                 });
-            }
+            });
 
             const filterSel = document.getElementById('levelFilter');
             if (filterSel) {
@@ -441,8 +501,8 @@ async function loadDistributorLevels() {
         const result = await response.json();
         
         if (result.code === 0) {
-            const select = document.getElementById('distributorLevelId');
-            if (select) {
+            const selects = getMemberFormSelects('distributorLevelId');
+            selects.forEach((select) => {
                 select.innerHTML = '<option value="">请选择分销等级</option>';
                 result.data.levels.forEach(level => {
                     const option = document.createElement('option');
@@ -450,7 +510,7 @@ async function loadDistributorLevels() {
                     option.textContent = level.name;
                     select.appendChild(option);
                 });
-            }
+            });
         }
     } catch (error) {
         console.error('加载分销等级失败:', error);
@@ -469,8 +529,8 @@ async function loadTeamExpansionLevels() {
         const result = await response.json();
         
         if (result.code === 0) {
-            const select = document.getElementById('teamExpansionLevelId');
-            if (select) {
+            const selects = getMemberFormSelects('teamExpansionLevelId');
+            selects.forEach((select) => {
                 select.innerHTML = '<option value="">请选择团队拓展激励等级</option>';
                 result.data.levels.forEach(level => {
                     const option = document.createElement('option');
@@ -478,7 +538,7 @@ async function loadTeamExpansionLevels() {
                     option.textContent = level.name;
                     select.appendChild(option);
                 });
-            }
+            });
         }
     } catch (error) {
         console.error('加载团队拓展等级失败:', error);
@@ -497,8 +557,8 @@ async function loadReferrers() {
         const result = await response.json();
         
         if (result.code === 0) {
-            const select = document.getElementById('referrerId');
-            if (select) {
+            const selects = getMemberFormSelects('referrerId');
+            selects.forEach((select) => {
                 select.innerHTML = '<option value="">请选择推荐人</option>';
                 result.data.members.forEach(member => {
                     const option = document.createElement('option');
@@ -506,7 +566,7 @@ async function loadReferrers() {
                     option.textContent = `${member.nickname} (${member.memberCode || member.id})`;
                     select.appendChild(option);
                 });
-            }
+            });
         }
     } catch (error) {
         console.error('加载推荐人列表失败:', error);
@@ -657,6 +717,7 @@ function showAddMemberModal() {
     
     // 清除编辑状态
     window.memberManagementData.editingMember = null;
+    clearMemberFormSelectSearchFilters();
     
     // 设置模态框标题
     document.getElementById('memberModalTitle').textContent = '添加会员';
@@ -714,6 +775,7 @@ function editMember(memberId) {
 // 填充会员表单
 function fillMemberForm(member) {
     console.log('Filling member form with:', member);
+    clearMemberFormSelectSearchFilters();
     
     // 基本信息
     document.getElementById('nickname').value = member.nickname || '';
@@ -733,16 +795,18 @@ function fillMemberForm(member) {
     
     // 等级/推荐人：若当前值不在下拉里（例如已停用等级），动态补一个选项保证回显
     const setSelectValueWithFallback = (id, value, labelBuilder) => {
-        const el = document.getElementById(id);
-        if (!el) return;
+        const all = getMemberFormSelects(id);
+        if (!all.length) return;
         const v = value == null ? '' : String(value);
-        if (v && ![...el.options].some(o => o.value === v)) {
-            const option = document.createElement('option');
-            option.value = v;
-            option.textContent = labelBuilder ? labelBuilder() : `${v}（历史值）`;
-            el.appendChild(option);
-        }
-        el.value = v;
+        all.forEach((el) => {
+            if (v && ![...el.options].some(o => o.value === v)) {
+                const option = document.createElement('option');
+                option.value = v;
+                option.textContent = labelBuilder ? labelBuilder() : `${v}（历史值）`;
+                el.appendChild(option);
+            }
+            el.value = v;
+        });
     };
     setSelectValueWithFallback('memberLevelId', member.memberLevelId, () => {
         const name = member.memberLevel && member.memberLevel.name ? member.memberLevel.name : '历史等级';

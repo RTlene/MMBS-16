@@ -5,7 +5,7 @@
 const request = require('../../utils/request.js');
 const { API } = require('../../config/api.js');
 const { splitRegionDetail } = require('../../utils/address.js');
-const { computeCartDeliveryOptions } = require('../../utils/deliveryConstraint.js');
+const { computeCartDeliveryOptions, deliveryConstraintLabel } = require('../../utils/deliveryConstraint.js');
 
 // 与后端/地址字段长度一致
 const LIMITS = { receiverName: 50, receiverPhone: 20, shippingAddress: 200 };
@@ -73,7 +73,14 @@ Page({
     }
 
     this.pendingOrder = pendingOrder;
-    const items = pendingOrder.items;
+    const items = (pendingOrder.items || []).map((it) => {
+      const dc = (it && it.deliveryConstraint) ? it.deliveryConstraint : 'both';
+      return {
+        ...it,
+        deliveryConstraint: dc,
+        deliveryConstraintText: deliveryConstraintLabel(dc)
+      };
+    });
 
     const deliveryOpt = computeCartDeliveryOptions(
       items.map((it) => ({ deliveryConstraint: it.deliveryConstraint || 'both' }))
