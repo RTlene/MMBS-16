@@ -166,6 +166,16 @@ const API = {
     INCREMENT_READ: '/api/miniapp/articles/:id/read', // 增加阅读数
   },
 
+  // 活动弹窗相关
+  CAMPAIGN_POPUP: {
+    ACTIVE: '/api/miniapp/campaign-popup/active'
+  },
+
+  // 自定义活动页相关
+  CUSTOM_PAGE: {
+    DETAIL: '/api/miniapp/custom-pages/:slug'
+  },
+
   // 核销码相关
   VERIFICATION: {
     LIST: '/api/miniapp/verification-codes',    // 核销码列表

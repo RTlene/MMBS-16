@@ -1,0 +1,15 @@
+<view class="custom-page">
+  <view wx:if="{{loading}}" class="state">加载中...</view>
+  <view wx:elif="{{error}}" class="state error">{{error}}</view>
+  <view wx:else>
+    <block wx:for="{{blocks}}" wx:key="index">
+      <image wx:if="{{item.type === 'image'}}" class="block-image" src="{{item.url}}" mode="widthFix" />
+      <view wx:elif="{{item.type === 'text'}}" class="block-text">{{item.text}}</view>
+      <view wx:elif="{{item.type === 'button'}}" class="block-button" bindtap="onTapLink" data-url="{{item.url}}">
+        {{item.text || '查看详情'}}
+      </view>
+      <view wx:else class="block-text">{{item.text || ''}}</view>
+    </block>
+  </view>
+</view>
+

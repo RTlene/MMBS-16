@@ -211,4 +211,28 @@
   </view>
 
   <view class="safe-area-bottom"></view>
+
+  <view class="campaign-popup-mask" wx:if="{{showCampaignPopup}}" bindtap="closeCampaignPopup"></view>
+  <view class="campaign-popup-wrap" wx:if="{{showCampaignPopup}}">
+    <view class="campaign-popup-card">
+      <swiper
+        class="campaign-popup-swiper"
+        indicator-dots="{{campaignPopupActivities.length > 1}}"
+        autoplay="{{campaignPopupActivities.length > 1}}"
+        circular="{{campaignPopupActivities.length > 1}}"
+        bindchange="onCampaignPopupActivityChange"
+      >
+        <swiper-item wx:for="{{campaignPopupActivities}}" wx:key="id">
+          <view class="campaign-popup-activity" bindtap="onCampaignPopupTap" data-index="{{index}}">
+            <image class="campaign-popup-image" src="{{item.coverImage}}" mode="widthFix"></image>
+            <view class="campaign-popup-title">{{item.title || item.name}}</view>
+          </view>
+        </swiper-item>
+      </swiper>
+      <view class="campaign-popup-actions">
+        <button class="campaign-popup-btn" bindtap="closeCampaignPopup">关闭</button>
+        <button class="campaign-popup-btn primary" bindtap="onCampaignPopupTap" data-index="{{campaignPopupActivityIndex}}">查看活动</button>
+      </view>
+    </view>
+  </view>
 </view>

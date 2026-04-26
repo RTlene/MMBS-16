@@ -23,6 +23,7 @@
     "pages/logistics/logistics",
     "pages/articles/articles",
     "pages/article/article",
+    "pages/custom-page/custom-page",
     "pages/verification/verification",
     "pages/staff-login/staff-login",
     "pages/staff/staff",

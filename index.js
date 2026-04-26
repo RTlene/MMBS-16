@@ -27,6 +27,8 @@ const luckyDrawRoutes = require('./routes/lucky-draw-routes');
 const customPrizeRoutes = require('./routes/custom-prize-routes');
 const bannerRoutes = require('./routes/banner-routes');
 const popupRoutes = require('./routes/popup-routes');
+const campaignPopupRoutes = require('./routes/campaign-popup-routes');
+const customPageRoutes = require('./routes/custom-page-routes');
 const pointSettingsRoutes = require('./routes/point-settings-routes');
 const compressRoutes = require('./routes/compress-routes');
 const dashboardRoutes = require('./routes/dashboard-routes');
@@ -47,6 +49,7 @@ const staffRoutes = require('./routes/staff-routes');
 const storeRoutes = require('./routes/store-routes');
 const miniappStoreRoutes = require('./routes/miniapp-store-routes');
 const miniappConfigRoutes = require('./routes/miniapp-config-routes');
+const miniappCustomPageRoutes = require('./routes/miniapp-custom-page-routes');
 
 const logger = morgan("tiny");
 
@@ -117,6 +120,10 @@ app.use('/api/custom-prizes', require('./middleware/auth').authenticateToken, cu
 app.use('/api/banners', bannerRoutes);
 // 添加弹窗管理路由
 app.use('/api/popups', require('./middleware/auth').authenticateToken, popupRoutes);
+// 活动弹窗（新版活动能力）
+app.use('/api/campaign-popups', require('./middleware/auth').authenticateToken, campaignPopupRoutes);
+// 自定义页面管理
+app.use('/api/custom-pages', require('./middleware/auth').authenticateToken, customPageRoutes);
 // 添加资讯/文章管理路由（后台）
 const articleRoutes = require('./routes/article-routes');
 app.use('/api/articles', require('./middleware/auth').authenticateToken, articleRoutes);
@@ -160,6 +167,10 @@ app.use('/api/miniapp', miniappArticleRoutes);
 app.use('/api/miniapp', miniappVerificationRoutes);
 app.use('/api/miniapp', miniappAfterSalesRoutes);
 app.use('/api/miniapp', miniappStoreRoutes);
+// 小程序活动弹窗（会员每周期一次）
+app.use('/api/miniapp/campaign-popup', campaignPopupRoutes);
+// 小程序自定义页面
+app.use('/api/miniapp', miniappCustomPageRoutes);
 // 门店管理（后台）
 app.use('/api/stores', require('./middleware/auth').authenticateToken, storeRoutes);
 // 支付相关API

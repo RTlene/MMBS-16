@@ -44,7 +44,12 @@ Page({
     dataLoaded: false,
     searchKeyword: '',
     bannerHeight: 0,
-    searchOpacity: 0
+    searchOpacity: 0,
+    showCampaignPopup: false,
+    campaignPopup: null,
+    campaignPopupImages: [],
+    campaignPopupActivities: [],
+    campaignPopupActivityIndex: 0
   },
 
   /**
@@ -126,6 +131,9 @@ Page({
     } else {
       wx.removeTabBarBadge({ index: 3 });
     }
+
+    // 新版活动弹窗：失败时静默，不影响旧版与既有流程
+    this.tryLoadCampaignPopup();
   },
 
   /**
@@ -750,6 +758,92 @@ Page({
 
   onMoreArticlesTap() {
     wx.switchTab({ url: '/pages/articles/articles' });
+  },
+
+  async tryLoadCampaignPopup() {
+    try {
+      const result = await request.get(API.CAMPAIGN_POPUP.ACTIVE, {}, {
+        showLoading: false,
+        showError: false
+      });
+      if (!result || result.code !== 0 || !result.data) {
+        this.setData({ showCampaignPopup: false, campaignPopup: null, campaignPopupImages: [], campaignPopupActivities: [], campaignPopupActivityIndex: 0 });
+        return;
+      }
+
+      // 兼容：旧结构 object；新结构 array（多活动）
+      const rows = Array.isArray(result.data) ? result.data : [result.data];
+      const activities = rows.map((item) => {
+        const imageUrls = Array.isArray(item.imageUrls) ? item.imageUrls.filter(Boolean).map((u) => buildAbsoluteUrl(u)) : [];
+        const coverImage = item.coverImage ? buildAbsoluteUrl(item.coverImage) : (imageUrls[0] || '');
+        return {
+          ...item,
+          imageUrls,
+          coverImage
+        };
+      }).filter((item) => !!item.coverImage);
+
+      if (!activities.length) {
+        this.setData({ showCampaignPopup: false, campaignPopup: null, campaignPopupImages: [], campaignPopupActivities: [], campaignPopupActivityIndex: 0 });
+        return;
+      }
+
+      // 为兼容旧模板字段，保留 campaignPopup/campaignPopupImages 指向首个活动
+      const first = activities[0];
+      this.setData({
+        showCampaignPopup: true,
+        campaignPopup: first,
+        campaignPopupImages: first.imageUrls || [first.coverImage].filter(Boolean),
+        campaignPopupActivities: activities,
+        campaignPopupActivityIndex: 0
+      });
+    } catch (_) {
+      this.setData({ showCampaignPopup: false, campaignPopup: null, campaignPopupImages: [], campaignPopupActivities: [], campaignPopupActivityIndex: 0 });
+    }
+  },
+
+  closeCampaignPopup() {
+    this.setData({ showCampaignPopup: false });
+  },
+
+  onCampaignPopupTap(e) {
+    const index = e && e.currentTarget && e.currentTarget.dataset ? Number(e.currentTarget.dataset.index || 0) : this.data.campaignPopupActivityIndex || 0;
+    const popup = (this.data.campaignPopupActivities || [])[index] || this.data.campaignPopup || {};
+    const jumpType = popup.jumpType || 'none';
+    const jumpTarget = popup.jumpTarget || '';
+    if (!jumpTarget || jumpType === 'none') {
+      this.closeCampaignPopup();
+      return;
+    }
+    if (jumpType === 'custom_page') {
+      wx.navigateTo({ url: `/pages/custom-page/custom-page?slug=${encodeURIComponent(jumpTarget)}` });
+      this.closeCampaignPopup();
+      return;
+    }
+    if (jumpType === 'tab') {
+      wx.switchTab({ url: jumpTarget, fail: () => {} });
+      this.closeCampaignPopup();
+      return;
+    }
+    if (jumpType === 'miniapp_page') {
+      wx.navigateTo({ url: jumpTarget, fail: () => {} });
+      this.closeCampaignPopup();
+      return;
+    }
+    if (jumpType === 'webview') {
+      wx.setClipboardData({
+        data: jumpTarget,
+        success: () => wx.showToast({ title: '链接已复制', icon: 'none' })
+      });
+      this.closeCampaignPopup();
+      return;
+    }
+    this.closeCampaignPopup();
+  },
+
+  onCampaignPopupActivityChange(e) {
+    const current = e && e.detail ? Number(e.detail.current || 0) : 0;
+    this.setData({ campaignPopupActivityIndex: current });
   },
 
   // ==================== 工具方法 ====================

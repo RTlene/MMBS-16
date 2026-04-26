@@ -6,6 +6,72 @@
   padding-bottom: 24rpx;
 }
 
+.campaign-popup-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 998;
+}
+
+.campaign-popup-wrap {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  top: 12%;
+  z-index: 999;
+}
+
+.campaign-popup-card {
+  background: #fff;
+  border-radius: 18rpx;
+  overflow: hidden;
+}
+
+.campaign-popup-swiper {
+  width: 100%;
+  min-height: 420rpx;
+  max-height: 860rpx;
+}
+
+.campaign-popup-image {
+  width: 100%;
+}
+
+.campaign-popup-activity {
+  width: 100%;
+}
+
+.campaign-popup-title {
+  font-size: 28rpx;
+  color: #0f172a;
+  font-weight: 500;
+  padding: 16rpx 20rpx 0;
+}
+
+.campaign-popup-actions {
+  display: flex;
+  gap: 16rpx;
+  padding: 20rpx;
+}
+
+.campaign-popup-btn {
+  flex: 1;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 10rpx;
+  background: #e2e8f0;
+  color: #1e293b;
+  font-size: 26rpx;
+}
+
+.campaign-popup-btn.primary {
+  background: #1e293b;
+  color: #fff;
+}
+
 /* 搜索栏：扁平 */
 .search-bar {
   position: fixed;

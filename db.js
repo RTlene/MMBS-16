@@ -2759,6 +2759,68 @@ const Popup = sequelize.define('Popup', {
     timestamps: true
 });
 
+// 活动弹窗（小程序首页活动告示）
+const CampaignPopup = sequelize.define('CampaignPopup', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    name: { type: DataTypes.STRING(120), allowNull: false, comment: '活动名称' },
+    title: { type: DataTypes.STRING(200), allowNull: true, comment: '弹窗标题' },
+    status: { type: DataTypes.ENUM('draft', 'active', 'inactive'), allowNull: false, defaultValue: 'draft' },
+    startTime: { type: DataTypes.DATE, allowNull: true, comment: '开始时间' },
+    endTime: { type: DataTypes.DATE, allowNull: true, comment: '结束时间' },
+    priority: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, comment: '优先级，越大越优先' },
+    showOncePerCycle: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '每会员每周期仅弹出一次' },
+    jumpType: {
+        type: DataTypes.ENUM('none', 'miniapp_page', 'tab', 'webview', 'custom_page'),
+        allowNull: false,
+        defaultValue: 'none',
+        comment: '跳转类型'
+    },
+    jumpTarget: { type: DataTypes.STRING(500), allowNull: true, comment: '跳转目标' },
+    imageUrls: { type: DataTypes.JSON, allowNull: true, comment: '轮播图片URL数组' },
+    createdBy: { type: DataTypes.INTEGER, allowNull: true, comment: '创建人ID' },
+    updatedBy: { type: DataTypes.INTEGER, allowNull: true, comment: '更新人ID' }
+}, {
+    tableName: 'campaign_popups',
+    timestamps: true
+});
+
+// 活动弹窗曝光记录（用于每会员每周期只弹一次）
+const CampaignPopupExposure = sequelize.define('CampaignPopupExposure', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    popupId: { type: DataTypes.INTEGER, allowNull: false, comment: '活动弹窗ID' },
+    memberId: { type: DataTypes.INTEGER, allowNull: false, comment: '会员ID' },
+    cycleKey: { type: DataTypes.STRING(120), allowNull: false, comment: '活动周期标识' },
+    viewedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, comment: '展示时间' }
+}, {
+    tableName: 'campaign_popup_exposures',
+    timestamps: true,
+    indexes: [
+        { unique: true, fields: ['popupId', 'memberId', 'cycleKey'], name: 'uniq_popup_member_cycle' },
+        { fields: ['memberId'], name: 'idx_cpe_member' },
+        { fields: ['popupId'], name: 'idx_cpe_popup' }
+    ]
+});
+
+// 自定义页面（活动页）
+const CustomPage = sequelize.define('CustomPage', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    name: { type: DataTypes.STRING(120), allowNull: false, comment: '页面名称' },
+    slug: { type: DataTypes.STRING(120), allowNull: false, unique: true, comment: '页面标识（唯一）' },
+    title: { type: DataTypes.STRING(200), allowNull: true, comment: '页面标题' },
+    status: { type: DataTypes.ENUM('draft', 'published', 'offline'), allowNull: false, defaultValue: 'draft' },
+    startTime: { type: DataTypes.DATE, allowNull: true, comment: '上线开始时间' },
+    endTime: { type: DataTypes.DATE, allowNull: true, comment: '下线时间' },
+    schemaJson: { type: DataTypes.JSON, allowNull: true, comment: '页面结构JSON' },
+    shareTitle: { type: DataTypes.STRING(200), allowNull: true, comment: '分享标题' },
+    shareImage: { type: DataTypes.STRING(500), allowNull: true, comment: '分享图' },
+    enableShare: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '是否允许分享' },
+    createdBy: { type: DataTypes.INTEGER, allowNull: true, comment: '创建人ID' },
+    updatedBy: { type: DataTypes.INTEGER, allowNull: true, comment: '更新人ID' }
+}, {
+    tableName: 'custom_pages',
+    timestamps: true
+});
+
 // VerificationCode Model - 核销码模型
 const VerificationCode = sequelize.define('VerificationCode', {
     id: {
@@ -3439,6 +3501,12 @@ TeamIncentiveCalculation.belongsTo(Member, { foreignKey: 'referrerId', as: 'refe
 Member.hasMany(TeamIncentiveCalculation, { foreignKey: 'distributorId', as: 'distributorIncentiveCalculations' });
 Member.hasMany(TeamIncentiveCalculation, { foreignKey: 'referrerId', as: 'referrerIncentiveCalculations' });
 
+// 活动弹窗与曝光记录关联
+CampaignPopup.hasMany(CampaignPopupExposure, { foreignKey: 'popupId', as: 'exposures', onDelete: 'CASCADE' });
+CampaignPopupExposure.belongsTo(CampaignPopup, { foreignKey: 'popupId', as: 'popup', onDelete: 'CASCADE' });
+CampaignPopupExposure.belongsTo(Member, { foreignKey: 'memberId', as: 'member' });
+Member.hasMany(CampaignPopupExposure, { foreignKey: 'memberId', as: 'campaignPopupExposures' });
+
 // 订单操作记录关联
 OrderOperationLog.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
 OrderOperationLog.belongsTo(User, { foreignKey: 'operatorId', as: 'operator' });
@@ -3756,6 +3824,80 @@ async function init() {
       console.warn('[DB] stores managerMemberId 自动迁移失败(忽略):', e && e.message ? e.message : e);
     }
 
+    // ===== 自动迁移：活动弹窗与自定义页面表 =====
+    try {
+      const qi = sequelize.getQueryInterface();
+      const hasTable = async (tableName) => {
+        try {
+          await qi.describeTable(tableName);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      };
+
+      if (!(await hasTable('campaign_popups'))) {
+        console.log('[DB] 创建 campaign_popups 表...');
+        await qi.createTable('campaign_popups', {
+          id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+          name: { type: DataTypes.STRING(120), allowNull: false },
+          title: { type: DataTypes.STRING(200), allowNull: true },
+          status: { type: DataTypes.ENUM('draft', 'active', 'inactive'), allowNull: false, defaultValue: 'draft' },
+          startTime: { type: DataTypes.DATE, allowNull: true },
+          endTime: { type: DataTypes.DATE, allowNull: true },
+          priority: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+          showOncePerCycle: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+          jumpType: { type: DataTypes.ENUM('none', 'miniapp_page', 'tab', 'webview', 'custom_page'), allowNull: false, defaultValue: 'none' },
+          jumpTarget: { type: DataTypes.STRING(500), allowNull: true },
+          imageUrls: { type: DataTypes.JSON, allowNull: true },
+          createdBy: { type: DataTypes.INTEGER, allowNull: true },
+          updatedBy: { type: DataTypes.INTEGER, allowNull: true },
+          createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+          updatedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
+        });
+      }
+
+      if (!(await hasTable('campaign_popup_exposures'))) {
+        console.log('[DB] 创建 campaign_popup_exposures 表...');
+        await qi.createTable('campaign_popup_exposures', {
+          id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+          popupId: { type: DataTypes.INTEGER, allowNull: false },
+          memberId: { type: DataTypes.INTEGER, allowNull: false },
+          cycleKey: { type: DataTypes.STRING(120), allowNull: false },
+          viewedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+          createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+          updatedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
+        });
+        await qi.addIndex('campaign_popup_exposures', ['popupId', 'memberId', 'cycleKey'], {
+          unique: true,
+          name: 'uniq_popup_member_cycle'
+        });
+      }
+
+      if (!(await hasTable('custom_pages'))) {
+        console.log('[DB] 创建 custom_pages 表...');
+        await qi.createTable('custom_pages', {
+          id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+          name: { type: DataTypes.STRING(120), allowNull: false },
+          slug: { type: DataTypes.STRING(120), allowNull: false, unique: true },
+          title: { type: DataTypes.STRING(200), allowNull: true },
+          status: { type: DataTypes.ENUM('draft', 'published', 'offline'), allowNull: false, defaultValue: 'draft' },
+          startTime: { type: DataTypes.DATE, allowNull: true },
+          endTime: { type: DataTypes.DATE, allowNull: true },
+          schemaJson: { type: DataTypes.JSON, allowNull: true },
+          shareTitle: { type: DataTypes.STRING(200), allowNull: true },
+          shareImage: { type: DataTypes.STRING(500), allowNull: true },
+          enableShare: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+          createdBy: { type: DataTypes.INTEGER, allowNull: true },
+          updatedBy: { type: DataTypes.INTEGER, allowNull: true },
+          createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+          updatedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
+        });
+      }
+    } catch (e) {
+      console.warn('[DB] 活动弹窗/自定义页面自动迁移失败(忽略):', e && e.message ? e.message : e);
+    }
+
     // ===== 自动迁移：distributor_levels 分销升级条件增加积分列（部署启动时执行，无需单独跑脚本/SQL）=====
     try {
       const qi = sequelize.getQueryInterface();
@@ -3915,6 +4057,9 @@ async function init() {
       ['CustomPrizes', CustomPrize],
       ['Banners', Banner],
       ['Popups', Popup],
+      ['campaign_popups', CampaignPopup],
+      ['campaign_popup_exposures', CampaignPopupExposure],
+      ['custom_pages', CustomPage],
       ['Articles', Article],
       ['VerificationCodes', VerificationCode],
       ['CommissionCalculations', CommissionCalculation],
@@ -4025,6 +4170,9 @@ module.exports = {
     CustomPrize,
     Banner,
     Popup,
+    CampaignPopup,
+    CampaignPopupExposure,
+    CustomPage,
     Article,
     VerificationCode,
     PointSettings,

@@ -1,0 +1,45 @@
+<div class="member-management-container">
+  <div class="card">
+    <h2>自定义页面管理</h2>
+    <p>用于配置活动页内容及分享信息。小程序访问路径：<code>/pages/custom-page/custom-page?slug=xxx</code></p>
+    <div style="margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap;">
+      <input id="customPageSearch" placeholder="搜索名称/slug" style="padding:8px;min-width:220px;" />
+      <select id="customPageStatus" style="padding:8px;">
+        <option value="">全部状态</option>
+        <option value="draft">草稿</option>
+        <option value="published">已发布</option>
+        <option value="offline">已下线</option>
+      </select>
+      <button class="btn btn-primary" onclick="CustomPageManagement.load()">查询</button>
+      <button class="btn btn-success" onclick="CustomPageManagement.openCreate()">新增自定义页</button>
+    </div>
+    <table class="table">
+      <thead><tr><th>ID</th><th>名称</th><th>slug</th><th>状态</th><th>分享</th><th>操作</th></tr></thead>
+      <tbody id="customPageTableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="customPageModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:860px;">
+      <div class="modal-header"><h3 id="customPageModalTitle">新增自定义页</h3></div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <input id="cpgName" placeholder="页面名称*" />
+          <input id="cpgSlug" placeholder="slug*（如 labor-day-2026）" />
+          <input id="cpgTitle" placeholder="页面标题" />
+          <select id="cpgStatus"><option value="draft">草稿</option><option value="published">已发布</option><option value="offline">已下线</option></select>
+          <input id="cpgStartTime" type="datetime-local" />
+          <input id="cpgEndTime" type="datetime-local" />
+          <label><input type="checkbox" id="cpgEnableShare" checked /> 开启分享</label>
+          <input id="cpgShareTitle" placeholder="分享标题" />
+          <input id="cpgShareImage" placeholder="分享图片URL" />
+        </div>
+        <textarea id="cpgSchemaJson" rows="10" style="width:100%;margin-top:10px;" placeholder='页面JSON（建议数组），示例：[{"type":"image","url":"https://..."},{"type":"text","text":"活动说明"}]'></textarea>
+      </div>
+      <div class="modal-footer" style="margin-top:12px;">
+        <button class="btn btn-primary" onclick="CustomPageManagement.save()">保存</button>
+        <button class="btn" onclick="CustomPageManagement.closeModal()">取消</button>
+      </div>
+    </div>
+  </div>
+</div>

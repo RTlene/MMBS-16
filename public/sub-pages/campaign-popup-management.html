@@ -1,0 +1,77 @@
+<div class="member-management-container">
+  <div class="card">
+    <h2>活动弹窗管理</h2>
+    <p>用于配置首页活动告示（支持多图轮播、时间窗、跳转逻辑、每会员每周期仅弹一次）。</p>
+    <div style="margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap;">
+      <input id="campaignPopupSearch" placeholder="搜索活动名称" style="padding:8px;min-width:220px;" />
+      <select id="campaignPopupStatus" style="padding:8px;">
+        <option value="">全部状态</option>
+        <option value="draft">草稿</option>
+        <option value="active">生效</option>
+        <option value="inactive">停用</option>
+      </select>
+      <button class="btn btn-primary" onclick="CampaignPopupManagement.load()">查询</button>
+      <button class="btn btn-success" onclick="CampaignPopupManagement.openCreate()">新增活动弹窗</button>
+      <button class="btn btn-warning" onclick="CampaignPopupManagement.preview()">预览轮播效果</button>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th><th>名称</th><th>状态</th><th>时间</th><th>优先级</th><th>跳转</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="campaignPopupTableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="campaignPopupModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:780px;">
+      <div class="modal-header"><h3 id="campaignPopupModalTitle">新增活动弹窗</h3></div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <input id="cpName" placeholder="活动名称*" />
+          <input id="cpTitle" placeholder="弹窗标题" />
+          <select id="cpStatus"><option value="draft">草稿</option><option value="active">生效</option><option value="inactive">停用</option></select>
+          <input id="cpPriority" type="number" placeholder="优先级(默认0)" />
+          <input id="cpStartTime" type="datetime-local" />
+          <input id="cpEndTime" type="datetime-local" />
+          <select id="cpJumpType">
+            <option value="none">不跳转</option>
+            <option value="miniapp_page">小程序页面</option>
+            <option value="tab">Tab页</option>
+            <option value="custom_page">自定义页面</option>
+            <option value="webview">Web链接</option>
+          </select>
+          <input id="cpJumpTarget" placeholder="跳转目标（路径/slug/url）" />
+          <label><input type="checkbox" id="cpShowOnce" checked /> 每会员每周期仅弹出一次</label>
+        </div>
+        <textarea id="cpImageUrls" rows="4" style="width:100%;margin-top:10px;" placeholder="轮播图URL，一行一个"></textarea>
+      </div>
+      <div class="modal-footer" style="margin-top:12px;">
+        <button class="btn btn-primary" onclick="CampaignPopupManagement.save()">保存</button>
+        <button class="btn" onclick="CampaignPopupManagement.closeModal()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="campaignPopupPreviewModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:420px;">
+      <div class="modal-header"><h3>轮播预览（按优先级）</h3></div>
+      <div class="modal-body">
+        <div id="campaignPopupPreviewEmpty" style="display:none;color:#64748b;">暂无可预览活动（请先配置图片URL）</div>
+        <div id="campaignPopupPreviewBox" style="display:none;">
+          <img id="campaignPopupPreviewImage" src="" style="width:100%;border-radius:10px;max-height:460px;object-fit:cover;" />
+          <div id="campaignPopupPreviewTitle" style="font-weight:600;margin-top:8px;"></div>
+          <div id="campaignPopupPreviewMeta" style="color:#64748b;margin-top:4px;font-size:12px;"></div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn" onclick="CampaignPopupManagement.previewPrev()">上一张</button>
+            <button class="btn" onclick="CampaignPopupManagement.previewNext()">下一张</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="margin-top:12px;">
+        <button class="btn" onclick="CampaignPopupManagement.closePreview()">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
