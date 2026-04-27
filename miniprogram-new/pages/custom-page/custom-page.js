@@ -51,7 +51,15 @@ Page({
         throw new Error((result && result.message) || '页面不存在');
       }
       const data = result.data;
-      const blocks = this.normalizeSchemaToBlocks(data.schemaJson);
+      let blocks = this.normalizeSchemaToBlocks(data.schemaJson);
+      // 兼容运营使用习惯：仅上传分享图、未配置 schemaJson 时，自动用分享图作为页面首图
+      if ((!blocks || blocks.length === 0) && data.shareImage) {
+        blocks = [{
+          type: 'image',
+          url: buildOptimizedImageUrl(data.shareImage, { type: 'detail' }),
+          text: data.title || data.name || ''
+        }];
+      }
       this.setData({
         loading: false,
         pageTitle: data.title || data.name || '活动页',
