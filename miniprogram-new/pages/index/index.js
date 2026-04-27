@@ -760,12 +760,14 @@ Page({
     wx.switchTab({ url: '/pages/articles/articles' });
   },
 
-  async tryLoadCampaignPopup() {
+  async tryLoadCampaignPopup(options = {}) {
+    const { allowReloginRetry = true } = options;
     try {
       const result = await request.get(API.CAMPAIGN_POPUP.ACTIVE, {}, {
         showLoading: false,
         showError: false
       });
+      console.log('[Index] 活动弹窗响应:', result);
       if (!result || result.code !== 0 || !result.data) {
         this.setData({ showCampaignPopup: false, campaignPopup: null, campaignPopupImages: [], campaignPopupActivities: [], campaignPopupActivityIndex: 0 });
         return;
@@ -784,6 +786,20 @@ Page({
       }).filter((item) => !!item.coverImage);
 
       if (!activities.length) {
+        // 首次进入首页时可能先发起请求再完成登录，导致返回空数据；登录完成后重试一次
+        const app = getApp();
+        const loginReady = !!(app && app.globalData && app.globalData.isLogin);
+        if (!loginReady && allowReloginRetry) {
+          try {
+            const loginResult = await auth.login();
+            if (loginResult && loginResult.success) {
+              if (app && app.globalData) app.globalData.isLogin = true;
+              return this.tryLoadCampaignPopup({ allowReloginRetry: false });
+            }
+          } catch (e) {
+            // 忽略登录异常，保持静默降级
+          }
+        }
         this.setData({ showCampaignPopup: false, campaignPopup: null, campaignPopupImages: [], campaignPopupActivities: [], campaignPopupActivityIndex: 0 });
         return;
       }
