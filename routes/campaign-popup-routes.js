@@ -1,6 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { CampaignPopup, CampaignPopupExposure, Member } = require('../db');
+const { CampaignPopup, CampaignPopupExposure } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 
@@ -60,85 +60,11 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/:id', authenticateToken, async (req, res) => {
-  try {
-    const popup = await CampaignPopup.findByPk(req.params.id);
-    if (!popup) return res.status(404).json({ code: 1, message: '活动弹窗不存在' });
-    res.json({ code: 0, message: '获取成功', data: popup });
-  } catch (e) {
-    res.status(500).json({ code: 1, message: '获取失败' });
-  }
-});
-
-router.post('/', authenticateToken, async (req, res) => {
-  try {
-    const b = req.body || {};
-    if (!b.name || !String(b.name).trim()) {
-      return res.status(400).json({ code: 1, message: '活动名称不能为空' });
-    }
-    const popup = await CampaignPopup.create({
-      name: String(b.name).trim(),
-      title: b.title ? String(b.title).trim() : null,
-      status: ['draft', 'active', 'inactive'].includes(String(b.status)) ? b.status : 'draft',
-      startTime: b.startTime ? new Date(b.startTime) : null,
-      endTime: b.endTime ? new Date(b.endTime) : null,
-      priority: parseInt(b.priority, 10) || 0,
-      showOncePerCycle: b.showOncePerCycle !== false,
-      jumpType: ['none', 'miniapp_page', 'tab', 'webview', 'custom_page'].includes(String(b.jumpType)) ? b.jumpType : 'none',
-      jumpTarget: b.jumpTarget ? String(b.jumpTarget).trim() : null,
-      imageUrls: asArray(b.imageUrls),
-      createdBy: req.user ? req.user.id : null,
-      updatedBy: req.user ? req.user.id : null
-    });
-    res.json({ code: 0, message: '创建成功', data: popup });
-  } catch (e) {
-    console.error('活动弹窗创建失败:', e);
-    res.status(500).json({ code: 1, message: '创建失败' });
-  }
-});
-
-router.put('/:id', authenticateToken, async (req, res) => {
-  try {
-    const popup = await CampaignPopup.findByPk(req.params.id);
-    if (!popup) return res.status(404).json({ code: 1, message: '活动弹窗不存在' });
-    const b = req.body || {};
-    const payload = {};
-    if (b.name !== undefined) payload.name = String(b.name || popup.name).trim();
-    if (b.title !== undefined) payload.title = b.title ? String(b.title).trim() : null;
-    if (b.status !== undefined) payload.status = ['draft', 'active', 'inactive'].includes(String(b.status)) ? b.status : popup.status;
-    if (b.startTime !== undefined) payload.startTime = b.startTime ? new Date(b.startTime) : null;
-    if (b.endTime !== undefined) payload.endTime = b.endTime ? new Date(b.endTime) : null;
-    if (b.priority !== undefined) payload.priority = parseInt(b.priority, 10) || 0;
-    if (b.showOncePerCycle !== undefined) payload.showOncePerCycle = !!b.showOncePerCycle;
-    if (b.jumpType !== undefined) payload.jumpType = ['none', 'miniapp_page', 'tab', 'webview', 'custom_page'].includes(String(b.jumpType)) ? b.jumpType : popup.jumpType;
-    if (b.jumpTarget !== undefined) payload.jumpTarget = b.jumpTarget ? String(b.jumpTarget).trim() : null;
-    if (b.imageUrls !== undefined) payload.imageUrls = asArray(b.imageUrls);
-    payload.updatedBy = req.user ? req.user.id : null;
-    await popup.update(payload);
-    res.json({ code: 0, message: '更新成功', data: popup });
-  } catch (e) {
-    console.error('活动弹窗更新失败:', e);
-    res.status(500).json({ code: 1, message: '更新失败' });
-  }
-});
-
-router.delete('/:id', authenticateToken, async (req, res) => {
-  try {
-    const popup = await CampaignPopup.findByPk(req.params.id);
-    if (!popup) return res.status(404).json({ code: 1, message: '活动弹窗不存在' });
-    await popup.destroy();
-    res.json({ code: 0, message: '删除成功' });
-  } catch (e) {
-    res.status(500).json({ code: 1, message: '删除失败' });
-  }
-});
-
-// 小程序端：获取当前应弹活动（多活动轮播；每会员每周期一次）
 router.get('/active', authenticateMiniappUser, async (req, res) => {
   try {
     const member = req.member || {};
     if (!member.id) {
-      return res.json({ code: 0, message: '未登录不弹窗', data: null });
+      return res.json({ code: 0, message: '未登录不弹窗', data: [] });
     }
     const now = new Date();
     const popups = await CampaignPopup.findAll({
@@ -197,7 +123,80 @@ router.get('/active', authenticateMiniappUser, async (req, res) => {
   } catch (e) {
     console.error('小程序活动弹窗获取失败:', e);
     // 兼容：不要让首页崩
-    res.json({ code: 0, message: '忽略错误', data: null });
+    res.json({ code: 0, message: '忽略错误', data: [] });
+  }
+});
+
+router.get('/:id(\\d+)', authenticateToken, async (req, res) => {
+  try {
+    const popup = await CampaignPopup.findByPk(req.params.id);
+    if (!popup) return res.status(404).json({ code: 1, message: '活动弹窗不存在' });
+    res.json({ code: 0, message: '获取成功', data: popup });
+  } catch (e) {
+    res.status(500).json({ code: 1, message: '获取失败' });
+  }
+});
+
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.name || !String(b.name).trim()) {
+      return res.status(400).json({ code: 1, message: '活动名称不能为空' });
+    }
+    const popup = await CampaignPopup.create({
+      name: String(b.name).trim(),
+      title: b.title ? String(b.title).trim() : null,
+      status: ['draft', 'active', 'inactive'].includes(String(b.status)) ? b.status : 'draft',
+      startTime: b.startTime ? new Date(b.startTime) : null,
+      endTime: b.endTime ? new Date(b.endTime) : null,
+      priority: parseInt(b.priority, 10) || 0,
+      showOncePerCycle: b.showOncePerCycle !== false,
+      jumpType: ['none', 'miniapp_page', 'tab', 'webview', 'custom_page'].includes(String(b.jumpType)) ? b.jumpType : 'none',
+      jumpTarget: b.jumpTarget ? String(b.jumpTarget).trim() : null,
+      imageUrls: asArray(b.imageUrls),
+      createdBy: req.user ? req.user.id : null,
+      updatedBy: req.user ? req.user.id : null
+    });
+    res.json({ code: 0, message: '创建成功', data: popup });
+  } catch (e) {
+    console.error('活动弹窗创建失败:', e);
+    res.status(500).json({ code: 1, message: '创建失败' });
+  }
+});
+
+router.put('/:id(\\d+)', authenticateToken, async (req, res) => {
+  try {
+    const popup = await CampaignPopup.findByPk(req.params.id);
+    if (!popup) return res.status(404).json({ code: 1, message: '活动弹窗不存在' });
+    const b = req.body || {};
+    const payload = {};
+    if (b.name !== undefined) payload.name = String(b.name || popup.name).trim();
+    if (b.title !== undefined) payload.title = b.title ? String(b.title).trim() : null;
+    if (b.status !== undefined) payload.status = ['draft', 'active', 'inactive'].includes(String(b.status)) ? b.status : popup.status;
+    if (b.startTime !== undefined) payload.startTime = b.startTime ? new Date(b.startTime) : null;
+    if (b.endTime !== undefined) payload.endTime = b.endTime ? new Date(b.endTime) : null;
+    if (b.priority !== undefined) payload.priority = parseInt(b.priority, 10) || 0;
+    if (b.showOncePerCycle !== undefined) payload.showOncePerCycle = !!b.showOncePerCycle;
+    if (b.jumpType !== undefined) payload.jumpType = ['none', 'miniapp_page', 'tab', 'webview', 'custom_page'].includes(String(b.jumpType)) ? b.jumpType : popup.jumpType;
+    if (b.jumpTarget !== undefined) payload.jumpTarget = b.jumpTarget ? String(b.jumpTarget).trim() : null;
+    if (b.imageUrls !== undefined) payload.imageUrls = asArray(b.imageUrls);
+    payload.updatedBy = req.user ? req.user.id : null;
+    await popup.update(payload);
+    res.json({ code: 0, message: '更新成功', data: popup });
+  } catch (e) {
+    console.error('活动弹窗更新失败:', e);
+    res.status(500).json({ code: 1, message: '更新失败' });
+  }
+});
+
+router.delete('/:id(\\d+)', authenticateToken, async (req, res) => {
+  try {
+    const popup = await CampaignPopup.findByPk(req.params.id);
+    if (!popup) return res.status(404).json({ code: 1, message: '活动弹窗不存在' });
+    await popup.destroy();
+    res.json({ code: 0, message: '删除成功' });
+  } catch (e) {
+    res.status(500).json({ code: 1, message: '删除失败' });
   }
 });
 
