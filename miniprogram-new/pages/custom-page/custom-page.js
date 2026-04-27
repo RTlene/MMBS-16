@@ -51,14 +51,7 @@ Page({
         throw new Error((result && result.message) || '页面不存在');
       }
       const data = result.data;
-      const blocks = Array.isArray(data.schemaJson) ? data.schemaJson.map((item) => ({
-        ...item,
-        url: item && item.url
-          ? ((item.type === 'image')
-            ? buildOptimizedImageUrl(item.url, { type: 'detail' })
-            : buildAbsoluteUrl(item.url))
-          : item.url
-      })) : [];
+      const blocks = this.normalizeSchemaToBlocks(data.schemaJson);
       this.setData({
         loading: false,
         pageTitle: data.title || data.name || '活动页',
@@ -71,6 +64,63 @@ Page({
     } catch (e) {
       this.setData({ loading: false, error: e.message || '加载失败' });
     }
+  },
+
+  normalizeSchemaToBlocks(schemaJson) {
+    let schema = schemaJson;
+    if (typeof schema === 'string') {
+      try {
+        schema = JSON.parse(schema);
+      } catch (_) {
+        schema = [];
+      }
+    }
+
+    let rows = [];
+    if (Array.isArray(schema)) {
+      rows = schema;
+    } else if (schema && typeof schema === 'object') {
+      // 兼容后台不同结构：{blocks:[]}/{components:[]}/{items:[]}
+      rows = schema.blocks || schema.components || schema.items || schema.content || [];
+      if (!Array.isArray(rows)) rows = [];
+    }
+
+    return rows.map((item) => this.normalizeBlock(item)).filter(Boolean);
+  },
+
+  normalizeBlock(item) {
+    if (!item || typeof item !== 'object') return null;
+    const rawType = String(item.type || item.blockType || item.component || '').toLowerCase();
+    const text = String(item.text || item.content || item.title || item.label || '').trim();
+    const rawUrl = String(item.url || item.src || item.image || item.imageUrl || '').trim();
+
+    if (rawType === 'image' || rawType === 'img' || rawType === 'picture' || rawType === 'banner' || this.looksLikeImageUrl(rawUrl)) {
+      if (!rawUrl) return null;
+      return {
+        type: 'image',
+        url: buildOptimizedImageUrl(rawUrl, { type: 'detail' }),
+        text
+      };
+    }
+
+    if (rawType === 'button' || rawType === 'btn' || rawType === 'link') {
+      return {
+        type: 'button',
+        text: text || '查看详情',
+        url: rawUrl ? buildAbsoluteUrl(rawUrl) : ''
+      };
+    }
+
+    return {
+      type: 'text',
+      text
+    };
+  },
+
+  looksLikeImageUrl(url) {
+    if (!url) return false;
+    if (url.startsWith('cloud://')) return true;
+    return /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
   },
 
   onTapLink(e) {
