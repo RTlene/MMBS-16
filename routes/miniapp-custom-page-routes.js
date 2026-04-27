@@ -6,12 +6,25 @@ const router = express.Router();
 
 router.get('/custom-pages/:slug', async (req, res) => {
   try {
-    const slug = String(req.params.slug || '').trim();
-    if (!slug) return res.status(400).json({ code: 1, message: '页面标识不能为空' });
+    const rawSlug = String(req.params.slug || '').trim();
+    if (!rawSlug) return res.status(400).json({ code: 1, message: '页面标识不能为空' });
+    const slugCandidates = [rawSlug];
+    try {
+      const d1 = decodeURIComponent(rawSlug);
+      if (d1 && !slugCandidates.includes(d1)) slugCandidates.push(d1);
+      try {
+        const d2 = decodeURIComponent(d1);
+        if (d2 && !slugCandidates.includes(d2)) slugCandidates.push(d2);
+      } catch (_) {}
+    } catch (_) {}
     const now = new Date();
     const page = await CustomPage.findOne({
       where: {
-        slug,
+        [Op.or]: [
+          { slug: { [Op.in]: slugCandidates } },
+          // 兼容历史配置错误：把“页面名称”当成了 slug 传入
+          { name: { [Op.in]: slugCandidates } }
+        ],
         status: 'published',
         [Op.and]: [
           { [Op.or]: [{ startTime: null }, { startTime: { [Op.lte]: now } }] },

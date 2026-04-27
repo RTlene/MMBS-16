@@ -1,6 +1,6 @@
 const request = require('../../utils/request.js');
 const { API, replaceUrlParams } = require('../../config/api.js');
-const { buildAbsoluteUrl } = require('../../utils/util.js');
+const { buildAbsoluteUrl, buildOptimizedImageUrl } = require('../../utils/util.js');
 
 Page({
   data: {
@@ -53,7 +53,11 @@ Page({
       const data = result.data;
       const blocks = Array.isArray(data.schemaJson) ? data.schemaJson.map((item) => ({
         ...item,
-        url: item && item.url ? buildAbsoluteUrl(item.url) : item.url
+        url: item && item.url
+          ? ((item.type === 'image')
+            ? buildOptimizedImageUrl(item.url, { type: 'detail' })
+            : buildAbsoluteUrl(item.url))
+          : item.url
       })) : [];
       this.setData({
         loading: false,
@@ -61,7 +65,7 @@ Page({
         blocks,
         shareEnabled: data.enableShare !== false,
         shareTitle: data.shareTitle || data.title || data.name || '活动页',
-        shareImage: data.shareImage ? buildAbsoluteUrl(data.shareImage) : ''
+        shareImage: data.shareImage ? buildOptimizedImageUrl(data.shareImage, { type: 'detail' }) : ''
       });
       wx.setNavigationBarTitle({ title: data.title || data.name || '活动页' });
     } catch (e) {
