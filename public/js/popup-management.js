@@ -1,413 +1,501 @@
-// 弹窗管理
 let popups = [];
 let currentPage = 1;
 let totalPages = 1;
 let currentPopup = null;
+let campaignList = [];
+let campaignCurrent = null;
+let campaignPreviewIndex = 0;
+let customList = [];
+let customCurrent = null;
 
-// 供 PageLoader 调用；直接打开页面时也执行一次
-window.PopupManagement = { init: initPopupManagement };
-
-document.addEventListener('DOMContentLoaded', function() {
-    initPopupManagement();
-});
-
-// 初始化弹窗管理
-function initPopupManagement() {
-    loadStats();
-    loadPopups();
-    bindEventListeners();
+function authHeaders(withJson = false) {
+    const h = { Authorization: `Bearer ${localStorage.getItem('token') || ''}` };
+    if (withJson) h['Content-Type'] = 'application/json';
+    return h;
 }
 
-// 绑定事件监听器
-function bindEventListeners() {
-    // 搜索功能
-    document.getElementById('searchInput').addEventListener('input', function() {
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(() => {
-            searchPopups();
-        }, 500);
-    });
-
-    // 筛选条件变化
-    document.getElementById('typeFilter').addEventListener('change', searchPopups);
-    document.getElementById('statusFilter').addEventListener('change', searchPopups);
-
-    // 图片上传
-    document.getElementById('popupImage').addEventListener('change', handleImageSelect);
+function fmt(dt) {
+    if (!dt) return '-';
+    const d = new Date(dt);
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleString('zh-CN');
 }
 
-// 加载统计数据
-async function loadStats() {
-    try {
-        const response = await fetch('/api/popups/stats', {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
+function fmtLocal(dt) {
+    if (!dt) return '';
+    const d = new Date(dt);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${day}T${hh}:${mm}`;
+}
+
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('show');
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+}
+
+async function jsonRequest(url, options = {}) {
+    const res = await fetch(url, options);
+    return res.json();
+}
+
+function bindTabs() {
+    const tabs = document.querySelectorAll('.pm-tab');
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            tabs.forEach((t) => t.classList.remove('active'));
+            tab.classList.add('active');
+            const name = tab.getAttribute('data-tab');
+            document.querySelectorAll('.pm-panel').forEach((p) => p.classList.remove('active'));
+            const panel = document.getElementById(`panel-${name}`);
+            if (panel) panel.classList.add('active');
         });
-        const result = await response.json();
-        
-        if (result.code === 0) {
-            document.getElementById('totalPopups').textContent = result.data.total;
-            document.getElementById('activePopups').textContent = result.data.active;
-            document.getElementById('adPopups').textContent = result.data.ad;
-            document.getElementById('noticePopups').textContent = result.data.notice;
-        }
-    } catch (error) {
-        console.error('加载统计数据失败:', error);
-    }
+    });
 }
 
-// 加载弹窗列表
+function bindSiteEvents() {
+    const searchInput = document.getElementById('searchInput');
+    const typeFilter = document.getElementById('typeFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const imageInput = document.getElementById('popupImage');
+    if (searchInput) {
+        searchInput.addEventListener('input', function onSearchInput() {
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = setTimeout(searchPopups, 300);
+        });
+    }
+    if (typeFilter) typeFilter.addEventListener('change', searchPopups);
+    if (statusFilter) statusFilter.addEventListener('change', searchPopups);
+    if (imageInput) imageInput.addEventListener('change', handleImageSelect);
+}
+
 async function loadPopups() {
-    try {
-        const search = document.getElementById('searchInput').value;
-        const type = document.getElementById('typeFilter').value;
-        const status = document.getElementById('statusFilter').value;
-        
-        const params = new URLSearchParams({
-            page: currentPage,
-            limit: 10,
-            search: search,
-            type: type,
-            status: status
-        });
-
-        const response = await fetch(`/api/popups?${params}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-        const result = await response.json();
-        
-        if (result.code === 0) {
-            popups = result.data.popups;
-            totalPages = result.data.totalPages;
-            renderPopupsTable();
-            renderPagination();
-        }
-    } catch (error) {
-        console.error('加载弹窗列表失败:', error);
-    }
-}
-
-// 渲染弹窗表格
-function renderPopupsTable() {
-    const tbody = document.getElementById('popupTableBody');
-    tbody.innerHTML = '';
-
-    popups.forEach(popup => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${popup.id}</td>
-            <td>${popup.name}</td>
-            <td><span class="type-badge">${getTypeText(popup.type)}</span></td>
-            <td><span class="status-badge status-${popup.status}">${popup.status === 'active' ? '有效' : '无效'}</span></td>
-            <td><img src="${popup.imageUrl || '/images/default-product.svg'}" class="popup-preview" alt="弹窗预览"></td>
-            <td>${getFrequencyText(popup.frequency)}</td>
-            <td>${popup.startTime ? formatDate(popup.startTime) : '-'}</td>
-            <td>${popup.endTime ? formatDate(popup.endTime) : '-'}</td>
-            <td>
-                <button class="btn btn-primary" onclick="editPopup(${popup.id})">编辑</button>
-                <button class="btn btn-danger" onclick="deletePopup(${popup.id})">删除</button>
-            </td>
-        `;
-        tbody.appendChild(row);
+    const params = new URLSearchParams({
+        page: currentPage,
+        limit: 10,
+        search: (document.getElementById('searchInput') || {}).value || '',
+        type: (document.getElementById('typeFilter') || {}).value || '',
+        status: (document.getElementById('statusFilter') || {}).value || ''
     });
+    const result = await jsonRequest(`/api/popups?${params.toString()}`, { headers: authHeaders() });
+    if (result.code !== 0) return;
+    popups = result.data.popups || [];
+    totalPages = result.data.totalPages || 1;
+    const tbody = document.getElementById('popupTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = popups.map((item) => `
+        <tr>
+            <td>${item.id}</td>
+            <td>${item.name || '-'}</td>
+            <td>${({ ad: '广告', notice: '通知', promotion: '促销' }[item.type] || item.type || '-')}</td>
+            <td><span class="pm-badge ${item.status === 'active' ? 'pm-badge-active' : 'pm-badge-inactive'}">${item.status === 'active' ? '有效' : '无效'}</span></td>
+            <td>${item.imageUrl ? `<img class="pm-img" src="${item.imageUrl}">` : '-'}</td>
+            <td>${({ once: '仅一次', daily: '每日一次', session: '每次会话', always: '总是显示' }[item.frequency] || item.frequency || '-')}</td>
+            <td>${fmt(item.startTime)}</td>
+            <td>${fmt(item.endTime)}</td>
+            <td>
+                <button class="btn btn-primary" onclick="editPopup(${item.id})">编辑</button>
+                <button class="btn btn-danger" onclick="deletePopup(${item.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+    renderPagination();
 }
 
-// 渲染分页
 function renderPagination() {
-    const pagination = document.getElementById('pagination');
-    pagination.innerHTML = '';
-
-    // 上一页按钮
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '上一页';
-    prevBtn.disabled = currentPage === 1;
-    prevBtn.onclick = () => {
-        if (currentPage > 1) {
-            currentPage--;
-            loadPopups();
-        }
+    const p = document.getElementById('pagination');
+    if (!p) return;
+    p.innerHTML = '';
+    const mk = (txt, disabled, fn) => {
+        const b = document.createElement('button');
+        b.className = 'btn btn-light';
+        b.textContent = txt;
+        b.disabled = !!disabled;
+        b.onclick = fn;
+        b.style.marginRight = '6px';
+        return b;
     };
-    pagination.appendChild(prevBtn);
-
-    // 页码按钮
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
-
-    for (let i = startPage; i <= endPage; i++) {
-        const pageBtn = document.createElement('button');
-        pageBtn.textContent = i;
-        pageBtn.className = i === currentPage ? 'active' : '';
-        pageBtn.onclick = () => {
-            currentPage = i;
-            loadPopups();
-        };
-        pagination.appendChild(pageBtn);
-    }
-
-    // 下一页按钮
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = '下一页';
-    nextBtn.disabled = currentPage === totalPages;
-    nextBtn.onclick = () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            loadPopups();
-        }
-    };
-    pagination.appendChild(nextBtn);
+    p.appendChild(mk('上一页', currentPage <= 1, () => { currentPage--; loadPopups(); }));
+    p.appendChild(mk(`第 ${currentPage}/${totalPages} 页`, true, () => {}));
+    p.appendChild(mk('下一页', currentPage >= totalPages, () => { currentPage++; loadPopups(); }));
 }
 
-// 搜索弹窗
+function resetImagePreview() {
+    const a = document.getElementById('imagePreview');
+    const b = document.getElementById('popupPreview');
+    const c = document.getElementById('noPreview');
+    if (a) a.style.display = 'none';
+    if (b) b.style.display = 'none';
+    if (c) c.style.display = 'block';
+    const input = document.getElementById('popupImage');
+    if (input) input.value = '';
+}
+
+function handleImageSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const src = ev.target.result;
+        const a = document.getElementById('imagePreview');
+        const b = document.getElementById('popupPreview');
+        const c = document.getElementById('noPreview');
+        if (a) { a.src = src; a.style.display = 'block'; }
+        if (b) { b.src = src; b.style.display = 'block'; }
+        if (c) c.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+function showAddPopupModal() {
+    currentPopup = null;
+    document.getElementById('popupModalTitle').textContent = '新增站内弹窗';
+    document.getElementById('popupForm').reset();
+    resetImagePreview();
+    openModal('popupModal');
+}
+
+async function editPopup(id) {
+    const result = await jsonRequest(`/api/popups/${id}`, { headers: authHeaders() });
+    if (result.code !== 0) return alert(result.message || '获取失败');
+    currentPopup = result.data;
+    document.getElementById('popupModalTitle').textContent = '编辑站内弹窗';
+    document.getElementById('popupName').value = currentPopup.name || '';
+    document.getElementById('popupType').value = currentPopup.type || 'ad';
+    document.getElementById('popupFrequency').value = currentPopup.frequency || 'once';
+    document.getElementById('popupStatus').value = currentPopup.status || 'active';
+    document.getElementById('popupStartTime').value = fmtLocal(currentPopup.startTime);
+    document.getElementById('popupEndTime').value = fmtLocal(currentPopup.endTime);
+    document.getElementById('popupLink').value = currentPopup.link || '';
+    const cond = currentPopup.conditions || {};
+    document.getElementById('showToMembers').checked = cond.showToMembers !== false;
+    document.getElementById('showToGuests').checked = cond.showToGuests !== false;
+    document.getElementById('showOnMobile').checked = cond.showOnMobile !== false;
+    document.getElementById('showOnDesktop').checked = cond.showOnDesktop !== false;
+    if (currentPopup.imageUrl) {
+        document.getElementById('imagePreview').src = currentPopup.imageUrl;
+        document.getElementById('popupPreview').src = currentPopup.imageUrl;
+        document.getElementById('imagePreview').style.display = 'block';
+        document.getElementById('popupPreview').style.display = 'block';
+        document.getElementById('noPreview').style.display = 'none';
+    } else {
+        resetImagePreview();
+    }
+    openModal('popupModal');
+}
+
+async function savePopup() {
+    const formData = new FormData();
+    formData.append('name', document.getElementById('popupName').value.trim());
+    formData.append('type', document.getElementById('popupType').value);
+    formData.append('frequency', document.getElementById('popupFrequency').value);
+    formData.append('startTime', document.getElementById('popupStartTime').value || '');
+    formData.append('endTime', document.getElementById('popupEndTime').value || '');
+    formData.append('link', document.getElementById('popupLink').value || '');
+    formData.append('status', document.getElementById('popupStatus').value);
+    formData.append('conditions', JSON.stringify({
+        showToMembers: document.getElementById('showToMembers').checked,
+        showToGuests: document.getElementById('showToGuests').checked,
+        showOnMobile: document.getElementById('showOnMobile').checked,
+        showOnDesktop: document.getElementById('showOnDesktop').checked
+    }));
+    const file = document.getElementById('popupImage').files[0];
+    if (file) formData.append('image', file);
+    if (!formData.get('name')) return alert('弹窗名称不能为空');
+    const isEdit = !!(currentPopup && currentPopup.id);
+    const result = await jsonRequest(isEdit ? `/api/popups/${currentPopup.id}` : '/api/popups', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        body: formData
+    });
+    if (result.code !== 0) return alert(result.message || '保存失败');
+    closePopupModal();
+    loadPopups();
+}
+
+async function deletePopup(id) {
+    if (!confirm('确认删除该站内弹窗吗？')) return;
+    const result = await jsonRequest(`/api/popups/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (result.code !== 0) return alert(result.message || '删除失败');
+    loadPopups();
+}
+
+function closePopupModal() {
+    closeModal('popupModal');
+    currentPopup = null;
+    resetImagePreview();
+}
+
 function searchPopups() {
     currentPage = 1;
     loadPopups();
 }
 
-// 显示添加弹窗模态框
-function showAddPopupModal() {
-    currentPopup = null;
-    document.getElementById('popupModalTitle').textContent = '添加弹窗';
-    document.getElementById('popupForm').reset();
-    document.getElementById('popupModal').classList.add('show');
-    resetImagePreview();
-}
-
-// 编辑弹窗
-async function editPopup(id) {
-    try {
-        const response = await fetch(`/api/popups/${id}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-        const result = await response.json();
-        
-        if (result.code === 0) {
-            currentPopup = result.data;
-            document.getElementById('popupModalTitle').textContent = '编辑弹窗';
-            document.getElementById('popupName').value = currentPopup.name;
-            document.getElementById('popupType').value = currentPopup.type;
-            document.getElementById('popupFrequency').value = currentPopup.frequency;
-            document.getElementById('popupStartTime').value = currentPopup.startTime ? formatDateTimeLocal(currentPopup.startTime) : '';
-            document.getElementById('popupEndTime').value = currentPopup.endTime ? formatDateTimeLocal(currentPopup.endTime) : '';
-            document.getElementById('popupLink').value = currentPopup.link || '';
-            document.getElementById('popupStatus').value = currentPopup.status;
-            
-            // 设置显示条件
-            const conditions = currentPopup.conditions || {};
-            document.getElementById('showToMembers').checked = conditions.showToMembers !== false;
-            document.getElementById('showToGuests').checked = conditions.showToGuests !== false;
-            document.getElementById('showOnMobile').checked = conditions.showOnMobile !== false;
-            document.getElementById('showOnDesktop').checked = conditions.showOnDesktop !== false;
-            
-            // 显示现有图片
-            if (currentPopup.imageUrl) {
-                document.getElementById('imagePreview').src = currentPopup.imageUrl;
-                document.getElementById('imagePreview').style.display = 'block';
-                document.getElementById('popupPreview').src = currentPopup.imageUrl;
-                document.getElementById('popupPreview').style.display = 'block';
-                document.getElementById('noPreview').style.display = 'none';
-            } else {
-                resetImagePreview();
-            }
-            
-            document.getElementById('popupModal').classList.add('show');
-        }
-    } catch (error) {
-        console.error('获取弹窗详情失败:', error);
-        alert('获取弹窗详情失败');
-    }
-}
-
-// 保存弹窗
-async function savePopup() {
-    try {
-        const formData = new FormData();
-        formData.append('name', document.getElementById('popupName').value);
-        formData.append('type', document.getElementById('popupType').value);
-        formData.append('frequency', document.getElementById('popupFrequency').value);
-        formData.append('startTime', document.getElementById('popupStartTime').value);
-        formData.append('endTime', document.getElementById('popupEndTime').value);
-        formData.append('link', document.getElementById('popupLink').value);
-        formData.append('status', document.getElementById('popupStatus').value);
-
-        // 处理显示条件
-        const conditions = {
-            showToMembers: document.getElementById('showToMembers').checked,
-            showToGuests: document.getElementById('showToGuests').checked,
-            showOnMobile: document.getElementById('showOnMobile').checked,
-            showOnDesktop: document.getElementById('showOnDesktop').checked
-        };
-        formData.append('conditions', JSON.stringify(conditions));
-
-        if (!formData.get('name') || !formData.get('type')) {
-            alert('请填写所有必填字段');
-            return;
-        }
-
-        // 处理图片上传
-        const imageFile = document.getElementById('popupImage').files[0];
-        if (imageFile) {
-            formData.append('image', imageFile);
-        }
-
-        const url = currentPopup ? `/api/popups/${currentPopup.id}` : '/api/popups';
-        const method = currentPopup ? 'PUT' : 'POST';
-
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: formData
-        });
-
-        const result = await response.json();
-        
-        if (result.code === 0) {
-            alert(currentPopup ? '更新成功' : '创建成功');
-            closePopupModal();
-            loadPopups();
-            loadStats();
-        } else {
-            alert(result.message || '保存失败');
-        }
-    } catch (error) {
-        console.error('保存弹窗失败:', error);
-        alert('保存失败');
-    }
-}
-
-// 删除弹窗
-async function deletePopup(id) {
-    if (!confirm('确定要删除这个弹窗吗？')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/popups/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-
-        const result = await response.json();
-        
-        if (result.code === 0) {
-            alert('删除成功');
-            loadPopups();
-            loadStats();
-        } else {
-            alert(result.message || '删除失败');
-        }
-    } catch (error) {
-        console.error('删除弹窗失败:', error);
-        alert('删除失败');
-    }
-}
-
-// 处理图片选择
-function handleImageSelect(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('imagePreview').src = e.target.result;
-            document.getElementById('imagePreview').style.display = 'block';
-            document.getElementById('popupPreview').src = e.target.result;
-            document.getElementById('popupPreview').style.display = 'block';
-            document.getElementById('noPreview').style.display = 'none';
-        };
-        reader.readAsDataURL(file);
-    }
-}
-
-// 处理拖拽上传
-function handleDragOver(event) {
-    event.preventDefault();
-    event.currentTarget.classList.add('dragover');
-}
-
-function handleDragLeave(event) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('dragover');
-}
-
-function handleDrop(event) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('dragover');
-    
-    const files = event.dataTransfer.files;
-    if (files.length > 0) {
-        const file = files[0];
-        if (file.type.startsWith('image/')) {
-            document.getElementById('popupImage').files = files;
-            handleImageSelect({ target: { files: [file] } });
-        } else {
-            alert('请选择图片文件');
-        }
-    }
-}
-
-// 重置图片预览
-function resetImagePreview() {
-    document.getElementById('imagePreview').style.display = 'none';
-    document.getElementById('popupPreview').style.display = 'none';
-    document.getElementById('noPreview').style.display = 'block';
-    document.getElementById('popupImage').value = '';
-}
-
-// 关闭弹窗模态框
-function closePopupModal() {
-    document.getElementById('popupModal').classList.remove('show');
-    currentPopup = null;
-    resetImagePreview();
-}
-
-// 获取类型文本
-function getTypeText(type) {
-    const typeMap = {
-        'ad': '广告弹窗',
-        'notice': '通知弹窗',
-        'promotion': '促销弹窗'
-    };
-    return typeMap[type] || type;
-}
-
-// 获取频率文本
-function getFrequencyText(frequency) {
-    const frequencyMap = {
-        'once': '仅一次',
-        'daily': '每日一次',
-        'session': '每次会话',
-        'always': '总是显示'
-    };
-    return frequencyMap[frequency] || frequency;
-}
-
-// 格式化日期
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
+async function loadCampaign() {
+    const q = new URLSearchParams({
+        page: 1,
+        limit: 100,
+        search: (document.getElementById('campaignPopupSearch') || {}).value || '',
+        status: (document.getElementById('campaignPopupStatus') || {}).value || ''
     });
+    const result = await jsonRequest(`/api/campaign-popups?${q.toString()}`, { headers: authHeaders() });
+    if (result.code !== 0) return;
+    campaignList = (result.data && result.data.list) || [];
+    const tbody = document.getElementById('campaignPopupTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = campaignList.map((item) => {
+        const image = Array.isArray(item.imageUrls) && item.imageUrls.length ? item.imageUrls[0] : '';
+        return `
+            <tr>
+                <td>${item.id}</td>
+                <td>${item.name || '-'}</td>
+                <td>${item.status || '-'}</td>
+                <td>${item.priority || 0}</td>
+                <td>${image ? `<img src="${image}" class="pm-img">` : '-'}</td>
+                <td>${fmt(item.startTime)} ~ ${fmt(item.endTime)}</td>
+                <td>${item.jumpType || 'none'} ${item.jumpTarget ? `(${item.jumpTarget})` : ''}</td>
+                <td>
+                    <button class="btn btn-light" onclick="PopupManagement.moveCampaignUp(${item.id})">上移</button>
+                    <button class="btn btn-light" onclick="PopupManagement.moveCampaignDown(${item.id})">下移</button>
+                    <button class="btn btn-warning" onclick="PopupManagement.moveCampaignTop(${item.id})">置顶</button>
+                    <button class="btn btn-primary" onclick="PopupManagement.editCampaign(${item.id})">编辑</button>
+                    <button class="btn btn-danger" onclick="PopupManagement.deleteCampaign(${item.id})">删除</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
-// 格式化日期为datetime-local格式
-function formatDateTimeLocal(dateString) {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+function fillCampaignForm(data = {}) {
+    document.getElementById('cpName').value = data.name || '';
+    document.getElementById('cpTitle').value = data.title || '';
+    document.getElementById('cpStatus').value = data.status || 'draft';
+    document.getElementById('cpPriority').value = data.priority || 0;
+    document.getElementById('cpStartTime').value = fmtLocal(data.startTime);
+    document.getElementById('cpEndTime').value = fmtLocal(data.endTime);
+    document.getElementById('cpJumpType').value = data.jumpType || 'none';
+    document.getElementById('cpJumpTarget').value = data.jumpTarget || '';
+    document.getElementById('cpShowOnce').checked = data.showOncePerCycle !== false;
+    document.getElementById('cpImageUrls').value = Array.isArray(data.imageUrls) ? data.imageUrls.join('\n') : '';
 }
+
+function readCampaignForm() {
+    return {
+        name: document.getElementById('cpName').value.trim(),
+        title: document.getElementById('cpTitle').value.trim(),
+        status: document.getElementById('cpStatus').value,
+        priority: Number(document.getElementById('cpPriority').value || 0),
+        startTime: document.getElementById('cpStartTime').value || null,
+        endTime: document.getElementById('cpEndTime').value || null,
+        jumpType: document.getElementById('cpJumpType').value,
+        jumpTarget: document.getElementById('cpJumpTarget').value.trim(),
+        showOncePerCycle: !!document.getElementById('cpShowOnce').checked,
+        imageUrls: document.getElementById('cpImageUrls').value.split('\n').map((s) => s.trim()).filter(Boolean)
+    };
+}
+
+async function loadCustom() {
+    const q = new URLSearchParams({
+        page: 1,
+        limit: 100,
+        search: (document.getElementById('customPageSearch') || {}).value || '',
+        status: (document.getElementById('customPageStatus') || {}).value || ''
+    });
+    const result = await jsonRequest(`/api/custom-pages?${q.toString()}`, { headers: authHeaders() });
+    if (result.code !== 0) return;
+    customList = (result.data && result.data.list) || [];
+    const tbody = document.getElementById('customPageTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = customList.map((item) => `
+        <tr>
+            <td>${item.id}</td>
+            <td>${item.name || '-'}</td>
+            <td>${item.slug || '-'}</td>
+            <td>${item.status || '-'}</td>
+            <td>${item.enableShare === false ? '关闭' : '开启'} ${item.shareTitle ? `| ${item.shareTitle}` : ''}</td>
+            <td>
+                <button class="btn btn-primary" onclick="PopupManagement.editCustom(${item.id})">编辑</button>
+                <button class="btn btn-danger" onclick="PopupManagement.deleteCustom(${item.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function fillCustomForm(data = {}) {
+    document.getElementById('cpgName').value = data.name || '';
+    document.getElementById('cpgSlug').value = data.slug || '';
+    document.getElementById('cpgTitle').value = data.title || '';
+    document.getElementById('cpgStatus').value = data.status || 'draft';
+    document.getElementById('cpgStartTime').value = fmtLocal(data.startTime);
+    document.getElementById('cpgEndTime').value = fmtLocal(data.endTime);
+    document.getElementById('cpgEnableShare').checked = data.enableShare !== false;
+    document.getElementById('cpgShareTitle').value = data.shareTitle || '';
+    document.getElementById('cpgShareImage').value = data.shareImage || '';
+    document.getElementById('cpgSchemaJson').value = JSON.stringify(data.schemaJson || [], null, 2);
+}
+
+function readCustomForm() {
+    let schemaJson = [];
+    try { schemaJson = JSON.parse(document.getElementById('cpgSchemaJson').value || '[]'); } catch (_) {}
+    return {
+        name: document.getElementById('cpgName').value.trim(),
+        slug: document.getElementById('cpgSlug').value.trim(),
+        title: document.getElementById('cpgTitle').value.trim(),
+        status: document.getElementById('cpgStatus').value,
+        startTime: document.getElementById('cpgStartTime').value || null,
+        endTime: document.getElementById('cpgEndTime').value || null,
+        enableShare: !!document.getElementById('cpgEnableShare').checked,
+        shareTitle: document.getElementById('cpgShareTitle').value.trim(),
+        shareImage: document.getElementById('cpgShareImage').value.trim(),
+        schemaJson
+    };
+}
+
+function initPopupManagement() {
+    bindTabs();
+    bindSiteEvents();
+    loadPopups();
+    loadCampaign();
+    loadCustom();
+}
+
+window.PopupManagement = {
+    init: initPopupManagement,
+    loadCampaign,
+    openCampaignCreate() {
+        campaignCurrent = null;
+        fillCampaignForm({});
+        openModal('campaignPopupModal');
+    },
+    async editCampaign(id) {
+        const result = await jsonRequest(`/api/campaign-popups/${id}`, { headers: authHeaders() });
+        if (result.code !== 0) return alert(result.message || '获取失败');
+        campaignCurrent = result.data;
+        fillCampaignForm(result.data || {});
+        openModal('campaignPopupModal');
+    },
+    async saveCampaign() {
+        const payload = readCampaignForm();
+        if (!payload.name) return alert('活动名称不能为空');
+        const isEdit = !!(campaignCurrent && campaignCurrent.id);
+        const result = await jsonRequest(isEdit ? `/api/campaign-popups/${campaignCurrent.id}` : '/api/campaign-popups', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify(payload)
+        });
+        if (result.code !== 0) return alert(result.message || '保存失败');
+        this.closeCampaignModal();
+        loadCampaign();
+    },
+    async deleteCampaign(id) {
+        if (!confirm('确认删除该活动吗？')) return;
+        const result = await jsonRequest(`/api/campaign-popups/${id}`, { method: 'DELETE', headers: authHeaders() });
+        if (result.code !== 0) return alert(result.message || '删除失败');
+        loadCampaign();
+    },
+    closeCampaignModal() {
+        closeModal('campaignPopupModal');
+        campaignCurrent = null;
+    },
+    async moveCampaignUp(id) {
+        const idx = campaignList.findIndex((x) => Number(x.id) === Number(id));
+        if (idx <= 0) return;
+        const a = campaignList[idx];
+        const b = campaignList[idx - 1];
+        await jsonRequest(`/api/campaign-popups/${a.id}`, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify({ priority: b.priority || 0 }) });
+        await jsonRequest(`/api/campaign-popups/${b.id}`, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify({ priority: a.priority || 0 }) });
+        loadCampaign();
+    },
+    async moveCampaignDown(id) {
+        const idx = campaignList.findIndex((x) => Number(x.id) === Number(id));
+        if (idx < 0 || idx >= campaignList.length - 1) return;
+        const a = campaignList[idx];
+        const b = campaignList[idx + 1];
+        await jsonRequest(`/api/campaign-popups/${a.id}`, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify({ priority: b.priority || 0 }) });
+        await jsonRequest(`/api/campaign-popups/${b.id}`, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify({ priority: a.priority || 0 }) });
+        loadCampaign();
+    },
+    async moveCampaignTop(id) {
+        const maxP = campaignList.reduce((m, x) => Math.max(m, Number(x.priority || 0)), 0);
+        const result = await jsonRequest(`/api/campaign-popups/${id}`, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify({ priority: maxP + 10 }) });
+        if (result.code !== 0) return alert(result.message || '置顶失败');
+        loadCampaign();
+    },
+    previewCampaign() {
+        if (!campaignList.length) return alert('暂无活动可预览');
+        campaignPreviewIndex = 0;
+        this.renderCampaignPreview();
+        openModal('campaignPreviewModal');
+    },
+    renderCampaignPreview() {
+        if (!campaignList.length) return;
+        const item = campaignList[campaignPreviewIndex];
+        const image = Array.isArray(item.imageUrls) && item.imageUrls.length ? item.imageUrls[0] : '';
+        document.getElementById('campaignPreviewImage').src = image;
+        document.getElementById('campaignPreviewTitle').textContent = item.title || item.name || '';
+        document.getElementById('campaignPreviewMeta').textContent = `第 ${campaignPreviewIndex + 1}/${campaignList.length} 项 | 优先级 ${item.priority || 0}`;
+    },
+    campaignPreviewPrev() {
+        if (!campaignList.length) return;
+        campaignPreviewIndex = (campaignPreviewIndex - 1 + campaignList.length) % campaignList.length;
+        this.renderCampaignPreview();
+    },
+    campaignPreviewNext() {
+        if (!campaignList.length) return;
+        campaignPreviewIndex = (campaignPreviewIndex + 1) % campaignList.length;
+        this.renderCampaignPreview();
+    },
+    closeCampaignPreview() {
+        closeModal('campaignPreviewModal');
+    },
+    loadCustom,
+    openCustomCreate() {
+        customCurrent = null;
+        fillCustomForm({});
+        openModal('customPageModal');
+    },
+    async editCustom(id) {
+        const result = await jsonRequest(`/api/custom-pages/${id}`, { headers: authHeaders() });
+        if (result.code !== 0) return alert(result.message || '获取失败');
+        customCurrent = result.data;
+        fillCustomForm(result.data || {});
+        openModal('customPageModal');
+    },
+    async saveCustom() {
+        const payload = readCustomForm();
+        if (!payload.name) return alert('页面名称不能为空');
+        if (!payload.slug) return alert('slug 不能为空');
+        const isEdit = !!(customCurrent && customCurrent.id);
+        const result = await jsonRequest(isEdit ? `/api/custom-pages/${customCurrent.id}` : '/api/custom-pages', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify(payload)
+        });
+        if (result.code !== 0) return alert(result.message || '保存失败');
+        this.closeCustomModal();
+        loadCustom();
+    },
+    async deleteCustom(id) {
+        if (!confirm('确认删除该页面吗？')) return;
+        const result = await jsonRequest(`/api/custom-pages/${id}`, { method: 'DELETE', headers: authHeaders() });
+        if (result.code !== 0) return alert(result.message || '删除失败');
+        loadCustom();
+    },
+    closeCustomModal() {
+        closeModal('customPageModal');
+        customCurrent = null;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    initPopupManagement();
+});
