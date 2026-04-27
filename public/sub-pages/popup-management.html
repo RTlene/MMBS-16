@@ -144,6 +144,11 @@
                     <input class="pm-input" id="cpJumpTarget" placeholder="跳转目标">
                 </div>
                 <div style="margin-top:10px;"><label><input type="checkbox" id="cpShowOnce" checked> 每会员每周期仅弹一次</label></div>
+                <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="file" id="cpImageFiles" accept="image/*" multiple>
+                    <button class="btn btn-light" type="button" onclick="PopupManagement.uploadCampaignImages()">上传图片到对象存储</button>
+                    <span style="color:#64748b;font-size:12px;">可多选，上传后自动写入下方 URL 列表</span>
+                </div>
                 <div style="margin-top:10px;"><textarea class="pm-textarea" id="cpImageUrls" placeholder="轮播图URL，一行一个"></textarea></div>
             </div>
             <div class="pm-modal-foot">
@@ -166,6 +171,10 @@
                     <input class="pm-input" id="cpgEndTime" type="datetime-local">
                     <input class="pm-input" id="cpgShareTitle" placeholder="分享标题">
                     <input class="pm-input" id="cpgShareImage" placeholder="分享图片URL">
+                </div>
+                <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="file" id="cpgShareImageFile" accept="image/*">
+                    <button class="btn btn-light" type="button" onclick="PopupManagement.uploadCustomShareImage()">上传分享图到对象存储</button>
                 </div>
                 <div style="margin-top:10px;"><label><input type="checkbox" id="cpgEnableShare" checked> 开启分享</label></div>
                 <div style="margin-top:10px;"><textarea class="pm-textarea" id="cpgSchemaJson" placeholder='页面JSON数组，例如：[{"type":"image","url":"https://..."},{"type":"text","text":"五一活动"}]'></textarea></div>

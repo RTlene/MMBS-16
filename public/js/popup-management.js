@@ -33,6 +33,18 @@ function fmtLocal(dt) {
     return `${y}-${m}-${day}T${hh}:${mm}`;
 }
 
+function resolveMediaUrl(rawUrl) {
+    const url = String(rawUrl || '').trim();
+    if (!url) return '';
+    if (url.startsWith('cloud://')) {
+        return `/api/storage/temp-url?fileId=${encodeURIComponent(url)}`;
+    }
+    if (/^https?:\/\//i.test(url) && /myqcloud\.com/i.test(url)) {
+        return `/api/storage/cos-url?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+}
+
 function openModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add('show');
@@ -98,7 +110,7 @@ async function loadPopups() {
             <td>${item.name || '-'}</td>
             <td>${({ ad: '广告', notice: '通知', promotion: '促销' }[item.type] || item.type || '-')}</td>
             <td><span class="pm-badge ${item.status === 'active' ? 'pm-badge-active' : 'pm-badge-inactive'}">${item.status === 'active' ? '有效' : '无效'}</span></td>
-            <td>${item.imageUrl ? `<img class="pm-img" src="${item.imageUrl}">` : '-'}</td>
+            <td>${item.imageUrl ? `<img class="pm-img" src="${resolveMediaUrl(item.imageUrl)}">` : '-'}</td>
             <td>${({ once: '仅一次', daily: '每日一次', session: '每次会话', always: '总是显示' }[item.frequency] || item.frequency || '-')}</td>
             <td>${fmt(item.startTime)}</td>
             <td>${fmt(item.endTime)}</td>
@@ -260,7 +272,7 @@ async function loadCampaign() {
                 <td>${item.name || '-'}</td>
                 <td>${item.status || '-'}</td>
                 <td>${item.priority || 0}</td>
-                <td>${image ? `<img src="${image}" class="pm-img">` : '-'}</td>
+                <td>${image ? `<img src="${resolveMediaUrl(image)}" class="pm-img">` : '-'}</td>
                 <td>${fmt(item.startTime)} ~ ${fmt(item.endTime)}</td>
                 <td>${item.jumpType || 'none'} ${item.jumpTarget ? `(${item.jumpTarget})` : ''}</td>
                 <td>
@@ -301,6 +313,20 @@ function readCampaignForm() {
         showOncePerCycle: !!document.getElementById('cpShowOnce').checked,
         imageUrls: document.getElementById('cpImageUrls').value.split('\n').map((s) => s.trim()).filter(Boolean)
     };
+}
+
+async function uploadImageToStorage(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const result = await jsonRequest('/api/popups/upload-image', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd
+    });
+    if (!result || result.code !== 0 || !result.data || !result.data.url) {
+        throw new Error((result && result.message) || '上传失败');
+    }
+    return result.data.url;
 }
 
 async function loadCustom() {
@@ -440,7 +466,7 @@ window.PopupManagement = {
         if (!campaignList.length) return;
         const item = campaignList[campaignPreviewIndex];
         const image = Array.isArray(item.imageUrls) && item.imageUrls.length ? item.imageUrls[0] : '';
-        document.getElementById('campaignPreviewImage').src = image;
+        document.getElementById('campaignPreviewImage').src = resolveMediaUrl(image);
         document.getElementById('campaignPreviewTitle').textContent = item.title || item.name || '';
         document.getElementById('campaignPreviewMeta').textContent = `第 ${campaignPreviewIndex + 1}/${campaignList.length} 项 | 优先级 ${item.priority || 0}`;
     },
@@ -493,6 +519,39 @@ window.PopupManagement = {
     closeCustomModal() {
         closeModal('customPageModal');
         customCurrent = null;
+    },
+    async uploadCampaignImages() {
+        const input = document.getElementById('cpImageFiles');
+        const files = input && input.files ? Array.from(input.files) : [];
+        if (!files.length) return alert('请先选择图片');
+        const uploaded = [];
+        for (const file of files) {
+            try {
+                const url = await uploadImageToStorage(file);
+                uploaded.push(url);
+            } catch (e) {
+                alert(`图片上传失败: ${file.name}，原因：${e.message || '未知错误'}`);
+                return;
+            }
+        }
+        const textarea = document.getElementById('cpImageUrls');
+        const existed = (textarea.value || '').split('\n').map((s) => s.trim()).filter(Boolean);
+        textarea.value = [...existed, ...uploaded].join('\n');
+        if (input) input.value = '';
+        alert(`上传成功：${uploaded.length} 张`);
+    },
+    async uploadCustomShareImage() {
+        const input = document.getElementById('cpgShareImageFile');
+        const file = input && input.files ? input.files[0] : null;
+        if (!file) return alert('请先选择图片');
+        try {
+            const url = await uploadImageToStorage(file);
+            document.getElementById('cpgShareImage').value = url;
+            if (input) input.value = '';
+            alert('分享图上传成功');
+        } catch (e) {
+            alert(`上传失败：${e.message || '未知错误'}`);
+        }
     }
 };
 

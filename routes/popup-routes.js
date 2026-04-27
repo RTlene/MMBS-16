@@ -1,6 +1,8 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const { Popup } = require('../db');
+const wxCloudStorage = require('../services/wxCloudStorage');
+const cosStorage = require('../services/cosStorage');
 const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -34,6 +36,52 @@ const upload = multer({
         } else {
             cb(new Error('只允许上传图片文件'), false);
         }
+    }
+});
+
+async function uploadToObjectStorage(localFilePath, filename) {
+    let url = '';
+    if (wxCloudStorage.isConfigured()) {
+        try {
+            const cloudPath = wxCloudStorage.getCloudPath('popups', filename);
+            url = await wxCloudStorage.uploadFromPath(localFilePath, cloudPath);
+            return url;
+        } catch (err) {
+            console.error('[Popup] 云托管存储上传失败，尝试 COS:', err.message);
+        }
+    }
+    if (cosStorage.isConfigured()) {
+        try {
+            const objectKey = cosStorage.getObjectKey('popups', filename);
+            url = await cosStorage.uploadFromPath(localFilePath, objectKey);
+            return url;
+        } catch (err) {
+            console.error('[Popup] COS 上传失败，回退本地:', err.message);
+        }
+    }
+    return '';
+}
+
+// 通用图片上传（活动弹窗/自定义页等复用）
+router.post('/upload-image', authenticateToken, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ code: 1, message: '请选择图片文件' });
+        }
+        const localUrl = `/uploads/popups/${req.file.filename}`;
+        const localPath = path.join(__dirname, '../public', localUrl);
+        const remoteUrl = await uploadToObjectStorage(localPath, req.file.filename);
+        return res.json({
+            code: 0,
+            message: '上传成功',
+            data: {
+                url: remoteUrl || localUrl,
+                storageType: remoteUrl ? (String(remoteUrl).startsWith('cloud://') ? 'wxcloud' : 'cos') : 'local'
+            }
+        });
+    } catch (error) {
+        console.error('通用图片上传失败:', error);
+        return res.status(500).json({ code: 1, message: '上传失败' });
     }
 });
 
@@ -180,7 +228,10 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
         // 处理图片上传
         let imageUrl = '';
         if (req.file) {
-            imageUrl = `/uploads/popups/${req.file.filename}`;
+            const localUrl = `/uploads/popups/${req.file.filename}`;
+            const localPath = path.join(__dirname, '../public', localUrl);
+            const remoteUrl = await uploadToObjectStorage(localPath, req.file.filename);
+            imageUrl = remoteUrl || localUrl;
         }
 
         // 处理显示条件
@@ -243,7 +294,10 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
                     fs.unlinkSync(oldImagePath);
                 }
             }
-            imageUrl = `/uploads/popups/${req.file.filename}`;
+            const localUrl = `/uploads/popups/${req.file.filename}`;
+            const localPath = path.join(__dirname, '../public', localUrl);
+            const remoteUrl = await uploadToObjectStorage(localPath, req.file.filename);
+            imageUrl = remoteUrl || localUrl;
         }
 
         // 处理显示条件
