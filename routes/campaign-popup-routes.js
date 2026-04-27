@@ -26,6 +26,20 @@ function buildCycleKey(popup) {
   return `${popup.id}:${s}:${e}`;
 }
 
+function parseDateTimeInput(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  // 兼容前端 datetime-local（无时区）："2026-04-27T10:30"
+  // 按中国时区(+08:00)解析，避免服务器 UTC 环境下偏移 8 小时。
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(raw) && !/(Z|[+\-]\d{2}:\d{2})$/.test(raw)) {
+    const withSeconds = raw.length === 16 ? `${raw}:00` : raw;
+    return new Date(`${withSeconds}+08:00`);
+  }
+  return new Date(raw);
+}
+
 // 管理端列表
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -147,8 +161,8 @@ router.post('/', authenticateToken, async (req, res) => {
       name: String(b.name).trim(),
       title: b.title ? String(b.title).trim() : null,
       status: ['draft', 'active', 'inactive'].includes(String(b.status)) ? b.status : 'draft',
-      startTime: b.startTime ? new Date(b.startTime) : null,
-      endTime: b.endTime ? new Date(b.endTime) : null,
+      startTime: parseDateTimeInput(b.startTime),
+      endTime: parseDateTimeInput(b.endTime),
       priority: parseInt(b.priority, 10) || 0,
       showOncePerCycle: b.showOncePerCycle !== false,
       jumpType: ['none', 'miniapp_page', 'tab', 'webview', 'custom_page'].includes(String(b.jumpType)) ? b.jumpType : 'none',
@@ -173,8 +187,8 @@ router.put('/:id(\\d+)', authenticateToken, async (req, res) => {
     if (b.name !== undefined) payload.name = String(b.name || popup.name).trim();
     if (b.title !== undefined) payload.title = b.title ? String(b.title).trim() : null;
     if (b.status !== undefined) payload.status = ['draft', 'active', 'inactive'].includes(String(b.status)) ? b.status : popup.status;
-    if (b.startTime !== undefined) payload.startTime = b.startTime ? new Date(b.startTime) : null;
-    if (b.endTime !== undefined) payload.endTime = b.endTime ? new Date(b.endTime) : null;
+    if (b.startTime !== undefined) payload.startTime = parseDateTimeInput(b.startTime);
+    if (b.endTime !== undefined) payload.endTime = parseDateTimeInput(b.endTime);
     if (b.priority !== undefined) payload.priority = parseInt(b.priority, 10) || 0;
     if (b.showOncePerCycle !== undefined) payload.showOncePerCycle = !!b.showOncePerCycle;
     if (b.jumpType !== undefined) payload.jumpType = ['none', 'miniapp_page', 'tab', 'webview', 'custom_page'].includes(String(b.jumpType)) ? b.jumpType : popup.jumpType;
