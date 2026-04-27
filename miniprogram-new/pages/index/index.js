@@ -775,12 +775,21 @@ Page({
 
       // 兼容：旧结构 object；新结构 array（多活动）
       const rows = Array.isArray(result.data) ? result.data : [result.data];
+      const toPopupImageUrl = (raw) => {
+        const u = String(raw || '').trim();
+        if (!u) return '';
+        if (u.startsWith('cloud://')) {
+          // 小程序 image 直接走二进制代理，避免部分机型对 302/重定向图片不稳定
+          return `${API_BASE_URL}/api/storage/temp-file?fileId=${encodeURIComponent(u)}`;
+        }
+        return buildOptimizedImageUrl(u, { type: 'banner' });
+      };
       const activities = rows.map((item) => {
         const imageUrls = Array.isArray(item.imageUrls)
-          ? item.imageUrls.filter(Boolean).map((u) => buildOptimizedImageUrl(u, { type: 'banner' }))
+          ? item.imageUrls.filter(Boolean).map((u) => toPopupImageUrl(u))
           : [];
         const coverImage = item.coverImage
-          ? buildOptimizedImageUrl(item.coverImage, { type: 'banner' })
+          ? toPopupImageUrl(item.coverImage)
           : (imageUrls[0] || '');
         return {
           ...item,
@@ -864,6 +873,12 @@ Page({
   onCampaignPopupActivityChange(e) {
     const current = e && e.detail ? Number(e.detail.current || 0) : 0;
     this.setData({ campaignPopupActivityIndex: current });
+  },
+
+  onCampaignPopupImageError(e) {
+    const index = e && e.currentTarget && e.currentTarget.dataset ? Number(e.currentTarget.dataset.index || 0) : 0;
+    const item = (this.data.campaignPopupActivities || [])[index];
+    console.error('[Index] 活动弹窗图片加载失败:', index, item && item.coverImage, item && item.imageUrls);
   },
 
   // ==================== 工具方法 ====================

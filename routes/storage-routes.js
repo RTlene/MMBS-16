@@ -47,16 +47,19 @@ router.get('/temp-url', async (req, res) => {
         return res.status(503).json({ code: 1, message: '未配置云托管存储' });
     }
     try {
+        console.log('[Storage] temp-url 请求:', { fileId: fileId.trim(), format: asJson ? 'json' : 'redirect' });
         const downloadUrl = await wxCloudStorage.getTempDownloadUrl(fileId.trim(), 86400);
         if (!downloadUrl) {
+            console.warn('[Storage] temp-url 无下载链接:', fileId.trim());
             return res.status(404).json({ code: 1, message: '无法获取下载链接' });
         }
+        console.log('[Storage] temp-url 生成成功:', { fileId: fileId.trim(), downloadUrl: String(downloadUrl).slice(0, 300) });
         if (asJson) {
             return res.json({ code: 0, url: downloadUrl });
         }
         res.redirect(302, downloadUrl);
     } catch (err) {
-        console.warn('[Storage] getTempDownloadUrl 失败:', err.message);
+        console.warn('[Storage] getTempDownloadUrl 失败:', { fileId: fileId.trim(), message: err.message });
         res.status(500).json({ code: 1, message: err.message || '获取临时链接失败' });
     }
 });
@@ -71,8 +74,10 @@ router.get('/temp-file', async (req, res) => {
         return res.status(503).json({ code: 1, message: '未配置云托管存储' });
     }
     try {
+        console.log('[Storage] temp-file 请求:', { fileId: fileId.trim() });
         const downloadUrl = await wxCloudStorage.getTempDownloadUrl(fileId.trim(), 3600);
         if (!downloadUrl) {
+            console.warn('[Storage] temp-file 无下载链接:', fileId.trim());
             return res.status(404).json({ code: 1, message: '无法获取下载链接' });
         }
         const fileResp = await axios.get(downloadUrl, {
@@ -80,11 +85,12 @@ router.get('/temp-file', async (req, res) => {
             timeout: 15000
         });
         const contentType = String(fileResp.headers['content-type'] || 'image/jpeg');
+        console.log('[Storage] temp-file 拉取成功:', { fileId: fileId.trim(), contentType, bytes: Buffer.byteLength(fileResp.data || '') });
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'private, max-age=600');
         return res.send(Buffer.from(fileResp.data));
     } catch (err) {
-        console.warn('[Storage] temp-file 失败:', err.message);
+        console.warn('[Storage] temp-file 失败:', { fileId: fileId.trim(), message: err.message });
         res.status(500).json({ code: 1, message: err.message || '获取临时文件失败' });
     }
 });

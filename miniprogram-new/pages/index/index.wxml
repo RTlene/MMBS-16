@@ -224,7 +224,7 @@
       >
         <swiper-item wx:for="{{campaignPopupActivities}}" wx:key="id">
           <view class="campaign-popup-activity" bindtap="onCampaignPopupTap" data-index="{{index}}">
-            <image class="campaign-popup-image" src="{{item.coverImage}}" mode="aspectFill"></image>
+            <image class="campaign-popup-image" src="{{item.coverImage}}" mode="aspectFill" binderror="onCampaignPopupImageError" data-index="{{index}}"></image>
           </view>
         </swiper-item>
       </swiper>

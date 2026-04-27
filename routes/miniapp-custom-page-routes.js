@@ -23,7 +23,9 @@ router.get('/custom-pages/:slug', async (req, res) => {
         [Op.or]: [
           { slug: { [Op.in]: slugCandidates } },
           // 兼容历史配置错误：把“页面名称”当成了 slug 传入
-          { name: { [Op.in]: slugCandidates } }
+          { name: { [Op.in]: slugCandidates } },
+          // 再兜底：部分历史配置可能传的是标题
+          { title: { [Op.in]: slugCandidates } }
         ],
         status: 'published',
         [Op.and]: [
