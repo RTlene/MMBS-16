@@ -18,22 +18,51 @@ router.get('/custom-pages/:slug', async (req, res) => {
       } catch (_) {}
     } catch (_) {}
     const now = new Date();
-    const page = await CustomPage.findOne({
+    const candidateWhere = {
+      [Op.or]: [
+        { slug: { [Op.in]: slugCandidates } },
+        // 兼容历史配置错误：把“页面名称”当成了 slug 传入
+        { name: { [Op.in]: slugCandidates } },
+        // 再兜底：部分历史配置可能传的是标题
+        { title: { [Op.in]: slugCandidates } }
+      ]
+    };
+    const onlineWhere = {
+      status: 'published',
+      [Op.and]: [
+        { [Op.or]: [{ startTime: null }, { startTime: { [Op.lte]: now } }] },
+        { [Op.or]: [{ endTime: null }, { endTime: { [Op.gte]: now } }] }
+      ]
+    };
+
+    // 1) 首选：严格在线页（已发布 + 在有效期）且精确匹配
+    let page = await CustomPage.findOne({
       where: {
-        [Op.or]: [
-          { slug: { [Op.in]: slugCandidates } },
-          // 兼容历史配置错误：把“页面名称”当成了 slug 传入
-          { name: { [Op.in]: slugCandidates } },
-          // 再兜底：部分历史配置可能传的是标题
-          { title: { [Op.in]: slugCandidates } }
-        ],
-        status: 'published',
-        [Op.and]: [
-          { [Op.or]: [{ startTime: null }, { startTime: { [Op.lte]: now } }] },
-          { [Op.or]: [{ endTime: null }, { endTime: { [Op.gte]: now } }] }
-        ]
+        ...candidateWhere,
+        ...onlineWhere
       }
     });
+    // 2) 兼容：历史 jumpTarget 可能缺少完整值，做一次模糊匹配（仍限定在线页）
+    if (!page) {
+      page = await CustomPage.findOne({
+        where: {
+          [Op.or]: [
+            { slug: { [Op.like]: `%${rawSlug}%` } },
+            { name: { [Op.like]: `%${rawSlug}%` } },
+            { title: { [Op.like]: `%${rawSlug}%` } }
+          ],
+          ...onlineWhere
+        },
+        order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+      });
+    }
+    // 3) 最后兜底：用于活动跳转兼容老配置（忽略发布状态/时间）
+    if (!page) {
+      page = await CustomPage.findOne({
+        where: candidateWhere,
+        order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+      });
+    }
     if (!page) return res.status(404).json({ code: 1, message: '页面不存在或未发布' });
     return res.json({
       code: 0,
