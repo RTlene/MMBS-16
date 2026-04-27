@@ -141,8 +141,10 @@
                     <input class="pm-input" id="cpStartTime" type="datetime-local">
                     <input class="pm-input" id="cpEndTime" type="datetime-local">
                     <select class="pm-select" id="cpJumpType"><option value="none">不跳转</option><option value="miniapp_page">小程序页</option><option value="tab">Tab页</option><option value="custom_page">自定义页</option><option value="webview">Web链接</option></select>
-                    <input class="pm-input" id="cpJumpTarget" placeholder="跳转目标">
+                    <input class="pm-input" id="cpJumpTargetInput" placeholder="跳转目标">
+                    <select class="pm-select" id="cpJumpTargetSelect" style="display:none;"></select>
                 </div>
+                <div id="cpJumpTargetHint" style="margin-top:8px;color:#64748b;font-size:12px;">请选择跳转类型后设置目标。</div>
                 <div style="margin-top:10px;"><label><input type="checkbox" id="cpShowOnce" checked> 每会员每周期仅弹一次</label></div>
                 <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                     <input type="file" id="cpImageFiles" accept="image/*" multiple>

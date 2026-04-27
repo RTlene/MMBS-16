@@ -224,11 +224,15 @@
       >
         <swiper-item wx:for="{{campaignPopupActivities}}" wx:key="id">
           <view class="campaign-popup-activity" bindtap="onCampaignPopupTap" data-index="{{index}}">
-            <image class="campaign-popup-image" src="{{item.coverImage}}" mode="widthFix"></image>
+            <image class="campaign-popup-image" src="{{item.coverImage}}" mode="aspectFill"></image>
           </view>
         </swiper-item>
       </swiper>
     </view>
-    <button class="campaign-popup-close" bindtap="closeCampaignPopup">×</button>
+    <view class="campaign-popup-close-wrap">
+      <view class="campaign-popup-close" bindtap="closeCampaignPopup">
+        <text class="campaign-popup-close-icon">×</text>
+      </view>
+    </view>
   </view>
 </view>

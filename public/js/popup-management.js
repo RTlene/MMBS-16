@@ -7,6 +7,17 @@ let campaignCurrent = null;
 let campaignPreviewIndex = 0;
 let customList = [];
 let customCurrent = null;
+const CAMPAIGN_TAB_TARGETS = [
+    { value: '/pages/index/index', label: '首页 /pages/index/index' },
+    { value: '/pages/category/category', label: '分类 /pages/category/category' },
+    { value: '/pages/cart/cart', label: '购物车 /pages/cart/cart' },
+    { value: '/pages/profile/profile', label: '我的 /pages/profile/profile' }
+];
+const CAMPAIGN_PAGE_PRESETS = [
+    { value: '/pages/product/product?id=', label: '商品详情（需补 id）' },
+    { value: '/pages/article/article?id=', label: '资讯详情（需补 id）' },
+    { value: '/pages/custom-page/custom-page?slug=', label: '自定义页（需补 slug）' }
+];
 
 function authHeaders(withJson = false) {
     const h = { Authorization: `Bearer ${localStorage.getItem('token') || ''}` };
@@ -88,6 +99,8 @@ function bindSiteEvents() {
     if (typeFilter) typeFilter.addEventListener('change', searchPopups);
     if (statusFilter) statusFilter.addEventListener('change', searchPopups);
     if (imageInput) imageInput.addEventListener('change', handleImageSelect);
+    const jumpType = document.getElementById('cpJumpType');
+    if (jumpType) jumpType.addEventListener('change', () => renderCampaignJumpTargetUI());
 }
 
 async function loadPopups() {
@@ -295,12 +308,16 @@ function fillCampaignForm(data = {}) {
     document.getElementById('cpStartTime').value = fmtLocal(data.startTime);
     document.getElementById('cpEndTime').value = fmtLocal(data.endTime);
     document.getElementById('cpJumpType').value = data.jumpType || 'none';
-    document.getElementById('cpJumpTarget').value = data.jumpTarget || '';
+    renderCampaignJumpTargetUI(data.jumpTarget || '');
     document.getElementById('cpShowOnce').checked = data.showOncePerCycle !== false;
     document.getElementById('cpImageUrls').value = Array.isArray(data.imageUrls) ? data.imageUrls.join('\n') : '';
 }
 
 function readCampaignForm() {
+    const jumpType = document.getElementById('cpJumpType').value;
+    const inputEl = document.getElementById('cpJumpTargetInput');
+    const selectEl = document.getElementById('cpJumpTargetSelect');
+    const jumpTarget = (selectEl && selectEl.style.display !== 'none' ? selectEl.value : (inputEl ? inputEl.value : '')).trim();
     return {
         name: document.getElementById('cpName').value.trim(),
         title: document.getElementById('cpTitle').value.trim(),
@@ -308,11 +325,68 @@ function readCampaignForm() {
         priority: Number(document.getElementById('cpPriority').value || 0),
         startTime: document.getElementById('cpStartTime').value || null,
         endTime: document.getElementById('cpEndTime').value || null,
-        jumpType: document.getElementById('cpJumpType').value,
-        jumpTarget: document.getElementById('cpJumpTarget').value.trim(),
+        jumpType,
+        jumpTarget,
         showOncePerCycle: !!document.getElementById('cpShowOnce').checked,
         imageUrls: document.getElementById('cpImageUrls').value.split('\n').map((s) => s.trim()).filter(Boolean)
     };
+}
+
+function renderCampaignJumpTargetUI(currentTarget = '') {
+    const type = (document.getElementById('cpJumpType') || {}).value || 'none';
+    const inputEl = document.getElementById('cpJumpTargetInput');
+    const selectEl = document.getElementById('cpJumpTargetSelect');
+    const hintEl = document.getElementById('cpJumpTargetHint');
+    if (!inputEl || !selectEl || !hintEl) return;
+
+    inputEl.style.display = 'none';
+    selectEl.style.display = 'none';
+    inputEl.value = currentTarget || inputEl.value || '';
+    selectEl.innerHTML = '';
+
+    if (type === 'none') {
+        hintEl.textContent = '当前不跳转，活动仅展示不响应点击。';
+        return;
+    }
+
+    if (type === 'tab') {
+        selectEl.style.display = '';
+        selectEl.innerHTML = CAMPAIGN_TAB_TARGETS.map((x) => `<option value="${x.value}">${x.label}</option>`).join('');
+        const fallback = CAMPAIGN_TAB_TARGETS[0] ? CAMPAIGN_TAB_TARGETS[0].value : '';
+        selectEl.value = currentTarget || selectEl.value || fallback;
+        hintEl.textContent = '点击海报后切换到对应 tab 页面。';
+        return;
+    }
+
+    if (type === 'custom_page') {
+        selectEl.style.display = '';
+        const list = customList.map((x) => ({ value: x.slug || '', label: `${x.name || '未命名'}（${x.slug || '-'}）` })).filter((x) => x.value);
+        if (!list.length) {
+            selectEl.innerHTML = '<option value="">暂无可选自定义页，请先在“自定义页面”页创建并发布</option>';
+            selectEl.value = '';
+            hintEl.textContent = '请选择自定义页 slug；未创建时会显示空。';
+            return;
+        }
+        selectEl.innerHTML = list.map((x) => `<option value="${x.value}">${x.label}</option>`).join('');
+        selectEl.value = currentTarget || selectEl.value || list[0].value;
+        hintEl.textContent = '点击海报后跳转到该自定义页。';
+        return;
+    }
+
+    if (type === 'miniapp_page') {
+        inputEl.style.display = '';
+        inputEl.placeholder = '/pages/product/product?id=16';
+        if (!inputEl.value && CAMPAIGN_PAGE_PRESETS[0]) inputEl.value = CAMPAIGN_PAGE_PRESETS[0].value;
+        hintEl.textContent = `示例：${CAMPAIGN_PAGE_PRESETS.map((x) => x.value).join(' / ')}`;
+        return;
+    }
+
+    if (type === 'webview') {
+        inputEl.style.display = '';
+        inputEl.placeholder = 'https://example.com/activity';
+        hintEl.textContent = '请输入完整链接（https://...），点击海报后复制链接。';
+        return;
+    }
 }
 
 async function uploadImageToStorage(file) {
@@ -339,6 +413,7 @@ async function loadCustom() {
     const result = await jsonRequest(`/api/custom-pages?${q.toString()}`, { headers: authHeaders() });
     if (result.code !== 0) return;
     customList = (result.data && result.data.list) || [];
+    renderCampaignJumpTargetUI();
     const tbody = document.getElementById('customPageTableBody');
     if (!tbody) return;
     tbody.innerHTML = customList.map((item) => `
