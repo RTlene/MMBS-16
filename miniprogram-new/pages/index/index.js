@@ -776,8 +776,12 @@ Page({
       // 兼容：旧结构 object；新结构 array（多活动）
       const rows = Array.isArray(result.data) ? result.data : [result.data];
       const activities = rows.map((item) => {
-        const imageUrls = Array.isArray(item.imageUrls) ? item.imageUrls.filter(Boolean).map((u) => buildAbsoluteUrl(u)) : [];
-        const coverImage = item.coverImage ? buildAbsoluteUrl(item.coverImage) : (imageUrls[0] || '');
+        const imageUrls = Array.isArray(item.imageUrls)
+          ? item.imageUrls.filter(Boolean).map((u) => buildOptimizedImageUrl(u, { type: 'banner' }))
+          : [];
+        const coverImage = item.coverImage
+          ? buildOptimizedImageUrl(item.coverImage, { type: 'banner' })
+          : (imageUrls[0] || '');
         return {
           ...item,
           imageUrls,

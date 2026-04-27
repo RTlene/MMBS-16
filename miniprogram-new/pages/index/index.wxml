@@ -225,14 +225,10 @@
         <swiper-item wx:for="{{campaignPopupActivities}}" wx:key="id">
           <view class="campaign-popup-activity" bindtap="onCampaignPopupTap" data-index="{{index}}">
             <image class="campaign-popup-image" src="{{item.coverImage}}" mode="widthFix"></image>
-            <view class="campaign-popup-title">{{item.title || item.name}}</view>
           </view>
         </swiper-item>
       </swiper>
-      <view class="campaign-popup-actions">
-        <button class="campaign-popup-btn" bindtap="closeCampaignPopup">关闭</button>
-        <button class="campaign-popup-btn primary" bindtap="onCampaignPopupTap" data-index="{{campaignPopupActivityIndex}}">查看活动</button>
-      </view>
     </view>
+    <button class="campaign-popup-close" bindtap="closeCampaignPopup">×</button>
   </view>
 </view>

@@ -18,9 +18,11 @@
 
 .campaign-popup-wrap {
   position: fixed;
-  left: 24rpx;
-  right: 24rpx;
-  top: 12%;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 78vw;
+  max-width: 620rpx;
   z-index: 999;
 }
 
@@ -28,12 +30,13 @@
   background: #fff;
   border-radius: 18rpx;
   overflow: hidden;
+  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.22);
 }
 
 .campaign-popup-swiper {
   width: 100%;
-  min-height: 420rpx;
-  max-height: 860rpx;
+  min-height: 360rpx;
+  max-height: 720rpx;
 }
 
 .campaign-popup-image {
@@ -51,25 +54,20 @@
   padding: 16rpx 20rpx 0;
 }
 
-.campaign-popup-actions {
+.campaign-popup-close {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  margin: 18rpx auto 0;
   display: flex;
-  gap: 16rpx;
-  padding: 20rpx;
-}
-
-.campaign-popup-btn {
-  flex: 1;
-  height: 72rpx;
-  line-height: 72rpx;
-  border-radius: 10rpx;
-  background: #e2e8f0;
-  color: #1e293b;
-  font-size: 26rpx;
-}
-
-.campaign-popup-btn.primary {
-  background: #1e293b;
-  color: #fff;
+  align-items: center;
+  justify-content: center;
+  border: 2rpx solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 40rpx;
+  line-height: 1;
+  padding: 0;
 }
 
 /* 搜索栏：扁平 */
