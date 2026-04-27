@@ -15,9 +15,25 @@ Page({
   },
 
   onLoad(options = {}) {
-    const slug = String(options.slug || '').trim();
+    const slug = this.normalizeSlug(options.slug);
     this.setData({ slug });
     this.loadDetail();
+  },
+
+  normalizeSlug(raw) {
+    let slug = String(raw || '').trim();
+    if (!slug) return '';
+    // 兼容已编码/重复编码的 slug（例如 %252F...）
+    for (let i = 0; i < 2; i += 1) {
+      try {
+        const decoded = decodeURIComponent(slug);
+        if (decoded === slug) break;
+        slug = decoded;
+      } catch (_) {
+        break;
+      }
+    }
+    return slug.trim();
   },
 
   async loadDetail() {
@@ -28,7 +44,8 @@ Page({
     }
     this.setData({ loading: true, error: '' });
     try {
-      const url = replaceUrlParams(API.CUSTOM_PAGE.DETAIL, { slug: encodeURIComponent(slug) });
+      // request 层会处理 URL，避免在这里重复编码导致 /%25xx
+      const url = replaceUrlParams(API.CUSTOM_PAGE.DETAIL, { slug });
       const result = await request.get(url, {}, { showLoading: false, showError: false });
       if (!result || result.code !== 0 || !result.data) {
         throw new Error((result && result.message) || '页面不存在');
