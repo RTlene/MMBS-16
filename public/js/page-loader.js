@@ -192,12 +192,13 @@ function initPageLoader() {
 async function loadSubPage(pageName) {
     try {
         const container = document.getElementById('sub-page-container');
+        const cacheBust = Date.now();
         
         // 显示加载状态
         container.innerHTML = '<div class="loading">加载中...</div>';
         
         // 加载子页面内容
-        const response = await fetch(`sub-pages/${pageName}.html`);
+        const response = await fetch(`sub-pages/${pageName}.html?_=${cacheBust}`, { cache: 'no-store' });
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -233,6 +234,7 @@ const pageScriptMap = {
  * 加载页面对应的JavaScript模块
  */
 function loadPageScript(pageName) {
+    const cacheBust = Date.now();
     // 移除之前加载的脚本
     const existingScript = document.getElementById(`script-${pageName}`);
     if (existingScript) {
@@ -248,7 +250,7 @@ function loadPageScript(pageName) {
     // 创建新的脚本标签
     const script = document.createElement('script');
     script.id = `script-${pageName}`;
-    script.src = scriptPath;
+    script.src = `${scriptPath}?_=${cacheBust}`;
     script.onload = function() {
         console.log(`[PageLoader] 脚本加载成功: ${scriptPath}`);
         // 脚本加载完成后，调用页面初始化函数
