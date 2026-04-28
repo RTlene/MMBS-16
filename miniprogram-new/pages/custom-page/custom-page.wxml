@@ -2,7 +2,6 @@
   <view wx:if="{{loading}}" class="state">加载中...</view>
   <view wx:elif="{{error}}" class="state error">{{error}}</view>
   <view wx:elif="{{hasActivityPoster}}" class="activity-page" style="{{activityBackgroundStyle}}">
-    <view class="activity-title">{{pageTitle}}</view>
     <view class="activity-poster-wrap">
       <image class="activity-poster" src="{{activityPosterUrl}}" mode="widthFix" />
       <block wx:for="{{activityHotspots}}" wx:key="index">
