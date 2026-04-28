@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const CommissionService = require('../services/commissionService');
 const wechatPayService = require('../services/wechatPayService');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
-const { deductStockForOrder } = require('../services/orderInventoryService');
+const { deductStockForOrder, restockForOrder } = require('../services/orderInventoryService');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 const { enrichPickupStoreOnOrderJson, enrichPickupStoresOnOrderJsonList } = require('../utils/orderStoreEnrich');
@@ -1419,6 +1419,12 @@ router.put('/:id/return/confirm-refund', async (req, res) => {
             updatedBy: req.user?.id
         });
 
+        await restockForOrder(order.id, {
+            source: 'admin_confirm_return_refund',
+            operatorType: 'admin',
+            operatorId: req.user?.id || null
+        });
+
         await OrderOperationLog.create({
             orderId: order.id,
             operation: 'refund',
@@ -1613,6 +1619,12 @@ router.put('/:id/refund/complete', async (req, res) => {
             refundStatus: 'completed',
             refundedAt: new Date(),
             updatedBy: req.user?.id
+        });
+
+        await restockForOrder(order.id, {
+            source: 'admin_complete_refund',
+            operatorType: 'admin',
+            operatorId: req.user?.id || null
         });
 
         await OrderOperationLog.create({
