@@ -1,6 +1,6 @@
 const express = require('express');
-const { Op } = require('sequelize');
-const { CustomPage } = require('../db');
+const { Op, QueryTypes } = require('sequelize');
+const { sequelize, CustomPage } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -14,6 +14,13 @@ function parseSchema(v) {
   } catch (_) {
     return [];
   }
+}
+
+function sanitizeCustomPageRecord(record) {
+  if (!record) return record;
+  const row = { ...record };
+  row.schemaJson = parseSchema(row.schemaJson);
+  return row;
 }
 
 router.get('/', authenticateToken, async (req, res) => {
@@ -44,12 +51,34 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id(\\d+)', authenticateToken, async (req, res) => {
   try {
-    const page = await CustomPage.findByPk(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ code: 1, message: '页面ID无效' });
+    }
+    let page = null;
+    try {
+      page = await CustomPage.findByPk(id, { raw: true });
+    } catch (innerErr) {
+      // 兼容历史脏数据（如 schemaJson 非法）导致 ORM 反序列化异常，降级走原始 SQL
+      console.warn('自定义页面详情 ORM 查询失败，尝试降级查询:', innerErr && innerErr.message);
+      const rows = await sequelize.query(
+        `SELECT id, name, slug, title, status, startTime, endTime, schemaJson, shareTitle, shareImage, enableShare, createdAt, updatedAt
+         FROM custom_pages
+         WHERE id = :id
+         LIMIT 1`,
+        {
+          replacements: { id },
+          type: QueryTypes.SELECT
+        }
+      );
+      page = Array.isArray(rows) && rows.length ? rows[0] : null;
+    }
     if (!page) return res.status(404).json({ code: 1, message: '页面不存在' });
-    res.json({ code: 0, message: '获取成功', data: page });
+    res.json({ code: 0, message: '获取成功', data: sanitizeCustomPageRecord(page) });
   } catch (e) {
+    console.error('自定义页面详情失败:', e);
     res.status(500).json({ code: 1, message: '获取失败' });
   }
 });
