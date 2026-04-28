@@ -381,6 +381,11 @@ function updateRulesConfig() {
             break;
         case 'full_gift':
             rulesHTML = `
+                <div class="rule-item">
+                    <label>参与商品（可选，不选则全部商品参与）:</label>
+                    <div id="promotionProductIdsList" class="promo-row-list"></div>
+                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
+                </div>
                 <div id="fullGiftRulesList"></div>
                 <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullGiftRuleRow()">+ 添加满送规则</button>
             `;
@@ -699,6 +704,14 @@ function getRulesConfig() {
             }
             break;
         case 'full_gift': {
+            var giftProductRows = document.querySelectorAll('#promotionProductIdsList .promo-product-row');
+            var giftProductIds = [];
+            giftProductRows.forEach(function (row) {
+                var psel = row.querySelector('.promo-product-select');
+                if (psel && psel.value) giftProductIds.push(parseInt(psel.value, 10));
+            });
+            if (giftProductIds.length > 0) rules.productIds = giftProductIds;
+
             const giftRows = document.querySelectorAll('#fullGiftRulesList .full-gift-rule-row');
             rules.fullGiftRules = [];
             giftRows.forEach(function (row) {
