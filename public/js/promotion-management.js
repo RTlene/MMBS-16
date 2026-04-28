@@ -453,6 +453,7 @@ function fillRulesConfig(rules) {
 
 // 商品列表缓存（满送规则选赠品用）
 window._promotionProductsCache = null;
+window._promotionProductSkusCache = {};
 function loadPromotionProducts(cb) {
     if (window._promotionProductsCache) {
         if (cb) cb(window._promotionProductsCache);
@@ -465,6 +466,28 @@ function loadPromotionProducts(cb) {
         window._promotionProductsCache = list;
         if (cb) cb(list);
     }).catch(function () { if (cb) cb([]); });
+}
+
+function loadPromotionProductSkus(productId, cb) {
+    var pid = parseInt(productId, 10);
+    if (!pid || pid <= 0) {
+        if (cb) cb([]);
+        return;
+    }
+    if (window._promotionProductSkusCache[pid]) {
+        if (cb) cb(window._promotionProductSkusCache[pid]);
+        return;
+    }
+    fetch('/api/products/' + pid, {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+    }).then(function (res) { return res.json(); }).then(function (data) {
+        var product = (data && data.code === 0 && data.data) ? data.data : null;
+        var skus = (product && Array.isArray(product.skus)) ? product.skus : [];
+        window._promotionProductSkusCache[pid] = skus;
+        if (cb) cb(skus);
+    }).catch(function () {
+        if (cb) cb([]);
+    });
 }
 
 function addFullGiftRuleRow(rule) {
@@ -483,6 +506,7 @@ function addFullGiftRuleRow(rule) {
         '<span class="cond-amount-wrap"><input type="number" class="form-input min-amount" placeholder="满多少元" min="0" step="0.01" value="' + (rule.minAmount != null ? rule.minAmount : '') + '" style="width:100px"> 元</span>' +
         '<span class="cond-qty-wrap" style="display:none"><input type="number" class="form-input min-quantity" placeholder="满几件" min="1" value="' + (rule.minQuantity != null ? rule.minQuantity : '') + '" style="width:80px"> 件</span>' +
         '<select class="form-input gift-product-id" style="width:180px"><option value="">请选择赠品</option></select>' +
+        '<select class="form-input gift-sku-id" style="width:210px"><option value="">默认规格（不指定SKU）</option></select>' +
         '<input type="number" class="form-input gift-quantity" placeholder="数量" min="1" value="' + (rule.giftQuantity != null ? rule.giftQuantity : 1) + '" style="width:70px"> 件' +
         '<button type="button" class="btn btn-danger btn-remove-promo-rule" style="padding:4px 10px">删除</button>';
     list.appendChild(row);
@@ -499,6 +523,23 @@ function addFullGiftRuleRow(rule) {
     condTypeSel.addEventListener('change', toggleCond);
     toggleCond();
     row.querySelector('.btn-remove-promo-rule').addEventListener('click', function () { row.remove(); });
+    function fillSkuOptions(productId, selectedSkuId) {
+        var skuSel = row.querySelector('.gift-sku-id');
+        if (!skuSel) return;
+        skuSel.innerHTML = '<option value="">默认规格（不指定SKU）</option>';
+        if (!productId) return;
+        loadPromotionProductSkus(productId, function (skus) {
+            skus.forEach(function (sku) {
+                var opt = document.createElement('option');
+                opt.value = sku.id;
+                var specText = sku.specifications ? JSON.stringify(sku.specifications) : '';
+                var stockText = (sku.stock != null ? ' 库存:' + sku.stock : '');
+                opt.textContent = (sku.skuCode || ('SKU#' + sku.id)) + (specText ? ' ' + specText : '') + stockText;
+                if (selectedSkuId && Number(sku.id) === Number(selectedSkuId)) opt.selected = true;
+                skuSel.appendChild(opt);
+            });
+        });
+    }
     loadPromotionProducts(function (products) {
         var sel = row.querySelector('.gift-product-id');
         products.forEach(function (p) {
@@ -508,6 +549,10 @@ function addFullGiftRuleRow(rule) {
             if (rule.giftProductId && p.id === rule.giftProductId) opt.selected = true;
             sel.appendChild(opt);
         });
+        sel.addEventListener('change', function () {
+            fillSkuOptions(sel.value, null);
+        });
+        fillSkuOptions(rule.giftProductId, rule.giftSkuId);
     });
 }
 
@@ -659,9 +704,14 @@ function getRulesConfig() {
             giftRows.forEach(function (row) {
                 var condType = row.querySelector('.cond-type').value;
                 var giftProductId = parseInt(row.querySelector('.gift-product-id').value, 10);
+                var giftSkuIdRaw = row.querySelector('.gift-sku-id') ? row.querySelector('.gift-sku-id').value : '';
                 var giftQuantity = parseInt(row.querySelector('.gift-quantity').value, 10) || 1;
                 if (!giftProductId) return;
                 var r = { conditionType: condType, giftProductId: giftProductId, giftQuantity: giftQuantity };
+                if (giftSkuIdRaw) {
+                    var giftSkuId = parseInt(giftSkuIdRaw, 10);
+                    if (!isNaN(giftSkuId) && giftSkuId > 0) r.giftSkuId = giftSkuId;
+                }
                 if (condType === 'amount') {
                     var ma = parseFloat(row.querySelector('.min-amount').value);
                     if (!isNaN(ma)) r.minAmount = ma;
