@@ -2,6 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { Order, OrderItem, Member, Product, ProductSKU, ProductMemberPrice, OrderOperationLog, VerificationCode, RefundRecord, ReturnRequest, Store, Coupon, MemberCoupon, sequelize } = require('../db');
 const CommissionService = require('../services/commissionService');
+const { deductStockForOrder } = require('../services/orderInventoryService');
 const configStore = require('../services/configStore');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
 const { enrichPickupStoreOnOrderJson, persistMiniappOrderPickupFields } = require('../utils/orderStoreEnrich');
@@ -552,6 +553,14 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
         }));
 
         const createdOrderItems = await OrderItem.bulkCreate(orderItemPayloads);
+
+        if (orderStatus === 'paid') {
+            await deductStockForOrder(order.id, {
+                source: 'miniapp_create_paid',
+                operatorType: 'system',
+                operatorId: null
+            });
+        }
 
         // 系统发放券：订单使用后标记 MemberCoupon 为已用并增加 Coupon.usedCount
         const appliedCodes = new Set();

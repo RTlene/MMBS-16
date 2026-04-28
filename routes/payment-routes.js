@@ -6,9 +6,10 @@
 const express = require('express');
 const { authenticateMiniappUser } = require('../middleware/miniapp-auth');
 const { authenticateToken } = require('../middleware/auth');
-const { Order, Member } = require('../db');
+const { Order, Member, sequelize } = require('../db');
 const wechatPayService = require('../services/wechatPayService');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
+const { deductStockForOrder } = require('../services/orderInventoryService');
 const { isPickupOrderByRaw } = require('../utils/orderStoreEnrich');
 
 const router = express.Router();
@@ -271,13 +272,31 @@ router.post('/wechat/notify', async (req, res) => {
         // 处理支付结果
         if (trade_state === 'SUCCESS') {
             // 支付成功
+            let paidNow = false;
             if (order.status === 'pending') {
-                await order.update({
-                    status: 'paid',
-                    paymentTime: new Date(),
-                    transactionId: transaction_id
-                });
+                await sequelize.transaction(async (t) => {
+                    const lockedOrder = await Order.findByPk(order.id, {
+                        transaction: t,
+                        lock: t.LOCK.UPDATE
+                    });
+                    if (!lockedOrder || lockedOrder.status !== 'pending') return;
 
+                    await deductStockForOrder(lockedOrder.id, {
+                        transaction: t,
+                        source: 'wechat_notify',
+                        operatorType: 'system',
+                        operatorId: null
+                    });
+                    await lockedOrder.update({
+                        status: 'paid',
+                        paymentTime: new Date(),
+                        transactionId: transaction_id
+                    }, { transaction: t });
+                    paidNow = true;
+                });
+            }
+
+            if (paidNow) {
                 // 佣金在订单完成（确认收货/核销）时再计算，此处不触发
                 // 销售额累加（仅直接/间接推荐人，非下单本人）
                 try {
@@ -394,30 +413,48 @@ router.get('/wechat/query/:orderId', authenticateMiniappUser, async (req, res) =
                 
                 if (wechatOrder.trade_state === 'SUCCESS') {
                     // 微信支付成功，更新订单状态
-                    await order.update({
-                        status: 'paid',
-                        paymentTime: new Date(),
-                        transactionId: wechatOrder.transaction_id
+                    let paidNow = false;
+                    await sequelize.transaction(async (t) => {
+                        const lockedOrder = await Order.findByPk(order.id, {
+                            transaction: t,
+                            lock: t.LOCK.UPDATE
+                        });
+                        if (!lockedOrder || lockedOrder.status !== 'pending') return;
+
+                        await deductStockForOrder(lockedOrder.id, {
+                            transaction: t,
+                            source: 'wechat_query_sync',
+                            operatorType: 'system',
+                            operatorId: null
+                        });
+                        await lockedOrder.update({
+                            status: 'paid',
+                            paymentTime: new Date(),
+                            transactionId: wechatOrder.transaction_id
+                        }, { transaction: t });
+                        paidNow = true;
                     });
 
-                    // 佣金在订单完成（确认收货/核销）时再计算，此处不触发
-                    try {
-                        const CommissionService = require('../services/commissionService');
-                        await CommissionService.updateSalesOnOrderPaid(order.id);
-                    } catch (error) {
-                        console.error('[Payment] 销售额累加失败:', error);
-                    }
-                    try {
-                        const LevelUpgradeService = require('../services/levelUpgradeService');
-                        await LevelUpgradeService.tryUpgradeMember(order.memberId);
-                    } catch (error) {
-                        console.error('[Payment] 等级自动升级检查失败:', error);
-                    }
-                    try {
-                        const { grantPointsForOrderPaid } = require('../services/orderPointsService');
-                        await grantPointsForOrderPaid(order.id);
-                    } catch (error) {
-                        console.error('[Payment] 订单积分发放失败:', error);
+                    if (paidNow) {
+                        // 佣金在订单完成（确认收货/核销）时再计算，此处不触发
+                        try {
+                            const CommissionService = require('../services/commissionService');
+                            await CommissionService.updateSalesOnOrderPaid(order.id);
+                        } catch (error) {
+                            console.error('[Payment] 销售额累加失败:', error);
+                        }
+                        try {
+                            const LevelUpgradeService = require('../services/levelUpgradeService');
+                            await LevelUpgradeService.tryUpgradeMember(order.memberId);
+                        } catch (error) {
+                            console.error('[Payment] 等级自动升级检查失败:', error);
+                        }
+                        try {
+                            const { grantPointsForOrderPaid } = require('../services/orderPointsService');
+                            await grantPointsForOrderPaid(order.id);
+                        } catch (error) {
+                            console.error('[Payment] 订单积分发放失败:', error);
+                        }
                     }
 
                     return res.json({

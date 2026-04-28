@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const CommissionService = require('../services/commissionService');
 const wechatPayService = require('../services/wechatPayService');
 const wechatMiniappOrderService = require('../services/wechatMiniappOrderService');
+const { deductStockForOrder } = require('../services/orderInventoryService');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
 const { enrichPickupStoreOnOrderJson, enrichPickupStoresOnOrderJsonList } = require('../utils/orderStoreEnrich');
@@ -470,6 +471,15 @@ router.put('/:id/status', async (req, res) => {
             return res.status(404).json({
                 code: 1,
                 message: '订单不存在'
+            });
+        }
+
+        const oldStatus = order.status;
+        if (status === 'paid' && oldStatus !== 'paid') {
+            await deductStockForOrder(order.id, {
+                source: 'admin_status_paid',
+                operatorType: 'admin',
+                operatorId: req.user ? req.user.id : null
             });
         }
 
