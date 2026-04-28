@@ -232,9 +232,8 @@ function addGenericPromotionProductRow(list, productId) {
     if (!list) return;
     var row = document.createElement('div');
     row.className = 'rule-item promo-product-row';
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
     row.innerHTML =
-        '<select class="form-input promo-product-select" style="width:220px">' +
+        '<select class="form-input promo-product-select">' +
         '<option value="">请选择商品</option></select>' +
         '<button type="button" class="btn btn-danger btn-remove-promo-row" style="padding:4px 10px">删除</button>';
     list.appendChild(row);
@@ -392,13 +391,16 @@ function updateRulesConfig() {
             break;
         case 'full_gift':
             rulesHTML = `
-                <div class="rule-item">
-                    <label>参与商品（可选，不选则全部商品参与）:</label>
+                <div class="full-gift-scope">
+                    <label class="full-gift-scope-label">参与商品（可选，不选则全部商品参与）:</label>
                     <div id="fullGiftParticipatingProductIdsList" class="promo-row-list"></div>
-                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullGiftParticipatingProductRow()">+ 添加参与商品</button>
+                    <button type="button" class="btn btn-primary full-gift-add-btn" onclick="addFullGiftParticipatingProductRow()">+ 添加参与商品</button>
                 </div>
-                <div id="fullGiftRulesList"></div>
-                <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullGiftRuleRow()">+ 添加满送规则</button>
+                <div class="full-gift-rules-block">
+                    <label class="full-gift-rules-label">满送规则：</label>
+                    <div id="fullGiftRulesList"></div>
+                    <button type="button" class="btn btn-primary full-gift-add-rule-btn" onclick="addFullGiftRuleRow()">+ 添加满送规则</button>
+                </div>
             `;
             break;
         case 'full_discount':
@@ -520,18 +522,17 @@ function addFullGiftRuleRow(rule) {
     if (!list) return;
     var row = document.createElement('div');
     row.className = 'rule-item full-gift-rule-row';
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
     var condType = rule.conditionType || 'amount';
     row.innerHTML =
-        '<select class="form-input cond-type" style="width:100px">' +
+        '<select class="form-input cond-type">' +
         '<option value="amount"' + (condType === 'amount' ? ' selected' : '') + '>满金额</option>' +
         '<option value="quantity"' + (condType === 'quantity' ? ' selected' : '') + '>满件数</option>' +
         '</select>' +
-        '<span class="cond-amount-wrap"><input type="number" class="form-input min-amount" placeholder="满多少元" min="0" step="0.01" value="' + (rule.minAmount != null ? rule.minAmount : '') + '" style="width:100px"> 元</span>' +
-        '<span class="cond-qty-wrap" style="display:none"><input type="number" class="form-input min-quantity" placeholder="满几件" min="1" value="' + (rule.minQuantity != null ? rule.minQuantity : '') + '" style="width:80px"> 件</span>' +
-        '<select class="form-input gift-product-id" style="width:180px"><option value="">请选择赠品</option></select>' +
-        '<select class="form-input gift-sku-id" style="width:210px"><option value="">默认规格（不指定SKU）</option></select>' +
-        '<input type="number" class="form-input gift-quantity" placeholder="数量" min="1" value="' + (rule.giftQuantity != null ? rule.giftQuantity : 1) + '" style="width:70px"> 件' +
+        '<span class="cond-amount-wrap"><input type="number" class="form-input min-amount" placeholder="满多少元" min="0" step="0.01" value="' + (rule.minAmount != null ? rule.minAmount : '') + '"> 元</span>' +
+        '<span class="cond-qty-wrap" style="display:none"><input type="number" class="form-input min-quantity" placeholder="满几件" min="1" value="' + (rule.minQuantity != null ? rule.minQuantity : '') + '"> 件</span>' +
+        '<select class="form-input gift-product-id"><option value="">请选择赠品</option></select>' +
+        '<select class="form-input gift-sku-id"><option value="">默认规格（不指定SKU）</option></select>' +
+        '<input type="number" class="form-input gift-quantity" placeholder="数量" min="1" value="' + (rule.giftQuantity != null ? rule.giftQuantity : 1) + '"> 件' +
         '<button type="button" class="btn btn-danger btn-remove-promo-rule" style="padding:4px 10px">删除</button>';
     list.appendChild(row);
     var condTypeSel = row.querySelector('.cond-type');
