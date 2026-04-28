@@ -28,6 +28,22 @@
     .cpm-hint { margin: 6px 0 10px; color: #64748b; font-size: 12px; }
     .cpm-modal-foot { padding: 12px 16px; border-top: 1px solid #edf2f7; display:flex; justify-content:flex-end; gap:8px; }
     .cpm-close { border:0; background:transparent; font-size:22px; cursor:pointer; color:#64748b; }
+    .cpm-editor-wrap { display: grid; grid-template-columns: minmax(360px, 1fr) 320px; gap: 12px; align-items: start; }
+    .cpm-canvas-shell { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
+    .cpm-canvas { position: relative; width: 100%; max-width: 620px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: #fff; }
+    .cpm-canvas-img { width: 100%; display: block; }
+    #cpgHotspotLayer { position: absolute; inset: 0; }
+    .cpm-hotspot { position: absolute; border: 2px dashed rgba(22,119,255,.75); background: rgba(22,119,255,.12); cursor: move; box-sizing: border-box; }
+    .cpm-hotspot.active { border-color: #dc2626; background: rgba(220,38,38,.12); }
+    .cpm-hotspot-handle { position: absolute; width: 12px; height: 12px; right: -6px; bottom: -6px; background: #1677ff; border-radius: 50%; cursor: nwse-resize; border: 2px solid #fff; }
+    .cpm-hotspot-label { position: absolute; left: 0; top: 0; transform: translateY(-100%); background: rgba(15,23,42,.8); color: #fff; font-size: 12px; padding: 2px 6px; border-radius: 6px 6px 0 0; white-space: nowrap; }
+    .cpm-panel { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #fff; }
+    .cpm-panel-title { font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 8px; }
+    .cpm-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .cpm-panel-full { margin-bottom: 8px; }
+    .cpm-hotspot-list { max-height: 220px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; }
+    .cpm-hotspot-item { display:flex; justify-content:space-between; align-items:center; padding:6px; border-radius:6px; cursor:pointer; }
+    .cpm-hotspot-item.active { background: #eff6ff; color: #1d4ed8; }
   </style>
   <div class="cpm-wrap">
   <div class="cpm-card">
@@ -82,16 +98,50 @@
 
         <hr>
         <h4 class="cpm-subtitle">海报热区（点击跳转）</h4>
-        <p class="cpm-hint">坐标单位为百分比，建议 0-100。x/y 为左上角位置，w/h 为宽高。</p>
+        <p class="cpm-hint">可视化编辑：在海报上拖拽热区位置、拖动右下角圆点缩放；右侧可精调与配置跳转。</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
           <button class="cpm-btn cpm-btn-primary" type="button" onclick="CustomPageManagement.addHotspot()">新增热区</button>
+          <button class="cpm-btn cpm-btn-light" type="button" onclick="CustomPageManagement.removeSelectedHotspot()">删除选中热区</button>
         </div>
-        <table class="cpm-table">
-          <thead>
-            <tr><th>名称</th><th>X%</th><th>Y%</th><th>W%</th><th>H%</th><th>跳转类型</th><th>跳转目标</th><th>操作</th></tr>
-          </thead>
-          <tbody id="cpgHotspotTableBody"></tbody>
-        </table>
+        <div class="cpm-editor-wrap">
+          <div class="cpm-canvas-shell">
+            <div id="cpgEditorCanvas" class="cpm-canvas">
+              <img id="cpgEditorPoster" class="cpm-canvas-img" src="" alt="海报预览" />
+              <div id="cpgHotspotLayer"></div>
+            </div>
+          </div>
+          <div class="cpm-panel">
+            <div class="cpm-panel-title">热区属性</div>
+            <div class="cpm-panel-full">
+              <input id="cpgSelectedName" class="cpm-input" placeholder="区域名称" />
+            </div>
+            <div class="cpm-panel-row">
+              <input id="cpgSelectedX" class="cpm-input" type="number" step="0.1" placeholder="X%" />
+              <input id="cpgSelectedY" class="cpm-input" type="number" step="0.1" placeholder="Y%" />
+            </div>
+            <div class="cpm-panel-row">
+              <input id="cpgSelectedW" class="cpm-input" type="number" step="0.1" placeholder="W%" />
+              <input id="cpgSelectedH" class="cpm-input" type="number" step="0.1" placeholder="H%" />
+            </div>
+            <div class="cpm-panel-full">
+              <select id="cpgSelectedJumpType" class="cpm-select">
+                <option value="none">不跳转</option>
+                <option value="custom_page">自定义页</option>
+                <option value="miniapp_page">小程序页</option>
+                <option value="tab">Tab页</option>
+                <option value="webview">Web链接</option>
+              </select>
+            </div>
+            <div class="cpm-panel-full">
+              <input id="cpgSelectedJumpTarget" class="cpm-input" placeholder="跳转目标" />
+            </div>
+            <div style="display:flex;gap:8px;margin:8px 0;">
+              <button class="cpm-btn cpm-btn-primary" type="button" onclick="CustomPageManagement.applySelectedHotspot()">应用到热区</button>
+            </div>
+            <div class="cpm-panel-title">热区列表</div>
+            <div id="cpgHotspotList" class="cpm-hotspot-list"></div>
+          </div>
+        </div>
       </div>
       <div class="cpm-modal-foot">
         <button class="cpm-btn cpm-btn-primary" onclick="CustomPageManagement.save()">保存</button>

@@ -1,5 +1,7 @@
 let _customPageCurrent = null;
 let _hotspots = [];
+let _selectedHotspotIndex = -1;
+let _dragState = null;
 
 async function customPageRequest(url, options = {}) {
   const res = await fetch(url, {
@@ -75,49 +77,127 @@ function resolveMediaUrl(rawUrl) {
   return url;
 }
 
-function renderHotspotsTable() {
-  const tbody = document.getElementById('cpgHotspotTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = _hotspots.map((it, idx) => `
-    <tr>
-      <td><input id="hs-name-${idx}" value="${it.name || ''}" placeholder="区域名称" /></td>
-      <td><input id="hs-x-${idx}" type="number" step="0.1" value="${Number(it.x || 0)}" /></td>
-      <td><input id="hs-y-${idx}" type="number" step="0.1" value="${Number(it.y || 0)}" /></td>
-      <td><input id="hs-w-${idx}" type="number" step="0.1" value="${Number(it.w || 0)}" /></td>
-      <td><input id="hs-h-${idx}" type="number" step="0.1" value="${Number(it.h || 0)}" /></td>
-      <td>
-        <select id="hs-jump-type-${idx}">
-          <option value="none" ${it.jumpType === 'none' ? 'selected' : ''}>不跳转</option>
-          <option value="custom_page" ${it.jumpType === 'custom_page' ? 'selected' : ''}>自定义页</option>
-          <option value="miniapp_page" ${it.jumpType === 'miniapp_page' ? 'selected' : ''}>小程序页</option>
-          <option value="tab" ${it.jumpType === 'tab' ? 'selected' : ''}>Tab页</option>
-          <option value="webview" ${it.jumpType === 'webview' ? 'selected' : ''}>Web链接</option>
-        </select>
-      </td>
-      <td><input id="hs-jump-target-${idx}" value="${it.jumpTarget || ''}" placeholder="如 /pages/product/product?id=16" /></td>
-      <td><button class="cpm-btn cpm-btn-danger" onclick="CustomPageManagement.removeHotspot(${idx})">删除</button></td>
-    </tr>
+function clampPercent(value, min = 0, max = 100) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function renderHotspotList() {
+  const listEl = document.getElementById('cpgHotspotList');
+  if (!listEl) return;
+  listEl.innerHTML = _hotspots.map((it, idx) => `
+    <div class="cpm-hotspot-item ${idx === _selectedHotspotIndex ? 'active' : ''}" onclick="CustomPageManagement.selectHotspot(${idx})">
+      <span>${it.name || `热区${idx + 1}`}</span>
+      <span>${Number(it.x || 0).toFixed(1)}%, ${Number(it.y || 0).toFixed(1)}%</span>
+    </div>
   `).join('');
 }
 
-function collectHotspotsFromTable() {
-  const list = [];
-  for (let i = 0; i < _hotspots.length; i += 1) {
-    const x = Number((document.getElementById(`hs-x-${i}`) || {}).value || 0);
-    const y = Number((document.getElementById(`hs-y-${i}`) || {}).value || 0);
-    const w = Number((document.getElementById(`hs-w-${i}`) || {}).value || 0);
-    const h = Number((document.getElementById(`hs-h-${i}`) || {}).value || 0);
-    list.push({
-      name: ((document.getElementById(`hs-name-${i}`) || {}).value || '').trim(),
-      x: Number.isFinite(x) ? x : 0,
-      y: Number.isFinite(y) ? y : 0,
-      w: Number.isFinite(w) ? w : 0,
-      h: Number.isFinite(h) ? h : 0,
-      jumpType: ((document.getElementById(`hs-jump-type-${i}`) || {}).value || 'none').trim(),
-      jumpTarget: ((document.getElementById(`hs-jump-target-${i}`) || {}).value || '').trim()
-    });
+function renderHotspotPropertyPanel() {
+  const hs = _hotspots[_selectedHotspotIndex];
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+  };
+  if (!hs) {
+    setVal('cpgSelectedName', '');
+    setVal('cpgSelectedX', '');
+    setVal('cpgSelectedY', '');
+    setVal('cpgSelectedW', '');
+    setVal('cpgSelectedH', '');
+    setVal('cpgSelectedJumpType', 'none');
+    setVal('cpgSelectedJumpTarget', '');
+    return;
   }
-  return list;
+  setVal('cpgSelectedName', hs.name || '');
+  setVal('cpgSelectedX', Number(hs.x || 0));
+  setVal('cpgSelectedY', Number(hs.y || 0));
+  setVal('cpgSelectedW', Number(hs.w || 0));
+  setVal('cpgSelectedH', Number(hs.h || 0));
+  setVal('cpgSelectedJumpType', hs.jumpType || 'none');
+  setVal('cpgSelectedJumpTarget', hs.jumpTarget || '');
+}
+
+function renderHotspotCanvas() {
+  const layer = document.getElementById('cpgHotspotLayer');
+  const canvas = document.getElementById('cpgEditorCanvas');
+  if (!layer || !canvas) return;
+  layer.innerHTML = _hotspots.map((it, idx) => {
+    const x = clampPercent(it.x);
+    const y = clampPercent(it.y);
+    const w = clampPercent(it.w, 1, 100);
+    const h = clampPercent(it.h, 1, 100);
+    return `
+      <div class="cpm-hotspot ${idx === _selectedHotspotIndex ? 'active' : ''}" data-index="${idx}"
+        style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;">
+        <div class="cpm-hotspot-label">${it.name || `热区${idx + 1}`}</div>
+        <div class="cpm-hotspot-handle" data-role="resize" data-index="${idx}"></div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderHotspotEditor() {
+  renderHotspotCanvas();
+  renderHotspotList();
+  renderHotspotPropertyPanel();
+}
+
+function bindEditorEvents() {
+  const posterInput = document.getElementById('cpgPosterUrl');
+  const poster = document.getElementById('cpgEditorPoster');
+  if (posterInput && poster) {
+    posterInput.oninput = () => {
+      poster.src = resolveMediaUrl(posterInput.value);
+    };
+  }
+  const layer = document.getElementById('cpgHotspotLayer');
+  const canvas = document.getElementById('cpgEditorCanvas');
+  if (!layer || !canvas) return;
+
+  layer.onmousedown = (e) => {
+    const target = e.target;
+    const hotspotEl = target.closest('.cpm-hotspot');
+    if (!hotspotEl) return;
+    const index = Number(hotspotEl.getAttribute('data-index'));
+    if (!Number.isFinite(index)) return;
+    _selectedHotspotIndex = index;
+    const role = target.getAttribute('data-role') === 'resize' ? 'resize' : 'move';
+    const rect = canvas.getBoundingClientRect();
+    const hs = _hotspots[index];
+    _dragState = {
+      role,
+      index,
+      startX: e.clientX,
+      startY: e.clientY,
+      rect,
+      origin: { x: hs.x, y: hs.y, w: hs.w, h: hs.h }
+    };
+    renderHotspotEditor();
+    e.preventDefault();
+  };
+
+  window.onmousemove = (e) => {
+    if (!_dragState) return;
+    const { index, role, rect, startX, startY, origin } = _dragState;
+    const dx = ((e.clientX - startX) / rect.width) * 100;
+    const dy = ((e.clientY - startY) / rect.height) * 100;
+    const hs = _hotspots[index];
+    if (!hs) return;
+    if (role === 'move') {
+      hs.x = clampPercent(origin.x + dx, 0, 100 - clampPercent(hs.w, 1, 100));
+      hs.y = clampPercent(origin.y + dy, 0, 100 - clampPercent(hs.h, 1, 100));
+    } else {
+      hs.w = clampPercent(origin.w + dx, 1, 100 - clampPercent(origin.x));
+      hs.h = clampPercent(origin.h + dy, 1, 100 - clampPercent(origin.y));
+    }
+    renderHotspotEditor();
+  };
+
+  window.onmouseup = () => {
+    _dragState = null;
+  };
 }
 
 function fillCustomPageForm(data = {}) {
@@ -134,11 +214,22 @@ function fillCustomPageForm(data = {}) {
   document.getElementById('cpgPosterUrl').value = schema.posterUrl || data.shareImage || '';
   document.getElementById('cpgBackground').value = schema.background || '#f8fafc';
   _hotspots = Array.isArray(schema.hotspots) ? schema.hotspots.slice(0, 50) : [];
-  renderHotspotsTable();
+  _selectedHotspotIndex = _hotspots.length ? 0 : -1;
+  const poster = document.getElementById('cpgEditorPoster');
+  if (poster) poster.src = resolveMediaUrl(document.getElementById('cpgPosterUrl').value || '');
+  renderHotspotEditor();
 }
 
 function readCustomPageForm() {
-  const hotspots = collectHotspotsFromTable();
+  const hotspots = _hotspots.map((it) => ({
+    name: String(it.name || '').trim(),
+    x: clampPercent(it.x),
+    y: clampPercent(it.y),
+    w: clampPercent(it.w, 1, 100),
+    h: clampPercent(it.h, 1, 100),
+    jumpType: String(it.jumpType || 'none').trim(),
+    jumpTarget: String(it.jumpTarget || '').trim()
+  }));
   return {
     name: document.getElementById('cpgName').value.trim(),
     slug: document.getElementById('cpgSlug').value.trim(),
@@ -188,15 +279,42 @@ async function loadCustomPages() {
 }
 
 window.CustomPageManagement = {
-  init: loadCustomPages,
+  init() {
+    loadCustomPages();
+    bindEditorEvents();
+  },
   load: loadCustomPages,
   addHotspot() {
     _hotspots.push({ name: '', x: 10, y: 10, w: 30, h: 12, jumpType: 'none', jumpTarget: '' });
-    renderHotspotsTable();
+    _selectedHotspotIndex = _hotspots.length - 1;
+    renderHotspotEditor();
+  },
+  selectHotspot(index) {
+    _selectedHotspotIndex = index;
+    renderHotspotEditor();
+  },
+  applySelectedHotspot() {
+    const hs = _hotspots[_selectedHotspotIndex];
+    if (!hs) return alert('请先选择一个热区');
+    hs.name = ((document.getElementById('cpgSelectedName') || {}).value || '').trim();
+    hs.x = clampPercent((document.getElementById('cpgSelectedX') || {}).value, 0, 100);
+    hs.y = clampPercent((document.getElementById('cpgSelectedY') || {}).value, 0, 100);
+    hs.w = clampPercent((document.getElementById('cpgSelectedW') || {}).value, 1, 100);
+    hs.h = clampPercent((document.getElementById('cpgSelectedH') || {}).value, 1, 100);
+    hs.jumpType = ((document.getElementById('cpgSelectedJumpType') || {}).value || 'none').trim();
+    hs.jumpTarget = ((document.getElementById('cpgSelectedJumpTarget') || {}).value || '').trim();
+    renderHotspotEditor();
   },
   removeHotspot(index) {
     _hotspots.splice(index, 1);
-    renderHotspotsTable();
+    if (_selectedHotspotIndex >= _hotspots.length) _selectedHotspotIndex = _hotspots.length - 1;
+    renderHotspotEditor();
+  },
+  removeSelectedHotspot() {
+    if (_selectedHotspotIndex < 0 || _selectedHotspotIndex >= _hotspots.length) return alert('请先选择一个热区');
+    _hotspots.splice(_selectedHotspotIndex, 1);
+    if (_selectedHotspotIndex >= _hotspots.length) _selectedHotspotIndex = _hotspots.length - 1;
+    renderHotspotEditor();
   },
   async uploadShareImage() {
     const file = (document.getElementById('cpgShareImageFile') || {}).files?.[0];
@@ -223,6 +341,7 @@ window.CustomPageManagement = {
   openCreate() {
     _customPageCurrent = null;
     fillCustomPageForm({});
+    bindEditorEvents();
     customPageModal(true);
   },
   async edit(id) {
@@ -230,6 +349,7 @@ window.CustomPageManagement = {
     if (result.code !== 0) return alert(result.message || '获取失败');
     _customPageCurrent = result.data;
     fillCustomPageForm(result.data || {});
+    bindEditorEvents();
     customPageModal(true);
   },
   async save() {
