@@ -218,6 +218,17 @@ function getPromotionMemberLevelIds() {
 // 添加一条「参与商品」行（限时抢购、团购用）
 function addPromotionProductRow(productId) {
     var list = document.getElementById('promotionProductIdsList');
+    addGenericPromotionProductRow(list, productId);
+}
+
+// 添加一条「参与商品」行（满赠规则用）
+function addFullGiftParticipatingProductRow(productId) {
+    var list = document.getElementById('fullGiftParticipatingProductIdsList');
+    addGenericPromotionProductRow(list, productId);
+}
+
+// 通用：向指定容器添加参与商品行
+function addGenericPromotionProductRow(list, productId) {
     if (!list) return;
     var row = document.createElement('div');
     row.className = 'rule-item promo-product-row';
@@ -383,8 +394,8 @@ function updateRulesConfig() {
             rulesHTML = `
                 <div class="rule-item">
                     <label>参与商品（可选，不选则全部商品参与）:</label>
-                    <div id="promotionProductIdsList" class="promo-row-list"></div>
-                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addPromotionProductRow()">+ 添加参与商品</button>
+                    <div id="fullGiftParticipatingProductIdsList" class="promo-row-list"></div>
+                    <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullGiftParticipatingProductRow()">+ 添加参与商品</button>
                 </div>
                 <div id="fullGiftRulesList"></div>
                 <button type="button" class="btn btn-primary" style="margin-top:8px" onclick="addFullGiftRuleRow()">+ 添加满送规则</button>
@@ -418,10 +429,18 @@ function fillRulesConfig(rules) {
     }
 
     if (rules.productIds && Array.isArray(rules.productIds)) {
-        var list = document.getElementById('promotionProductIdsList');
+        var type = document.getElementById('promotionType') ? document.getElementById('promotionType').value : '';
+        var listId = type === 'full_gift' ? 'fullGiftParticipatingProductIdsList' : 'promotionProductIdsList';
+        var list = document.getElementById(listId);
         if (list) {
             list.innerHTML = '';
-            rules.productIds.forEach(function (pid) { addPromotionProductRow(pid); });
+            rules.productIds.forEach(function (pid) {
+                if (type === 'full_gift') {
+                    addFullGiftParticipatingProductRow(pid);
+                } else {
+                    addPromotionProductRow(pid);
+                }
+            });
         }
     }
     if (rules.bundleProducts && Array.isArray(rules.bundleProducts)) {
@@ -704,7 +723,7 @@ function getRulesConfig() {
             }
             break;
         case 'full_gift': {
-            var giftProductRows = document.querySelectorAll('#promotionProductIdsList .promo-product-row');
+            var giftProductRows = document.querySelectorAll('#fullGiftParticipatingProductIdsList .promo-product-row');
             var giftProductIds = [];
             giftProductRows.forEach(function (row) {
                 var psel = row.querySelector('.promo-product-select');
