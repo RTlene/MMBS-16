@@ -173,7 +173,8 @@ const API = {
 
   // 自定义活动页相关
   CUSTOM_PAGE: {
-    DETAIL: '/api/miniapp/custom-pages/:slug'
+    DETAIL: '/api/miniapp/custom-pages/:slug',
+    SHARE_QRCODE: '/api/miniapp/custom-pages/:slug/share-qrcode'
   },
 
   // 核销码相关

@@ -1,6 +1,8 @@
 const request = require('../../utils/request.js');
 const { API, replaceUrlParams } = require('../../config/api.js');
-const { buildAbsoluteUrl, buildOptimizedImageUrl } = require('../../utils/util.js');
+const { buildAbsoluteUrl, buildOptimizedImageUrl, resolveImageUrlForDisplay } = require('../../utils/util.js');
+const auth = require('../../utils/auth.js');
+const { parseLaunchSceneParams, persistReferrerFromSceneParams } = require('../../utils/sceneLaunch.js');
 
 Page({
   data: {
@@ -17,11 +19,28 @@ Page({
     error: '',
     shareEnabled: true,
     shareTitle: '活动页',
-    shareImage: ''
+    shareImage: '',
+    showShareOptions: false,
+    showQrPopup: false,
+    qrCodeUrl: '',
+    qrCodeTempPath: '',
+    generatingQr: false
   },
 
   onLoad(options = {}) {
-    const slug = this.normalizeSlug(options.slug);
+    const parsed = parseLaunchSceneParams(options);
+    persistReferrerFromSceneParams(parsed);
+    const slug = this.normalizeSlug(
+      options.slug || parsed.s || parsed.c || ''
+    );
+    const referrerId = (options.referrerId != null && String(options.referrerId).trim() !== '')
+      ? String(options.referrerId).trim()
+      : (parsed.r != null && String(parsed.r).trim() !== '' ? String(parsed.r).trim() : '');
+    if (referrerId) {
+      try {
+        wx.setStorageSync('referrerId', referrerId);
+      } catch (_) {}
+    }
     this.setData({ slug });
     this.loadDetail();
   },
@@ -237,31 +256,260 @@ Page({
   },
 
   onShareAppMessage() {
+    const payload = this.getSharePayload();
     if (!this.data.shareEnabled) {
       return {
-        title: this.data.pageTitle || '活动页',
-        path: `/pages/custom-page/custom-page?slug=${this.data.slug}`
+        title: payload.title,
+        path: payload.path
       };
     }
-    const app = getApp();
-    const memberId = app && app.globalData ? app.globalData.memberId : '';
-    const path = `/pages/custom-page/custom-page?slug=${this.data.slug}${memberId ? `&referrerId=${memberId}` : ''}`;
-    return {
-      title: this.data.shareTitle || this.data.pageTitle || '活动页',
-      path,
-      imageUrl: this.data.shareImage || ''
-    };
+    if (!auth.getMemberId()) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+    }
+    return payload;
   },
 
   onShareTimeline() {
+    const payload = this.getSharePayload();
+    const query = payload.path.replace('/pages/custom-page/custom-page?', '');
+    return {
+      title: payload.title,
+      query,
+      imageUrl: payload.imageUrl
+    };
+  },
+
+  getSharePayload() {
     const app = getApp();
-    const memberId = app && app.globalData ? app.globalData.memberId : '';
-    const query = `slug=${this.data.slug}${memberId ? `&referrerId=${memberId}` : ''}`;
+    const memberId = app && app.globalData ? app.globalData.memberId : (auth.getMemberId() || '');
+    const basePath = `/pages/custom-page/custom-page?slug=${encodeURIComponent(this.data.slug || '')}`;
+    const path = memberId ? `${basePath}&referrerId=${memberId}` : basePath;
     return {
       title: this.data.shareTitle || this.data.pageTitle || '活动页',
-      query,
-      imageUrl: this.data.shareImage || ''
+      path,
+      imageUrl: this.data.shareImage || this.data.activityPosterUrl || ''
     };
+  },
+
+  onShareButtonTap() {
+    this.setData({ showShareOptions: true });
+  },
+
+  closeShareOptions() {
+    this.setData({ showShareOptions: false });
+  },
+
+  onShareWechatTap() {
+    this.closeShareOptions();
+  },
+
+  async onShareQrcodeTap() {
+    this.closeShareOptions();
+    await this.generateSharePoster();
+  },
+
+  async generateSharePoster() {
+    const payload = this.getSharePayload();
+    this.setData({
+      showQrPopup: true,
+      qrCodeUrl: '',
+      qrCodeTempPath: '',
+      generatingQr: true
+    });
+    wx.showLoading({ title: '生成分享海报中...' });
+    try {
+      const qrTempPath = await this.getCustomPageQrcodeTempPath();
+      await this.ensureImageUsable(qrTempPath, '小程序码');
+      const coverUrl = this.data.activityPosterUrl || this.data.shareImage || '';
+      if (!coverUrl) throw new Error('活动图为空');
+      const coverTempPath = await this.getPosterCoverTempPath(coverUrl);
+      await this.ensureImageUsable(coverTempPath, '活动图');
+      const posterPath = await this.drawSharePoster({
+        coverPath: coverTempPath,
+        qrPath: qrTempPath,
+        title: payload.title,
+        description: this.data.pageTitle || '微信扫码查看活动详情'
+      });
+      this.setData({
+        qrCodeTempPath: posterPath,
+        qrCodeUrl: posterPath
+      });
+    } catch (e) {
+      console.error('[CustomPage] 生成分享海报失败:', e);
+      wx.showToast({ title: e.message ? String(e.message).slice(0, 24) : '分享海报生成失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+      this.setData({ generatingQr: false });
+    }
+  },
+
+  async getCustomPageQrcodeTempPath() {
+    const slug = this.data.slug;
+    if (!slug) throw new Error('页面标识缺失');
+    const app = getApp();
+    const referrerId = app.globalData.memberId || auth.getMemberId();
+    const apiPath = replaceUrlParams(API.CUSTOM_PAGE.SHARE_QRCODE, {
+      slug: encodeURIComponent(slug)
+    });
+    const result = await request.get(apiPath, {
+      format: 'json',
+      referrerId: referrerId || undefined
+    }, {
+      showLoading: false,
+      showError: false,
+      needAuth: true
+    });
+    const base64 = this.extractImageBase64(result);
+    if (!base64) throw new Error('获取小程序码失败');
+    return this.writeBase64ToTempPng(base64);
+  },
+
+  extractImageBase64(payload) {
+    if (!payload) return '';
+    if (typeof payload === 'string') return payload;
+    if (payload.imageBase64) return payload.imageBase64;
+    if (payload.data && payload.data.imageBase64) return payload.data.imageBase64;
+    if (payload.result && payload.result.imageBase64) return payload.result.imageBase64;
+    if (payload.result && payload.result.data && payload.result.data.imageBase64) return payload.result.data.imageBase64;
+    return '';
+  },
+
+  writeBase64ToTempPng(base64) {
+    const fs = wx.getFileSystemManager();
+    const filePath = `${wx.env.USER_DATA_PATH}/custom-page-share-qrcode-${Date.now()}.png`;
+    return new Promise((resolve, reject) => {
+      fs.writeFile({
+        filePath,
+        data: base64,
+        encoding: 'base64',
+        success: () => resolve(filePath),
+        fail: (err) => reject(new Error(`写入小程序码临时文件失败: ${err && err.errMsg ? err.errMsg : 'unknown'}`))
+      });
+    });
+  },
+
+  ensureImageUsable(filePath, tag = '图片') {
+    return new Promise((resolve, reject) => {
+      wx.getImageInfo({
+        src: filePath,
+        success: () => resolve(true),
+        fail: (err) => reject(new Error(`${tag}不可用: ${err && err.errMsg ? err.errMsg : 'unknown'}`))
+      });
+    });
+  },
+
+  getPosterCoverTempPath(coverUrl) {
+    return resolveImageUrlForDisplay(coverUrl);
+  },
+
+  drawSharePoster({ coverPath, qrPath, title, description }) {
+    return new Promise((resolve, reject) => {
+      const canvasId = 'sharePosterCanvas';
+      const width = 375;
+      const height = 620;
+      const ctx = wx.createCanvasContext(canvasId, this);
+      ctx.setFillStyle('#F4F6FA');
+      ctx.fillRect(0, 0, width, height);
+      ctx.setFillStyle('#FFFFFF');
+      ctx.fillRect(16, 16, 343, 588);
+      ctx.drawImage(coverPath, 28, 28, 319, 290);
+      ctx.setFillStyle('#3481B8');
+      ctx.fillRect(28, 328, 46, 4);
+      ctx.setFillStyle('#111111');
+      ctx.setFontSize(18);
+      this.drawMultilineText(ctx, title || '活动分享', 28, 360, 319, 2, 26);
+      ctx.setFillStyle('#666666');
+      ctx.setFontSize(13);
+      this.drawMultilineText(ctx, description || '扫码进入小程序查看活动详情', 28, 415, 319, 2, 20);
+      ctx.setFillStyle('#F7F9FC');
+      ctx.fillRect(28, 472, 319, 120);
+      ctx.drawImage(qrPath, 40, 484, 96, 96);
+      ctx.setFillStyle('#222222');
+      ctx.setFontSize(16);
+      ctx.fillText('微信扫码进入小程序', 152, 525);
+      ctx.setFillStyle('#8A94A6');
+      ctx.setFontSize(12);
+      ctx.fillText('立即查看活动详情', 152, 548);
+      ctx.fillText('长按可识别小程序码', 152, 568);
+      ctx.draw(false, () => {
+        wx.canvasToTempFilePath({
+          canvasId,
+          width,
+          height,
+          destWidth: 1080,
+          destHeight: 1786,
+          quality: 1,
+          success: (res) => resolve(res.tempFilePath),
+          fail: reject
+        }, this);
+      });
+    });
+  },
+
+  drawMultilineText(ctx, text, x, y, maxWidth, maxLines, lineHeight) {
+    const value = String(text || '');
+    if (!value) return;
+    let line = '';
+    let row = 0;
+    for (let i = 0; i < value.length; i += 1) {
+      const ch = value[i];
+      const testLine = line + ch;
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && line) {
+        row += 1;
+        if (row >= maxLines) {
+          ctx.fillText(line.slice(0, Math.max(0, line.length - 1)) + '...', x, y + (row - 1) * lineHeight);
+          return;
+        }
+        ctx.fillText(line, x, y + (row - 1) * lineHeight);
+        line = ch;
+      } else {
+        line = testLine;
+      }
+    }
+    row += 1;
+    if (row <= maxLines) {
+      ctx.fillText(line, x, y + (row - 1) * lineHeight);
+    }
+  },
+
+  closeQrPopup() {
+    this.setData({ showQrPopup: false });
+  },
+
+  onPreviewQrCode() {
+    const current = this.data.qrCodeTempPath || this.data.qrCodeUrl;
+    if (!current) return;
+    wx.previewImage({ urls: [current], current });
+  },
+
+  onSaveQrCode() {
+    const filePath = this.data.qrCodeTempPath;
+    if (!filePath) {
+      wx.showToast({ title: '海报未生成完成', icon: 'none' });
+      return;
+    }
+    wx.saveImageToPhotosAlbum({
+      filePath,
+      success: () => wx.showToast({ title: '已保存到相册', icon: 'success' }),
+      fail: () => wx.showToast({ title: '保存失败，请检查相册权限', icon: 'none' })
+    });
+  },
+
+  onShareQrCodeToWechat() {
+    const filePath = this.data.qrCodeTempPath;
+    if (!filePath) {
+      wx.showToast({ title: '海报未生成完成', icon: 'none' });
+      return;
+    }
+    if (typeof wx.showShareImageMenu === 'function') {
+      wx.showShareImageMenu({
+        path: filePath,
+        fail: () => wx.showToast({ title: '请先保存后在微信发送', icon: 'none' })
+      });
+      return;
+    }
+    wx.showToast({ title: '当前微信版本不支持，建议先保存', icon: 'none' });
   }
 });
 
