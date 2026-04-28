@@ -130,6 +130,11 @@ const pageInitFunctions = {
             window.PopupManagement.init();
         }
     },
+    'custom-page-management': () => {
+        if (window.CustomPageManagement && window.CustomPageManagement.init) {
+            window.CustomPageManagement.init();
+        }
+    },
     'return-management': () => {
         if (typeof window.initReturnManagement === 'function') {
             window.initReturnManagement();

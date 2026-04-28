@@ -40,13 +40,12 @@
 
     <div class="pm-card">
         <div class="pm-head">
-            <h1 class="pm-title">弹窗与活动页面管理</h1>
-            <p class="pm-desc">已整合：站内弹窗、首页活动弹窗（多活动轮播）、自定义活动页面</p>
+            <h1 class="pm-title">弹窗管理</h1>
+            <p class="pm-desc">管理站内弹窗与首页活动弹窗（多活动轮播）</p>
         </div>
         <div class="pm-tabs">
             <button class="pm-tab active" data-tab="site">站内弹窗</button>
             <button class="pm-tab" data-tab="campaign">活动弹窗（首页轮播）</button>
-            <button class="pm-tab" data-tab="custom">自定义页面</button>
         </div>
     </div>
 
@@ -79,18 +78,6 @@
         </table>
     </div>
 
-    <div class="pm-card pm-panel" id="panel-custom">
-        <div class="pm-toolbar">
-            <input class="pm-input" id="customPageSearch" placeholder="名称/slug">
-            <select class="pm-select" id="customPageStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="published">已发布</option><option value="offline">已下线</option></select>
-            <button class="btn btn-primary" onclick="PopupManagement.loadCustom()">搜索</button>
-            <button class="btn btn-success" onclick="PopupManagement.openCustomCreate()">新增页面</button>
-        </div>
-        <table class="pm-table">
-            <thead><tr><th>ID</th><th>名称</th><th>slug</th><th>状态</th><th>分享</th><th>操作</th></tr></thead>
-            <tbody id="customPageTableBody"></tbody>
-        </table>
-    </div>
 
     <div class="pm-modal" id="popupModal">
         <div class="pm-modal-card">
@@ -156,34 +143,6 @@
             <div class="pm-modal-foot">
                 <button class="btn btn-primary" onclick="PopupManagement.saveCampaign()">保存</button>
                 <button class="btn btn-light" onclick="PopupManagement.closeCampaignModal()">取消</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="pm-modal" id="customPageModal">
-        <div class="pm-modal-card">
-            <div class="pm-modal-head"><h3 id="customPageModalTitle">新增自定义页面</h3><button class="pm-close" onclick="PopupManagement.closeCustomModal()">&times;</button></div>
-            <div class="pm-modal-body">
-                <div class="pm-grid-2">
-                    <input class="pm-input" id="cpgName" placeholder="页面名称*">
-                    <input class="pm-input" id="cpgSlug" placeholder="slug*">
-                    <input class="pm-input" id="cpgTitle" placeholder="页面标题">
-                    <select class="pm-select" id="cpgStatus"><option value="draft">草稿</option><option value="published">已发布</option><option value="offline">已下线</option></select>
-                    <input class="pm-input" id="cpgStartTime" type="datetime-local">
-                    <input class="pm-input" id="cpgEndTime" type="datetime-local">
-                    <input class="pm-input" id="cpgShareTitle" placeholder="分享标题">
-                    <input class="pm-input" id="cpgShareImage" placeholder="分享图片URL">
-                </div>
-                <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <input type="file" id="cpgShareImageFile" accept="image/*">
-                    <button class="btn btn-light" type="button" onclick="PopupManagement.uploadCustomShareImage()">上传分享图到对象存储</button>
-                </div>
-                <div style="margin-top:10px;"><label><input type="checkbox" id="cpgEnableShare" checked> 开启分享</label></div>
-                <div style="margin-top:10px;"><textarea class="pm-textarea" id="cpgSchemaJson" placeholder='页面JSON数组，例如：[{"type":"image","url":"https://..."},{"type":"text","text":"五一活动"}]'></textarea></div>
-            </div>
-            <div class="pm-modal-foot">
-                <button class="btn btn-primary" onclick="PopupManagement.saveCustom()">保存</button>
-                <button class="btn btn-light" onclick="PopupManagement.closeCustomModal()">取消</button>
             </div>
         </div>
     </div>

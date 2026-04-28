@@ -8,6 +8,11 @@ Page({
     pageTitle: '活动页',
     blocks: [],
     hasBlocks: false,
+    activityPosterUrl: '',
+    activityBackground: '#f8fafc',
+    activityBackgroundStyle: 'background:#f8fafc;',
+    activityHotspots: [],
+    hasActivityPoster: false,
     loading: true,
     error: '',
     shareEnabled: true,
@@ -52,6 +57,7 @@ Page({
         throw new Error((result && result.message) || '页面不存在');
       }
       const data = result.data;
+      const activitySchema = this.parseActivitySchema(data.schemaJson);
       let blocks = this.normalizeSchemaToBlocks(data.schemaJson);
       // 兼容运营使用习惯：仅上传分享图、未配置 schemaJson 时，自动用分享图作为页面首图
       if ((!blocks || blocks.length === 0) && data.shareImage) {
@@ -66,6 +72,11 @@ Page({
         pageTitle: data.title || data.name || '活动页',
         blocks,
         hasBlocks: Array.isArray(blocks) && blocks.length > 0,
+        activityPosterUrl: activitySchema.posterUrl || '',
+        activityBackground: activitySchema.background || '#f8fafc',
+        activityBackgroundStyle: this.toBackgroundStyle(activitySchema.background),
+        activityHotspots: activitySchema.hotspots || [],
+        hasActivityPoster: !!activitySchema.posterUrl,
         shareEnabled: data.enableShare !== false,
         shareTitle: data.shareTitle || data.title || data.name || '活动页',
         shareImage: data.shareImage ? buildOptimizedImageUrl(data.shareImage, { type: 'detail' }) : ''
@@ -90,6 +101,10 @@ Page({
     if (Array.isArray(schema)) {
       rows = schema;
     } else if (schema && typeof schema === 'object') {
+      // 活动页结构由海报+热区渲染，不参与 blocks
+      if (String(schema.type || '').toLowerCase() === 'activity_poster') {
+        return [];
+      }
       // 兼容后台不同结构：{blocks:[]}/{components:[]}/{items:[]}
       rows = schema.blocks || schema.components || schema.items || schema.content || [];
       if (!Array.isArray(rows)) rows = [];
@@ -133,6 +148,49 @@ Page({
     return /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
   },
 
+  parseActivitySchema(schemaJson) {
+    let schema = schemaJson;
+    if (typeof schema === 'string') {
+      try {
+        schema = JSON.parse(schema);
+      } catch (_) {
+        schema = null;
+      }
+    }
+    if (!schema || typeof schema !== 'object') return { posterUrl: '', background: '', hotspots: [] };
+    if (String(schema.type || '').toLowerCase() !== 'activity_poster') return { posterUrl: '', background: '', hotspots: [] };
+    const posterUrl = String(schema.posterUrl || '').trim();
+    const background = String(schema.background || '').trim();
+    const hotspots = Array.isArray(schema.hotspots) ? schema.hotspots.map((item) => {
+      const x = Number(item && item.x);
+      const y = Number(item && item.y);
+      const w = Number(item && item.w);
+      const h = Number(item && item.h);
+      const safeX = Number.isFinite(x) ? Math.max(0, Math.min(100, x)) : 0;
+      const safeY = Number.isFinite(y) ? Math.max(0, Math.min(100, y)) : 0;
+      const safeW = Number.isFinite(w) ? Math.max(0, Math.min(100, w)) : 10;
+      const safeH = Number.isFinite(h) ? Math.max(0, Math.min(100, h)) : 10;
+      return {
+        name: String((item && item.name) || '').trim(),
+        jumpType: String((item && item.jumpType) || 'none').trim(),
+        jumpTarget: String((item && item.jumpTarget) || '').trim(),
+        style: `left:${safeX}%;top:${safeY}%;width:${safeW}%;height:${safeH}%;`
+      };
+    }) : [];
+    return {
+      posterUrl: posterUrl ? buildOptimizedImageUrl(posterUrl, { type: 'detail' }) : '',
+      background,
+      hotspots
+    };
+  },
+
+  toBackgroundStyle(background) {
+    const raw = String(background || '').trim();
+    if (!raw) return 'background:#f8fafc;';
+    if (/^#|^rgb|^rgba|^hsl|^hsla/i.test(raw)) return `background:${raw};`;
+    return `background-image:url(${raw});background-size:cover;background-position:center;background-repeat:no-repeat;`;
+  },
+
   onTapLink(e) {
     const { url = '' } = e.currentTarget.dataset || {};
     if (!url) return;
@@ -144,6 +202,34 @@ Page({
       data: url,
       success: () => wx.showToast({ title: '链接已复制', icon: 'none' })
     });
+  },
+
+  onTapHotspot(e) {
+    const idx = Number(e && e.currentTarget && e.currentTarget.dataset ? e.currentTarget.dataset.index : -1);
+    const hotspot = (this.data.activityHotspots || [])[idx];
+    if (!hotspot) return;
+    const jumpType = hotspot.jumpType || 'none';
+    const jumpTarget = hotspot.jumpTarget || '';
+    if (jumpType === 'none' || !jumpTarget) return;
+    if (jumpType === 'custom_page') {
+      wx.navigateTo({ url: `/pages/custom-page/custom-page?slug=${encodeURIComponent(jumpTarget)}` });
+      return;
+    }
+    if (jumpType === 'tab') {
+      wx.switchTab({ url: jumpTarget, fail: () => {} });
+      return;
+    }
+    if (jumpType === 'miniapp_page') {
+      wx.navigateTo({ url: jumpTarget, fail: () => {} });
+      return;
+    }
+    if (jumpType === 'webview') {
+      wx.setClipboardData({
+        data: jumpTarget,
+        success: () => wx.showToast({ title: '链接已复制', icon: 'none' })
+      });
+      return;
+    }
   },
 
   onShareAppMessage() {
