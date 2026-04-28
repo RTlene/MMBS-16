@@ -7,6 +7,7 @@ Page({
     slug: '',
     pageTitle: '活动页',
     blocks: [],
+    hasBlocks: false,
     loading: true,
     error: '',
     shareEnabled: true,
@@ -64,6 +65,7 @@ Page({
         loading: false,
         pageTitle: data.title || data.name || '活动页',
         blocks,
+        hasBlocks: Array.isArray(blocks) && blocks.length > 0,
         shareEnabled: data.enableShare !== false,
         shareTitle: data.shareTitle || data.title || data.name || '活动页',
         shareImage: data.shareImage ? buildOptimizedImageUrl(data.shareImage, { type: 'detail' }) : ''

@@ -1,7 +1,7 @@
 <view class="custom-page">
   <view wx:if="{{loading}}" class="state">加载中...</view>
   <view wx:elif="{{error}}" class="state error">{{error}}</view>
-  <view wx:elif="{{!blocks || blocks.length === 0}}" class="state">
+  <view wx:elif="{{!hasBlocks}}" class="state">
     页面内容为空，请在后台自定义页面中补充图片或文本模块
   </view>
   <view wx:else>
