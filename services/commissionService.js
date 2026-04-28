@@ -1465,6 +1465,74 @@ class CommissionService {
         await calculation.update({ status: 'cancelled' });
         return calculation;
     }
+
+    /**
+     * 订单退款完成后撤销佣金：
+     * - pending -> cancelled
+     * - confirmed -> 先冲减会员余额，再置为 cancelled
+     */
+    static async cancelOrderCommissionsForRefund(orderId, opts = {}) {
+        if (!orderId) {
+            throw new Error('orderId 不能为空');
+        }
+        const operatorId = opts.operatorId || null;
+        const reason = (opts.reason && String(opts.reason).trim()) || '订单退款完成自动冲正';
+
+        return sequelize.transaction(async (t) => {
+            const rows = await CommissionCalculation.findAll({
+                where: {
+                    orderId,
+                    status: { [Op.in]: ['pending', 'confirmed'] }
+                },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+
+            if (!rows || rows.length === 0) {
+                return { cancelledCount: 0, reversedCount: 0, totalAmount: 0 };
+            }
+
+            let cancelledCount = 0;
+            let reversedCount = 0;
+            let totalAmount = 0;
+
+            for (const row of rows) {
+                const amount = parseFloat(row.commissionAmount || 0);
+                if (amount > 0) {
+                    totalAmount += amount;
+                }
+
+                if (row.status === 'confirmed') {
+                    const recipient = await Member.findByPk(row.recipientId, {
+                        transaction: t,
+                        lock: t.LOCK.UPDATE
+                    });
+                    if (recipient && amount > 0) {
+                        if (row.commissionType === 'team_incentive') {
+                            await recipient.increment('availableTeamIncentive', { by: -amount, transaction: t });
+                            await recipient.increment('totalTeamIncentive', { by: -amount, transaction: t });
+                        } else {
+                            await recipient.increment('availableCommission', { by: -amount, transaction: t });
+                            await recipient.increment('totalCommission', { by: -amount, transaction: t });
+                        }
+                    }
+                    reversedCount += 1;
+                }
+
+                const nextDesc = row.description
+                    ? `${row.description}\n[退款冲正] ${reason}${operatorId ? `（操作人:${operatorId}）` : ''}`
+                    : `[退款冲正] ${reason}${operatorId ? `（操作人:${operatorId}）` : ''}`;
+
+                await row.update({
+                    status: 'cancelled',
+                    description: nextDesc
+                }, { transaction: t });
+                cancelledCount += 1;
+            }
+
+            return { cancelledCount, reversedCount, totalAmount: Number(totalAmount.toFixed(2)) };
+        });
+    }
 }
 
 module.exports = CommissionService;

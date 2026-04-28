@@ -1425,6 +1425,11 @@ router.put('/:id/return/confirm-refund', async (req, res) => {
             operatorId: req.user?.id || null
         });
 
+        await CommissionService.cancelOrderCommissionsForRefund(order.id, {
+            operatorId: req.user?.id || null,
+            reason: '退货退款完成'
+        });
+
         await OrderOperationLog.create({
             orderId: order.id,
             operation: 'refund',
@@ -1625,6 +1630,11 @@ router.put('/:id/refund/complete', async (req, res) => {
             source: 'admin_complete_refund',
             operatorType: 'admin',
             operatorId: req.user?.id || null
+        });
+
+        await CommissionService.cancelOrderCommissionsForRefund(order.id, {
+            operatorId: req.user?.id || null,
+            reason: '退款完成'
         });
 
         await OrderOperationLog.create({
