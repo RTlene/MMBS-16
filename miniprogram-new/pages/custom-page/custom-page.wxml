@@ -29,15 +29,15 @@
     bindtap="onShareButtonTap"
     hover-class="share-button-hover"
   >
-    <text class="share-icon">📤</text>
+    <image class="share-icon-img" src="/images/icons/share-outline.svg" mode="aspectFit" />
   </button>
 
   <view class="share-sheet {{showShareOptions ? 'show' : ''}}">
     <view class="share-sheet-mask" bindtap="closeShareOptions"></view>
     <view class="share-sheet-content">
       <view class="share-sheet-title">选择分享方式</view>
-      <button class="share-sheet-btn" open-type="share" bindtap="onShareWechatTap">分享到微信</button>
-      <button class="share-sheet-btn share-sheet-btn-secondary" bindtap="onShareQrcodeTap">生成分享海报（保存/分享）</button>
+      <button class="share-sheet-btn" open-type="share" bindtap="onShareWechatTap">微信好友</button>
+      <button class="share-sheet-btn share-sheet-btn-secondary" bindtap="onShareQrcodeTap">生成海报</button>
       <button class="share-sheet-cancel" bindtap="closeShareOptions">取消</button>
     </view>
   </view>
@@ -51,8 +51,8 @@
         <text class="qr-hint" wx:if="{{generatingQr}}">海报生成中...</text>
       </view>
       <view class="qr-actions">
-        <button class="qr-action-btn" bindtap="onSaveQrCode">保存海报</button>
-        <button class="qr-action-btn qr-action-btn-secondary" bindtap="onShareQrCodeToWechat">分享海报到微信</button>
+        <button class="qr-action-btn" bindtap="onSaveQrCode">保存</button>
+        <button class="qr-action-btn qr-action-btn-secondary" bindtap="onShareQrCodeToWechat">微信发送</button>
       </view>
       <button class="qr-close-btn" bindtap="closeQrPopup">关闭</button>
     </view>

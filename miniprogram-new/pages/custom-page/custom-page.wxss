@@ -73,27 +73,41 @@
   position: fixed;
   right: 24rpx;
   bottom: 120rpx;
-  width: 88rpx;
-  height: 88rpx;
+  width: 80rpx !important;
+  height: 80rpx !important;
+  min-width: 80rpx !important;
+  max-width: 80rpx !important;
+  min-height: 80rpx !important;
+  max-height: 80rpx !important;
   border-radius: 50%;
-  border: none;
-  background: rgba(30, 41, 59, 0.92);
+  border: none !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #fff;
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.28);
-  padding: 0;
+  box-shadow: 0 10rpx 24rpx rgba(37, 99, 235, 0.3);
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .share-button::after {
   border: none;
 }
 
-.share-icon {
-  font-size: 34rpx;
-  line-height: 1;
+.share-button-hover {
+  opacity: 0.92;
+}
+
+.share-icon-img {
+  width: 46rpx;
+  height: 46rpx;
+  display: block;
 }
 
 .share-sheet {
@@ -141,7 +155,7 @@
 .share-sheet-cancel {
   margin-bottom: 14rpx;
   border-radius: 12rpx;
-  font-size: 30rpx;
+  font-size: 28rpx;
 }
 
 .share-sheet-btn {

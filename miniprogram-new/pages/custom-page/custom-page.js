@@ -20,6 +20,8 @@ Page({
     shareEnabled: true,
     shareTitle: '活动页',
     shareImage: '',
+    shareImageSource: '',
+    activityPosterSource: '',
     showShareOptions: false,
     showQrPopup: false,
     qrCodeUrl: '',
@@ -37,11 +39,17 @@ Page({
       ? String(options.referrerId).trim()
       : (parsed.r != null && String(parsed.r).trim() !== '' ? String(parsed.r).trim() : '');
     if (referrerId) {
-      try {
-        wx.setStorageSync('referrerId', referrerId);
-      } catch (_) {}
+      // 与全局分享链路保持一致：统一通过 sceneLaunch 工具写入推荐人
+      persistReferrerFromSceneParams({ r: referrerId });
     }
     this.setData({ slug });
+    // 兜底保障：扫码直达活动页时也触发自动登录/自动注册（新用户可绑定分享者）
+    try {
+      const app = getApp();
+      if (app && typeof app.autoLogin === 'function') {
+        app.autoLogin();
+      }
+    } catch (_) {}
     this.loadDetail();
   },
 
@@ -92,13 +100,15 @@ Page({
         blocks,
         hasBlocks: Array.isArray(blocks) && blocks.length > 0,
         activityPosterUrl: activitySchema.posterUrl || '',
+        activityPosterSource: activitySchema.posterSource || '',
         activityBackground: activitySchema.background || '#f8fafc',
         activityBackgroundStyle: this.toBackgroundStyle(activitySchema.background),
         activityHotspots: activitySchema.hotspots || [],
         hasActivityPoster: !!activitySchema.posterUrl,
         shareEnabled: data.enableShare !== false,
         shareTitle: data.shareTitle || data.title || data.name || '活动页',
-        shareImage: data.shareImage ? buildOptimizedImageUrl(data.shareImage, { type: 'detail' }) : ''
+        shareImage: data.shareImage ? buildOptimizedImageUrl(data.shareImage, { type: 'detail' }) : '',
+        shareImageSource: data.shareImage ? String(data.shareImage).trim() : ''
       });
       wx.setNavigationBarTitle({ title: data.title || data.name || '活动页' });
     } catch (e) {
@@ -176,8 +186,8 @@ Page({
         schema = null;
       }
     }
-    if (!schema || typeof schema !== 'object') return { posterUrl: '', background: '', hotspots: [] };
-    if (String(schema.type || '').toLowerCase() !== 'activity_poster') return { posterUrl: '', background: '', hotspots: [] };
+    if (!schema || typeof schema !== 'object') return { posterUrl: '', posterSource: '', background: '', hotspots: [] };
+    if (String(schema.type || '').toLowerCase() !== 'activity_poster') return { posterUrl: '', posterSource: '', background: '', hotspots: [] };
     const posterUrl = String(schema.posterUrl || '').trim();
     const background = String(schema.background || '').trim();
     const hotspots = Array.isArray(schema.hotspots) ? schema.hotspots.map((item) => {
@@ -198,6 +208,7 @@ Page({
     }) : [];
     return {
       posterUrl: posterUrl ? buildOptimizedImageUrl(posterUrl, { type: 'detail' }) : '',
+      posterSource: posterUrl,
       background,
       hotspots
     };
@@ -326,9 +337,7 @@ Page({
       await this.ensureImageUsable(coverTempPath, '活动图');
       const posterPath = await this.drawSharePoster({
         coverPath: coverTempPath,
-        qrPath: qrTempPath,
-        title: payload.title,
-        description: this.data.pageTitle || '微信扫码查看活动详情'
+        qrPath: qrTempPath
       });
       this.setData({
         qrCodeTempPath: posterPath,
@@ -399,10 +408,88 @@ Page({
   },
 
   getPosterCoverTempPath(coverUrl) {
-    return resolveImageUrlForDisplay(coverUrl);
+    const source = this.data.activityPosterSource || this.data.shareImageSource || coverUrl || '';
+    const fileId = this.extractCloudFileIdFromUrl(source);
+    if (fileId) {
+      return this.getTempPathFromCloudFileId(fileId).then((localPath) => {
+        if (localPath) return localPath;
+        return this.getImageInfoPath(coverUrl || source);
+      });
+    }
+    return this.getImageInfoPath(coverUrl || source);
   },
 
-  drawSharePoster({ coverPath, qrPath, title, description }) {
+  extractCloudFileIdFromUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (/^cloud:\/\//.test(raw)) return raw;
+    const match = raw.match(/[?&]fileId=([^&]+)/);
+    if (!match || !match[1]) return '';
+    try {
+      const fileId = decodeURIComponent(match[1]);
+      return /^cloud:\/\//.test(fileId) ? fileId : '';
+    } catch (_) {
+      return '';
+    }
+  },
+
+  getTempPathFromCloudFileId(fileId) {
+    return new Promise((resolve) => {
+      try {
+        const { CLOUD_ENV, CLOUD_SERVICE_NAME } = require('../../config/api.js');
+        if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+          resolve('');
+          return;
+        }
+        try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+        const token = wx.getStorageSync('token') || '';
+        const path = `/api/storage/temp-file?fileId=${encodeURIComponent(fileId)}`;
+        wx.cloud.callContainer({
+          path,
+          method: 'GET',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          config: { env: CLOUD_ENV },
+          service: CLOUD_SERVICE_NAME,
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          success: (res) => {
+            const statusCode = res && res.statusCode;
+            const data = res && res.data;
+            if (!(statusCode >= 200 && statusCode < 300) || !data) {
+              resolve('');
+              return;
+            }
+            const fs = wx.getFileSystemManager();
+            const filePath = `${wx.env.USER_DATA_PATH}/custom-page-cover-${Date.now()}.jpg`;
+            fs.writeFile({
+              filePath,
+              data,
+              encoding: 'binary',
+              success: () => resolve(filePath),
+              fail: () => resolve('')
+            });
+          },
+          fail: () => resolve('')
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
+  },
+
+  getImageInfoPath(url) {
+    return new Promise((resolve, reject) => {
+      resolveImageUrlForDisplay(url).then((src) => {
+        wx.getImageInfo({
+          src,
+          success: (res) => resolve((res && res.path) || src),
+          fail: (err) => reject(new Error(`活动图不可用: ${err && err.errMsg ? err.errMsg : 'unknown'}`))
+        });
+      }).catch((e) => reject(e));
+    });
+  },
+
+  drawSharePoster({ coverPath, qrPath }) {
     return new Promise((resolve, reject) => {
       const canvasId = 'sharePosterCanvas';
       const width = 375;
@@ -412,25 +499,17 @@ Page({
       ctx.fillRect(0, 0, width, height);
       ctx.setFillStyle('#FFFFFF');
       ctx.fillRect(16, 16, 343, 588);
-      ctx.drawImage(coverPath, 28, 28, 319, 290);
-      ctx.setFillStyle('#3481B8');
-      ctx.fillRect(28, 328, 46, 4);
-      ctx.setFillStyle('#111111');
-      ctx.setFontSize(18);
-      this.drawMultilineText(ctx, title || '活动分享', 28, 360, 319, 2, 26);
-      ctx.setFillStyle('#666666');
-      ctx.setFontSize(13);
-      this.drawMultilineText(ctx, description || '扫码进入小程序查看活动详情', 28, 415, 319, 2, 20);
+      ctx.drawImage(coverPath, 28, 28, 319, 380);
       ctx.setFillStyle('#F7F9FC');
-      ctx.fillRect(28, 472, 319, 120);
-      ctx.drawImage(qrPath, 40, 484, 96, 96);
+      ctx.fillRect(28, 428, 319, 164);
+      ctx.drawImage(qrPath, 40, 462, 104, 104);
       ctx.setFillStyle('#222222');
-      ctx.setFontSize(16);
-      ctx.fillText('微信扫码进入小程序', 152, 525);
+      ctx.setFontSize(17);
+      ctx.fillText('微信扫码进入小程序', 160, 505);
       ctx.setFillStyle('#8A94A6');
-      ctx.setFontSize(12);
-      ctx.fillText('立即查看活动详情', 152, 548);
-      ctx.fillText('长按可识别小程序码', 152, 568);
+      ctx.setFontSize(13);
+      ctx.fillText('立即查看活动详情', 160, 531);
+      ctx.fillText('长按识别小程序码', 160, 556);
       ctx.draw(false, () => {
         wx.canvasToTempFilePath({
           canvasId,
