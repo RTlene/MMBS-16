@@ -24,6 +24,11 @@
     .cpm-modal-head { padding: 12px 16px; border-bottom: 1px solid #edf2f7; display:flex; justify-content:space-between; align-items:center; }
     .cpm-modal-body { padding: 14px 16px; }
     .cpm-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .cpm-grid .cpm-input, .cpm-grid .cpm-select { width: 100%; min-width: 0; }
+    .cpm-section { margin-bottom: 14px; padding: 10px; border: 1px solid #edf2f7; border-radius: 10px; background: #fafcff; }
+    .cpm-section-title { margin: 0 0 8px; font-size: 14px; color: #334155; font-weight: 600; }
+    .cpm-upload-row { margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .cpm-checkbox { color:#334155; font-size: 13px; }
     .cpm-subtitle { margin: 6px 0; font-size: 15px; color:#1f2937; }
     .cpm-hint { margin: 6px 0 10px; color: #64748b; font-size: 12px; }
     .cpm-modal-foot { padding: 12px 16px; border-top: 1px solid #edf2f7; display:flex; justify-content:flex-end; gap:8px; }
@@ -75,26 +80,35 @@
     <div class="cpm-modal-card">
       <div class="cpm-modal-head"><h3 id="customPageModalTitle">新增活动页</h3><button class="cpm-close" onclick="CustomPageManagement.closeModal()">&times;</button></div>
       <div class="cpm-modal-body">
-        <div class="cpm-grid">
-          <input id="cpgName" placeholder="页面名称*" />
-          <input id="cpgSlug" placeholder="slug*（如 labor-day-2026）" />
-          <input id="cpgTitle" placeholder="活动页标题" />
-          <select id="cpgStatus"><option value="draft">草稿</option><option value="published">已发布</option><option value="offline">已下线</option></select>
-          <input id="cpgStartTime" type="datetime-local" />
-          <input id="cpgEndTime" type="datetime-local" />
-          <input id="cpgShareTitle" placeholder="分享标题" />
-          <input id="cpgShareImage" placeholder="分享图片URL" />
-          <input id="cpgPosterUrl" placeholder="活动海报URL（必填）" />
-          <input id="cpgBackground" placeholder="背景色或背景图URL（如 #fff 或 https://...）" />
+        <div class="cpm-section">
+          <h4 class="cpm-section-title">基础信息</h4>
+          <div class="cpm-grid">
+            <input class="cpm-input" id="cpgName" placeholder="页面名称*" />
+            <input class="cpm-input" id="cpgSlug" placeholder="slug*（如 labor-day-2026）" />
+            <input class="cpm-input" id="cpgTitle" placeholder="活动页标题" />
+            <select class="cpm-select" id="cpgStatus"><option value="draft">草稿</option><option value="published">已发布</option><option value="offline">已下线</option></select>
+            <input class="cpm-input" id="cpgStartTime" type="datetime-local" />
+            <input class="cpm-input" id="cpgEndTime" type="datetime-local" />
+            <input class="cpm-input" id="cpgPosterUrl" placeholder="活动海报URL（必填）" />
+            <input class="cpm-input" id="cpgBackground" placeholder="背景色或背景图URL（如 #fff 或 https://...）" />
+          </div>
         </div>
-        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="file" id="cpgShareImageFile" accept="image/*">
-          <button class="btn btn-light" type="button" onclick="CustomPageManagement.uploadShareImage()">上传分享图</button>
-          <input type="file" id="cpgPosterFile" accept="image/*">
-          <button class="btn btn-light" type="button" onclick="CustomPageManagement.uploadPosterImage()">上传海报</button>
-        </div>
-        <div style="margin-top:10px;">
-          <label><input type="checkbox" id="cpgEnableShare" checked /> 开启分享</label>
+
+        <div class="cpm-section">
+          <h4 class="cpm-section-title">分享配置</h4>
+          <div class="cpm-grid">
+            <input class="cpm-input" id="cpgShareTitle" placeholder="分享标题" />
+            <input class="cpm-input" id="cpgShareImage" placeholder="分享图片URL" />
+          </div>
+          <div class="cpm-upload-row">
+            <input class="cpm-input" type="file" id="cpgShareImageFile" accept="image/*">
+            <button class="cpm-btn cpm-btn-light" type="button" onclick="CustomPageManagement.uploadShareImage()">上传分享图</button>
+            <input class="cpm-input" type="file" id="cpgPosterFile" accept="image/*">
+            <button class="cpm-btn cpm-btn-light" type="button" onclick="CustomPageManagement.uploadPosterImage()">上传海报</button>
+          </div>
+          <div style="margin-top:10px;">
+            <label class="cpm-checkbox"><input type="checkbox" id="cpgEnableShare" checked /> 开启分享</label>
+          </div>
         </div>
 
         <hr>
