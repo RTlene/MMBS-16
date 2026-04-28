@@ -29,7 +29,7 @@ async function uploadImageToStorage(file) {
 
 function customPageModal(show) {
   const el = document.getElementById('customPageModal');
-  if (el) el.style.display = show ? 'block' : 'none';
+  if (el) el.style.display = show ? 'flex' : 'none';
 }
 
 function fmtLocal(dt) {
@@ -65,6 +65,16 @@ function parseActivitySchema(schemaJson) {
   };
 }
 
+function resolveMediaUrl(rawUrl) {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+  if (url.startsWith('cloud://')) return `/api/storage/temp-url?fileId=${encodeURIComponent(url)}`;
+  if (/^https?:\/\//i.test(url) && /myqcloud\.com/i.test(url)) {
+    return `/api/storage/cos-url?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 function renderHotspotsTable() {
   const tbody = document.getElementById('cpgHotspotTableBody');
   if (!tbody) return;
@@ -85,7 +95,7 @@ function renderHotspotsTable() {
         </select>
       </td>
       <td><input id="hs-jump-target-${idx}" value="${it.jumpTarget || ''}" placeholder="如 /pages/product/product?id=16" /></td>
-      <td><button class="btn btn-danger" onclick="CustomPageManagement.removeHotspot(${idx})">删除</button></td>
+      <td><button class="cpm-btn cpm-btn-danger" onclick="CustomPageManagement.removeHotspot(${idx})">删除</button></td>
     </tr>
   `).join('');
 }
@@ -165,12 +175,12 @@ async function loadCustomPages() {
         <td>${item.name || '-'}</td>
         <td>${item.slug || '-'}</td>
         <td>${item.status || '-'}</td>
-        <td>${img ? `<img src="${img}" style="width:96px;height:56px;object-fit:cover;border-radius:6px;">` : '-'}</td>
+      <td>${img ? `<img class="cpm-poster" src="${resolveMediaUrl(img)}">` : '-'}</td>
         <td>${Array.isArray(schema.hotspots) ? schema.hotspots.length : 0}</td>
         <td>${item.enableShare === false ? '关闭' : '开启'}</td>
         <td>
-          <button class="btn btn-primary" onclick="CustomPageManagement.edit(${item.id})">编辑</button>
-          <button class="btn btn-danger" onclick="CustomPageManagement.remove(${item.id})">删除</button>
+          <button class="cpm-btn cpm-btn-primary" onclick="CustomPageManagement.edit(${item.id})">编辑</button>
+          <button class="cpm-btn cpm-btn-danger" onclick="CustomPageManagement.remove(${item.id})">删除</button>
         </td>
       </tr>
     `;

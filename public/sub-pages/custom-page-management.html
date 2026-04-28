@@ -1,29 +1,64 @@
 <div class="member-management-container">
-  <div class="card">
-    <h2>自定义页面管理</h2>
-    <p>活动页配置：海报、背景、可点击热区（跳转）、标题与分享开关。小程序路径：<code>/pages/custom-page/custom-page?slug=xxx</code></p>
-    <div style="margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap;">
-      <input id="customPageSearch" placeholder="搜索名称/slug" style="padding:8px;min-width:220px;" />
-      <select id="customPageStatus" style="padding:8px;">
+  <style>
+    .cpm-wrap { padding: 16px; background: #f5f7fb; min-height: calc(100vh - 40px); }
+    .cpm-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06); }
+    .cpm-head { padding: 16px 20px; border-bottom: 1px solid #edf2f7; }
+    .cpm-title { margin: 0; font-size: 22px; color: #1f2937; }
+    .cpm-desc { margin: 8px 0 0; color: #64748b; font-size: 13px; }
+    .cpm-body { padding: 14px 16px 16px; }
+    .cpm-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .cpm-input, .cpm-select, .cpm-table input, .cpm-table select {
+      border: 1px solid #dbe4f0; border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 150px;
+    }
+    .cpm-btn { border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+    .cpm-btn-primary { background: #1677ff; color: #fff; }
+    .cpm-btn-success { background: #16a34a; color: #fff; }
+    .cpm-btn-danger { background: #dc2626; color: #fff; }
+    .cpm-btn-light { background: #e2e8f0; color: #334155; }
+    .cpm-table { width: 100%; border-collapse: collapse; }
+    .cpm-table th, .cpm-table td { border-bottom: 1px solid #edf2f7; padding: 9px; text-align: left; font-size: 13px; vertical-align: middle; }
+    .cpm-table th { background: #f8fafc; color: #475569; }
+    .cpm-poster { width: 96px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
+    .cpm-modal { display:none; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1100; align-items: center; justify-content: center; }
+    .cpm-modal-card { width: 94%; max-width: 1040px; max-height: 88vh; overflow: auto; background: #fff; border-radius: 12px; }
+    .cpm-modal-head { padding: 12px 16px; border-bottom: 1px solid #edf2f7; display:flex; justify-content:space-between; align-items:center; }
+    .cpm-modal-body { padding: 14px 16px; }
+    .cpm-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .cpm-subtitle { margin: 6px 0; font-size: 15px; color:#1f2937; }
+    .cpm-hint { margin: 6px 0 10px; color: #64748b; font-size: 12px; }
+    .cpm-modal-foot { padding: 12px 16px; border-top: 1px solid #edf2f7; display:flex; justify-content:flex-end; gap:8px; }
+    .cpm-close { border:0; background:transparent; font-size:22px; cursor:pointer; color:#64748b; }
+  </style>
+  <div class="cpm-wrap">
+  <div class="cpm-card">
+    <div class="cpm-head">
+      <h2 class="cpm-title">自定义页面管理</h2>
+      <p class="cpm-desc">活动页配置：海报、背景、可点击热区（跳转）、标题与分享开关。小程序路径：<code>/pages/custom-page/custom-page?slug=xxx</code></p>
+    </div>
+    <div class="cpm-body">
+    <div class="cpm-toolbar">
+      <input class="cpm-input" id="customPageSearch" placeholder="搜索名称/slug" />
+      <select class="cpm-select" id="customPageStatus">
         <option value="">全部状态</option>
         <option value="draft">草稿</option>
         <option value="published">已发布</option>
         <option value="offline">已下线</option>
       </select>
-      <button class="btn btn-primary" onclick="CustomPageManagement.load()">查询</button>
-      <button class="btn btn-success" onclick="CustomPageManagement.openCreate()">新增活动页</button>
+      <button class="cpm-btn cpm-btn-primary" onclick="CustomPageManagement.load()">查询</button>
+      <button class="cpm-btn cpm-btn-success" onclick="CustomPageManagement.openCreate()">新增活动页</button>
     </div>
-    <table class="table">
+    <table class="cpm-table">
       <thead><tr><th>ID</th><th>名称</th><th>slug</th><th>状态</th><th>海报</th><th>热区数</th><th>分享</th><th>操作</th></tr></thead>
       <tbody id="customPageTableBody"></tbody>
     </table>
+    </div>
   </div>
 
-  <div id="customPageModal" class="modal" style="display:none;">
-    <div class="modal-content" style="max-width:980px;">
-      <div class="modal-header"><h3 id="customPageModalTitle">新增活动页</h3></div>
-      <div class="modal-body">
-        <div class="form-grid">
+  <div id="customPageModal" class="cpm-modal">
+    <div class="cpm-modal-card">
+      <div class="cpm-modal-head"><h3 id="customPageModalTitle">新增活动页</h3><button class="cpm-close" onclick="CustomPageManagement.closeModal()">&times;</button></div>
+      <div class="cpm-modal-body">
+        <div class="cpm-grid">
           <input id="cpgName" placeholder="页面名称*" />
           <input id="cpgSlug" placeholder="slug*（如 labor-day-2026）" />
           <input id="cpgTitle" placeholder="活动页标题" />
@@ -46,22 +81,23 @@
         </div>
 
         <hr>
-        <h4 style="margin:8px 0;">海报热区（点击跳转）</h4>
-        <p style="color:#666;">坐标单位为百分比，建议 0-100。x/y 为左上角位置，w/h 为宽高。</p>
+        <h4 class="cpm-subtitle">海报热区（点击跳转）</h4>
+        <p class="cpm-hint">坐标单位为百分比，建议 0-100。x/y 为左上角位置，w/h 为宽高。</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-          <button class="btn btn-primary" type="button" onclick="CustomPageManagement.addHotspot()">新增热区</button>
+          <button class="cpm-btn cpm-btn-primary" type="button" onclick="CustomPageManagement.addHotspot()">新增热区</button>
         </div>
-        <table class="table">
+        <table class="cpm-table">
           <thead>
             <tr><th>名称</th><th>X%</th><th>Y%</th><th>W%</th><th>H%</th><th>跳转类型</th><th>跳转目标</th><th>操作</th></tr>
           </thead>
           <tbody id="cpgHotspotTableBody"></tbody>
         </table>
       </div>
-      <div class="modal-footer" style="margin-top:12px;">
-        <button class="btn btn-primary" onclick="CustomPageManagement.save()">保存</button>
-        <button class="btn" onclick="CustomPageManagement.closeModal()">取消</button>
+      <div class="cpm-modal-foot">
+        <button class="cpm-btn cpm-btn-primary" onclick="CustomPageManagement.save()">保存</button>
+        <button class="cpm-btn cpm-btn-light" onclick="CustomPageManagement.closeModal()">取消</button>
       </div>
     </div>
+  </div>
   </div>
 </div>
