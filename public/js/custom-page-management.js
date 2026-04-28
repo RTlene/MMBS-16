@@ -2,6 +2,8 @@ let _customPageCurrent = null;
 let _hotspots = [];
 let _selectedHotspotIndex = -1;
 let _dragState = null;
+let _productOptions = [];
+let _customPageOptions = [];
 
 async function customPageRequest(url, options = {}) {
   const res = await fetch(url, {
@@ -27,6 +29,19 @@ async function uploadImageToStorage(file) {
     throw new Error((result && result.message) || '上传失败');
   }
   return result.data.url;
+}
+
+async function loadProductOptions() {
+  try {
+    const result = await customPageRequest('/api/products?page=1&limit=300');
+    const rows = (result && result.data && (result.data.products || result.data.list || result.data.rows)) || [];
+    _productOptions = Array.isArray(rows) ? rows.map((item) => ({
+      id: item.id,
+      name: item.name || item.title || `商品#${item.id}`
+    })).filter((item) => item.id != null) : [];
+  } catch (_) {
+    _productOptions = [];
+  }
 }
 
 function customPageModal(show) {
@@ -108,6 +123,7 @@ function renderHotspotPropertyPanel() {
     setVal('cpgSelectedH', '');
     setVal('cpgSelectedJumpType', 'none');
     setVal('cpgSelectedJumpTarget', '');
+    refreshJumpTargetEditor();
     return;
   }
   setVal('cpgSelectedName', hs.name || '');
@@ -117,6 +133,59 @@ function renderHotspotPropertyPanel() {
   setVal('cpgSelectedH', Number(hs.h || 0));
   setVal('cpgSelectedJumpType', hs.jumpType || 'none');
   setVal('cpgSelectedJumpTarget', hs.jumpTarget || '');
+  refreshJumpTargetEditor();
+}
+
+function refreshJumpTargetEditor() {
+  const jumpType = ((document.getElementById('cpgSelectedJumpType') || {}).value || 'none').trim();
+  const inputEl = document.getElementById('cpgSelectedJumpTarget');
+  const productEl = document.getElementById('cpgSelectedProduct');
+  const customPageEl = document.getElementById('cpgSelectedCustomPage');
+  const hintEl = document.getElementById('cpgSelectedJumpHint');
+  if (!inputEl || !productEl || !customPageEl || !hintEl) return;
+  inputEl.style.display = '';
+  productEl.style.display = 'none';
+  customPageEl.style.display = 'none';
+  hintEl.textContent = '不跳转时可留空。';
+
+  if (jumpType === 'product_detail') {
+    productEl.style.display = '';
+    productEl.innerHTML = _productOptions.length
+      ? _productOptions.map((x) => `<option value="${x.id}">${x.name} (#${x.id})</option>`).join('')
+      : '<option value="">暂无商品可选</option>';
+    const raw = String(inputEl.value || '').trim();
+    if (raw && productEl.querySelector(`option[value="${raw}"]`)) productEl.value = raw;
+    else if (_productOptions.length) productEl.value = String(_productOptions[0].id);
+    inputEl.value = productEl.value || '';
+    inputEl.style.display = 'none';
+    hintEl.textContent = '将跳转到对应商品详情页。';
+    return;
+  }
+
+  if (jumpType === 'custom_page') {
+    customPageEl.style.display = '';
+    customPageEl.innerHTML = _customPageOptions.length
+      ? _customPageOptions.map((x) => `<option value="${x.slug}">${x.name}（${x.slug}）</option>`).join('')
+      : '<option value="">暂无自定义页</option>';
+    const raw = String(inputEl.value || '').trim();
+    if (raw && customPageEl.querySelector(`option[value="${raw}"]`)) customPageEl.value = raw;
+    else if (_customPageOptions.length) customPageEl.value = _customPageOptions[0].slug;
+    inputEl.value = customPageEl.value || '';
+    inputEl.style.display = 'none';
+    hintEl.textContent = '将跳转到选中的自定义页。';
+    return;
+  }
+
+  if (jumpType === 'miniapp_page') {
+    inputEl.placeholder = '/pages/product/product?id=16';
+    hintEl.textContent = '请输入完整小程序页面路径。';
+  } else if (jumpType === 'tab') {
+    inputEl.placeholder = '/pages/index/index';
+    hintEl.textContent = '请输入 tab 页面路径（必须是 tabBar 页面）。';
+  } else if (jumpType === 'webview') {
+    inputEl.placeholder = 'https://example.com/activity';
+    hintEl.textContent = '请输入完整链接。';
+  }
 }
 
 function renderHotspotCanvas() {
@@ -214,6 +283,7 @@ function fillCustomPageForm(data = {}) {
   document.getElementById('cpgPosterUrl').value = schema.posterUrl || data.shareImage || '';
   document.getElementById('cpgBackground').value = schema.background || '#f8fafc';
   _hotspots = Array.isArray(schema.hotspots) ? schema.hotspots.slice(0, 50) : [];
+  _customPageOptions = [{ id: data.id, name: data.name, slug: data.slug }].filter((x) => x.slug);
   _selectedHotspotIndex = _hotspots.length ? 0 : -1;
   const poster = document.getElementById('cpgEditorPoster');
   if (poster) poster.src = resolveMediaUrl(document.getElementById('cpgPosterUrl').value || '');
@@ -257,6 +327,7 @@ async function loadCustomPages() {
   const tbody = document.getElementById('customPageTableBody');
   if (!tbody) return;
   const list = (result && result.code === 0 && result.data && result.data.list) || [];
+  _customPageOptions = Array.isArray(list) ? list.map((item) => ({ id: item.id, name: item.name || '', slug: item.slug || '' })).filter((x) => x.slug) : [];
   tbody.innerHTML = list.map((item) => {
     const schema = parseActivitySchema(item.schemaJson);
     const img = schema.posterUrl || item.shareImage || '';
@@ -281,7 +352,20 @@ async function loadCustomPages() {
 window.CustomPageManagement = {
   init() {
     loadCustomPages();
+    loadProductOptions();
     bindEditorEvents();
+    const jumpType = document.getElementById('cpgSelectedJumpType');
+    const productEl = document.getElementById('cpgSelectedProduct');
+    const customPageEl = document.getElementById('cpgSelectedCustomPage');
+    if (jumpType) jumpType.addEventListener('change', refreshJumpTargetEditor);
+    if (productEl) productEl.addEventListener('change', () => {
+      const inputEl = document.getElementById('cpgSelectedJumpTarget');
+      if (inputEl) inputEl.value = productEl.value || '';
+    });
+    if (customPageEl) customPageEl.addEventListener('change', () => {
+      const inputEl = document.getElementById('cpgSelectedJumpTarget');
+      if (inputEl) inputEl.value = customPageEl.value || '';
+    });
   },
   load: loadCustomPages,
   addHotspot() {

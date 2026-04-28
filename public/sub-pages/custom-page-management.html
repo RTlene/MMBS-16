@@ -44,6 +44,7 @@
     .cpm-hotspot-list { max-height: 220px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; }
     .cpm-hotspot-item { display:flex; justify-content:space-between; align-items:center; padding:6px; border-radius:6px; cursor:pointer; }
     .cpm-hotspot-item.active { background: #eff6ff; color: #1d4ed8; }
+    .cpm-jump-helper { color: #64748b; font-size: 12px; margin-top: 4px; }
   </style>
   <div class="cpm-wrap">
   <div class="cpm-card">
@@ -126,6 +127,7 @@
             <div class="cpm-panel-full">
               <select id="cpgSelectedJumpType" class="cpm-select">
                 <option value="none">不跳转</option>
+                <option value="product_detail">商品详情</option>
                 <option value="custom_page">自定义页</option>
                 <option value="miniapp_page">小程序页</option>
                 <option value="tab">Tab页</option>
@@ -134,6 +136,9 @@
             </div>
             <div class="cpm-panel-full">
               <input id="cpgSelectedJumpTarget" class="cpm-input" placeholder="跳转目标" />
+              <select id="cpgSelectedProduct" class="cpm-select" style="display:none;margin-top:6px;"></select>
+              <select id="cpgSelectedCustomPage" class="cpm-select" style="display:none;margin-top:6px;"></select>
+              <div id="cpgSelectedJumpHint" class="cpm-jump-helper">不跳转时可留空。</div>
             </div>
             <div style="display:flex;gap:8px;margin:8px 0;">
               <button class="cpm-btn cpm-btn-primary" type="button" onclick="CustomPageManagement.applySelectedHotspot()">应用到热区</button>

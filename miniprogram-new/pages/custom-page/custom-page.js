@@ -215,6 +215,10 @@ Page({
       wx.navigateTo({ url: `/pages/custom-page/custom-page?slug=${encodeURIComponent(jumpTarget)}` });
       return;
     }
+    if (jumpType === 'product_detail') {
+      wx.navigateTo({ url: `/pages/product/product?id=${encodeURIComponent(jumpTarget)}`, fail: () => {} });
+      return;
+    }
     if (jumpType === 'tab') {
       wx.switchTab({ url: jumpTarget, fail: () => {} });
       return;
