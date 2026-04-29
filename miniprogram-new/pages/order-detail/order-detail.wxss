@@ -193,6 +193,12 @@
   min-width: 0;
 }
 
+.item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
 .item-name {
   font-size: 28rpx;
   color: #333333;
@@ -201,6 +207,16 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+.gift-tag {
+  flex-shrink: 0;
+  font-size: 20rpx;
+  color: #d97706;
+  background: #fff7e6;
+  border: 1rpx solid #ffd591;
+  border-radius: 999rpx;
+  padding: 2rpx 10rpx;
 }
 
 .item-sku {

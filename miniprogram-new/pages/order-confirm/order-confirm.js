@@ -57,7 +57,9 @@ Page({
     deliveryAllowPickup: true,
     deliveryConstraintHint: '',
     deliveryForcedType: null,
-    benefitMode: 'promotion'
+    benefitMode: 'promotion',
+    availablePromotions: [],
+    selectedPromotion: null
   },
 
   onLoad() {
@@ -142,6 +144,7 @@ Page({
       deliveryForcedType: deliveryOpt.forcedDeliveryType
     });
 
+    this.loadAvailablePromotions();
     this.loadOrderPricing();
     this.loadAddresses();
     this.loadMemberInfo();
@@ -159,6 +162,9 @@ Page({
     const memberId = (app.globalData.memberInfo && app.globalData.memberInfo.id) || (app.globalData.memberId) || 0;
     const benefitMode = this.data.benefitMode || 'promotion';
     const appliedCoupons = (benefitMode === 'coupon' && selectedCouponOpt) ? [{ id: selectedCouponOpt.id }] : [];
+    const appliedPromotions = (benefitMode === 'promotion' && this.data.selectedPromotion)
+      ? [{ id: this.data.selectedPromotion.id }]
+      : [];
 
     if (!items.length) {
       this.setData({ pricingLoading: false });
@@ -179,7 +185,7 @@ Page({
         memberId: memberId || 0,
         benefitMode,
         appliedCoupons,
-        appliedPromotions: []
+        appliedPromotions
       };
       let res = await request.post(API.PRODUCT.CALCULATE_PRICE, body, { showLoading: false, showError: false });
       if (res.code === 0 && res.data && res.data.pricing) return res.data.pricing;
@@ -281,6 +287,40 @@ Page({
         orderOriginalAmount: this.data.originalAmount
       });
       this.loadAvailableCoupons(this.data.items, this.data.originalAmount);
+    }
+  },
+
+  async loadAvailablePromotions() {
+    const items = this.data.items || [];
+    if (!items.length) {
+      this.setData({ availablePromotions: [], selectedPromotion: null });
+      return;
+    }
+    try {
+      const map = {};
+      for (const item of items) {
+        const productId = item.productId;
+        if (!productId) continue;
+        const res = await request.get(`/api/miniapp/products/${productId}/available-promotions`, {
+          skuId: item.skuId || '',
+          quantity: item.quantity || 1
+        }, { showLoading: false, showError: false });
+        if (res.code !== 0 || !res.data || !Array.isArray(res.data.promotions)) continue;
+        res.data.promotions.forEach((p) => {
+          if (!p || !p.id) return;
+          if (!map[p.id]) map[p.id] = { ...p, scopeCount: 0 };
+          map[p.id].scopeCount += 1;
+        });
+      }
+      const list = Object.values(map);
+      const selected = this.data.selectedPromotion;
+      const selectedExists = selected && list.some((p) => String(p.id) === String(selected.id));
+      this.setData({
+        availablePromotions: list,
+        selectedPromotion: selectedExists ? selected : null
+      });
+    } catch (err) {
+      console.warn('[OrderConfirm] loadAvailablePromotions fail', err);
     }
   },
 
@@ -579,8 +619,33 @@ Page({
       resetData.discountAmount = 0;
       resetData.promotionDiscountInvalidatedByCoupon = 0;
     }
+    if (mode !== 'promotion') {
+      resetData.selectedPromotion = null;
+    } else {
+      this.loadAvailablePromotions();
+    }
     this.setData(resetData);
     this.loadOrderPricing(mode === 'coupon' ? this.data.selectedCoupon : null);
+  },
+
+  onSelectPromotion(e) {
+    const id = e.currentTarget.dataset.id;
+    const promotion = (this.data.availablePromotions || []).find((p) => String(p.id) === String(id));
+    if (!promotion || !promotion.id) return;
+    const curr = this.data.selectedPromotion;
+    if (curr && String(curr.id) === String(promotion.id)) {
+      this.setData({ selectedPromotion: null });
+      this.loadOrderPricing(null);
+      return;
+    }
+    this.setData({
+      benefitMode: 'promotion',
+      selectedPromotion: promotion,
+      selectedCoupon: null,
+      discountAmount: 0,
+      promotionDiscountInvalidatedByCoupon: 0
+    });
+    this.loadOrderPricing(null);
   },
 
   /**
@@ -920,7 +985,11 @@ Page({
       receiverPhone: isPickup ? '' : purePhone.slice(0, 20),
       shippingAddress: isPickup ? '' : (shippingAddress || '').trim().slice(0, LIMITS.shippingAddress),
       remark: remark.trim(),
-      appliedCoupons: this.data.selectedCoupon ? [{ id: this.data.selectedCoupon.id, code: this.data.selectedCoupon.code }] : [],
+      appliedCoupons: this.data.benefitMode === 'coupon' && this.data.selectedCoupon
+        ? [{ id: this.data.selectedCoupon.id, code: this.data.selectedCoupon.code }]
+        : [],
+      appliedPromotions: this.data.benefitMode === 'promotion' && this.data.selectedPromotion ? [{ id: this.data.selectedPromotion.id }] : [],
+      benefitMode: this.data.benefitMode || 'promotion',
       commissionUsage: this.data.useCommission > 0 ? this.data.useCommission : null,
       pointsUsage: this.data.usePoints > 0 ? this.data.usePoints : null
     };

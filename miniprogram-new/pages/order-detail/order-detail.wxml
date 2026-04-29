@@ -74,7 +74,10 @@
           <text class="placeholder-text">📦</text>
         </view>
         <view class="item-info">
-          <text class="item-name">{{item.productName}}</text>
+          <view class="item-name-row">
+            <text class="item-name">{{item.productName}}</text>
+            <text class="gift-tag" wx:if="{{item.productSnapshot && item.productSnapshot.isGift}}">赠品</text>
+          </view>
           <text class="item-sku" wx:if="{{item.skuName}}">{{item.skuName}}</text>
           <text class="item-delivery-attr" wx:if="{{item.deliveryConstraintText}}">商品配送：{{item.deliveryConstraintText}}</text>
           <view class="item-meta">

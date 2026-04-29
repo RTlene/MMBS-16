@@ -1222,6 +1222,49 @@ function buildCategoryTree(categories, parentId = null) {
     return tree;
 }
 
+function promotionTypeText(type) {
+    const map = {
+        flash_sale: '限时折扣',
+        group_buy: '拼团价',
+        full_reduction: '满减',
+        full_discount: '满折',
+        full_gift: '满赠',
+        buy_x_get_y: '买赠'
+    };
+    return map[type] || '促销';
+}
+
+// 获取商品可选促销（用于下单页手动选择）
+router.get('/products/:id/available-promotions', async (req, res) => {
+    try {
+        const productId = Number(req.params.id);
+        const skuId = req.query.skuId != null && req.query.skuId !== '' ? Number(req.query.skuId) : null;
+        if (!Number.isFinite(productId) || productId <= 0) {
+            return res.status(400).json({ code: 1, message: '商品ID无效' });
+        }
+        const list = await PromotionService.getAvailablePromotionsOptimized(productId, skuId);
+        const promotions = (list || []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            type: p.type,
+            typeText: promotionTypeText(p.type),
+            description: p.description || ''
+        }));
+        return res.json({
+            code: 0,
+            message: '获取成功',
+            data: { promotions }
+        });
+    } catch (error) {
+        console.error('获取商品可选促销失败:', error);
+        return res.status(500).json({
+            code: 1,
+            message: '获取商品可选促销失败',
+            error: error.message
+        });
+    }
+});
+
 // 计算商品价格（应用运营工具）
 router.post('/products/calculate-price', async (req, res) => {
     try {

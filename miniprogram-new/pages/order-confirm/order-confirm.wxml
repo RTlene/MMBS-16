@@ -161,6 +161,17 @@
         <view class="benefit-mode-item {{benefitMode === 'member' ? 'active' : ''}}" data-mode="member" bindtap="onBenefitModeChange">会员折扣</view>
       </view>
     </view>
+    <view class="promotion-picker-row" wx:if="{{benefitMode === 'promotion'}}">
+      <view class="promotion-picker-title">选择促销</view>
+      <view class="promotion-picker-list" wx:if="{{availablePromotions.length > 0}}">
+        <view class="promotion-picker-item {{selectedPromotion && selectedPromotion.id == item.id ? 'active' : ''}}" wx:for="{{availablePromotions}}" wx:key="id" data-id="{{item.id}}" bindtap="onSelectPromotion">
+          <text class="promotion-picker-name">{{item.name}}</text>
+          <text class="promotion-picker-desc">{{item.typeText || item.type}}</text>
+        </view>
+      </view>
+      <text class="promotion-picker-empty" wx:else>当前商品暂无可选促销</text>
+      <text class="promotion-picker-hint" wx:if="{{availablePromotions.length > 0 && !selectedPromotion}}">未选择时将按默认规则自动匹配促销</text>
+    </view>
     <view class="summary-row" wx:if="{{pricingLoading}}">
       <text class="summary-label">正在计算价格…</text>
     </view>
