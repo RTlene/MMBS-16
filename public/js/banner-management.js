@@ -89,9 +89,23 @@ async function loadBanners() {
         console.log('[BannerManagement] API响应:', result);
         
         if (result.code === 0) {
-            banners = result.data.banners || [];
-            totalPages = result.data.totalPages || 1;
-            console.log(`[BannerManagement] 加载到 ${banners.length} 条轮播图记录，共 ${result.data.total || 0} 条`);
+            // 兼容新旧接口：
+            // - 新版: { data: { banners, total, totalPages } }
+            // - 旧版: { data: [...] } 或 { data: { list, totalCount } }
+            const payload = result.data;
+            if (Array.isArray(payload)) {
+                banners = payload;
+                totalPages = 1;
+            } else if (payload && typeof payload === 'object') {
+                banners = payload.banners || payload.list || payload.rows || [];
+                const total = Number(payload.total ?? payload.totalCount ?? banners.length) || banners.length;
+                const pageSize = Number(params.get('limit')) || 10;
+                totalPages = Number(payload.totalPages) || Math.max(1, Math.ceil(total / pageSize));
+            } else {
+                banners = [];
+                totalPages = 1;
+            }
+            console.log(`[BannerManagement] 加载到 ${banners.length} 条轮播图记录`);
             renderBannersTable();
             renderPagination();
         } else {
@@ -224,7 +238,7 @@ async function editBanner(id) {
         if (result.code === 0) {
             currentBanner = result.data;
             document.getElementById('bannerModalTitle').textContent = '编辑横幅';
-            document.getElementById('bannerName').value = currentBanner.name;
+            document.getElementById('bannerName').value = currentBanner.name || currentBanner.title || '';
             document.getElementById('bannerPosition').value = currentBanner.position;
             document.getElementById('bannerSort').value = currentBanner.sort || 0;
             document.getElementById('bannerStartTime').value = currentBanner.startTime ? formatDateTimeLocal(currentBanner.startTime) : '';
