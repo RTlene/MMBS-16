@@ -395,6 +395,13 @@ class PromotionService {
 
             // 验证并获取促销活动（需传入 memberId 以校验可参与会员等级）
             let promotions = await this.validateAndGetPromotions(appliedPromotions, productId, skuId, quantity, memberId);
+            const hasExclusivePromotion = promotions.some((p) => {
+                const r = parsePromotionRules(p.rules);
+                return r && r.qualifyingProductConflictMode === 'exclusive';
+            });
+            if (hasExclusivePromotion && promotions.length > 1) {
+                promotions = [promotions[0]];
+            }
 
             // 不可叠加：若用户使用了「不可与促销同享」的优惠券，则促销折扣不生效
             const hasNonStackableCoupon = coupons.some(c => c.stackWithPromotion !== true);
@@ -1121,13 +1128,32 @@ class PromotionService {
                 const allowed = memberLevelId != null && levelIds.some((id) => Number(id) === Number(memberLevelId));
                 if (!allowed) continue;
             }
-            const isValid = await this.validatePromotion(promotion, productId, skuId, quantity);
+            const isValid = await this.validatePromotion(promotion, productId, skuId, quantity, memberId);
             if (isValid) {
                 validPromotions.push(promotion);
             }
         }
 
         return validPromotions;
+    }
+
+    static async _memberPromotionUsageCount(memberId, promotionId) {
+        if (!memberId || !promotionId) return 0;
+        const rows = await OrderItem.findAll({
+            include: [{
+                model: Order,
+                as: 'order',
+                required: true,
+                where: {
+                    memberId: Number(memberId),
+                    status: { [Op.notIn]: ['cancelled', 'pending', 'refunded'] }
+                },
+                attributes: []
+            }],
+            attributes: ['appliedPromotions'],
+            raw: true
+        });
+        return rows.filter((row) => Array.isArray(row.appliedPromotions) && row.appliedPromotions.some((p) => Number((p && p.id) || p) === Number(promotionId))).length;
     }
 
     /**
@@ -1198,7 +1224,7 @@ class PromotionService {
     /**
      * 验证促销活动
      */
-    static async validatePromotion(promotion, productId, skuId, quantity) {
+    static async validatePromotion(promotion, productId, skuId, quantity, memberId = null) {
         const now = new Date();
 
         if (promotion.startTime) {
@@ -1214,6 +1240,13 @@ class PromotionService {
         }
 
         const rules = parsePromotionRules(promotion.rules);
+        if (rules && rules.perMemberUsageLimit != null && memberId) {
+            const limit = Number(rules.perMemberUsageLimit);
+            if (Number.isInteger(limit) && limit > 0) {
+                const used = await this._memberPromotionUsageCount(memberId, promotion.id);
+                if (used >= limit) return false;
+            }
+        }
         const productIds = (rules && Array.isArray(rules.productIds)) ? rules.productIds : [];
         if (productIds.length > 0) {
             const pid = Number(productId);

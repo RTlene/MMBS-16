@@ -341,6 +341,12 @@ function showAddPromotionModal() {
     if (enabledEl) enabledEl.checked = false;
     if (costTypeEl) costTypeEl.value = 'percent';
     if (costValueEl) costValueEl.value = '';
+    const perMemberLimitEl = document.getElementById('promotionPerMemberLimit');
+    const conflictModeEl = document.getElementById('promotionQualifyingProductConflictMode');
+    const allowRepeatEl = document.getElementById('promotionAllowRepeatInSameOrder');
+    if (perMemberLimitEl) perMemberLimitEl.value = '';
+    if (conflictModeEl) conflictModeEl.value = 'allow';
+    if (allowRepeatEl) allowRepeatEl.checked = false;
     togglePromotionCommissionConfig();
     updateRulesConfig();
     var list = document.getElementById('promotionMemberLevelsList');
@@ -369,6 +375,12 @@ function editPromotion(promotionId) {
     if (enabledEl) enabledEl.checked = !!commissionCfg.enabled;
     if (costTypeEl) costTypeEl.value = (commissionCfg.costType === 'fixed') ? 'fixed' : 'percent';
     if (costValueEl) costValueEl.value = commissionCfg.costValue != null ? commissionCfg.costValue : '';
+    const perMemberLimitEl = document.getElementById('promotionPerMemberLimit');
+    const conflictModeEl = document.getElementById('promotionQualifyingProductConflictMode');
+    const allowRepeatEl = document.getElementById('promotionAllowRepeatInSameOrder');
+    if (perMemberLimitEl) perMemberLimitEl.value = promotion.rules && promotion.rules.perMemberUsageLimit != null ? promotion.rules.perMemberUsageLimit : '';
+    if (conflictModeEl) conflictModeEl.value = (promotion.rules && promotion.rules.qualifyingProductConflictMode === 'exclusive') ? 'exclusive' : 'allow';
+    if (allowRepeatEl) allowRepeatEl.checked = !!(promotion.rules && promotion.rules.allowRepeatInSameOrder);
     togglePromotionCommissionConfig();
     
     // 更新规则配置
@@ -886,6 +898,17 @@ function getRulesConfig() {
         costType: commissionCostType === 'fixed' ? 'fixed' : 'percent',
         costValue: Number.isFinite(commissionCostValue) && commissionCostValue > 0 ? commissionCostValue : 0
     };
+    var perMemberLimitEl = document.getElementById('promotionPerMemberLimit');
+    var conflictModeEl = document.getElementById('promotionQualifyingProductConflictMode');
+    var allowRepeatEl = document.getElementById('promotionAllowRepeatInSameOrder');
+    var perMemberLimit = perMemberLimitEl ? parseInt(perMemberLimitEl.value, 10) : 0;
+    if (Number.isFinite(perMemberLimit) && perMemberLimit > 0) {
+        rules.perMemberUsageLimit = perMemberLimit;
+    } else {
+        rules.perMemberUsageLimit = null;
+    }
+    rules.qualifyingProductConflictMode = (conflictModeEl && conflictModeEl.value === 'exclusive') ? 'exclusive' : 'allow';
+    rules.allowRepeatInSameOrder = !!(allowRepeatEl && allowRepeatEl.checked);
     
     return rules;
 }

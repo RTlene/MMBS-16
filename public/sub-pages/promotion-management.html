@@ -598,6 +598,30 @@
                                     <div class="form-hint">默认“促销不参与佣金”。开启后，将先扣除促销成本再计算佣金。</div>
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">高级策略设置</label>
+                                <div class="rules-config">
+                                    <div class="rule-item" style="margin-bottom:8px;">
+                                        <label style="width:180px;">会员个人可用上限:</label>
+                                        <input type="number" class="form-input" id="promotionPerMemberLimit" min="0" step="1" style="width:180px;" placeholder="0或留空=不限">
+                                        <span>次</span>
+                                    </div>
+                                    <div class="rule-item" style="margin-bottom:8px;">
+                                        <label style="width:180px;">条件商品冲突策略:</label>
+                                        <select class="form-input" id="promotionQualifyingProductConflictMode" style="width:260px;">
+                                            <option value="allow">允许同一商品重复作为多个规则条件</option>
+                                            <option value="exclusive">同一商品命中一个规则后不再参与其他规则</option>
+                                        </select>
+                                    </div>
+                                    <div class="rule-item">
+                                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                            <input type="checkbox" id="promotionAllowRepeatInSameOrder">
+                                            <span>允许同一订单重复命中该促销（不勾选则单次结算只命中一次）</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-hint">说明：以上设置会写入活动规则并参与后端校验与计算。</div>
+                                </div>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">开始时间</label>

@@ -3,7 +3,7 @@
   <view wx:elif="{{error}}" class="state error">{{error}}</view>
   <view wx:elif="{{hasActivityPoster}}" class="activity-page" style="{{activityBackgroundStyle}}">
     <view class="activity-poster-wrap">
-      <image class="activity-poster" src="{{activityPosterUrl}}" mode="widthFix" />
+      <image class="activity-poster" src="{{activityPosterUrl}}" mode="aspectFit" />
       <block wx:for="{{activityHotspots}}" wx:key="index">
         <view class="activity-hotspot" style="{{item.style}}" bindtap="onTapHotspot" data-index="{{index}}"></view>
       </block>

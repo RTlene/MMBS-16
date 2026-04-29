@@ -380,6 +380,17 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
 // 验证促销活动规则
 function validatePromotionRules(type, rules) {
+    const perMemberUsageLimit = Number(rules && rules.perMemberUsageLimit);
+    if (rules && rules.perMemberUsageLimit != null && !(Number.isInteger(perMemberUsageLimit) && perMemberUsageLimit > 0)) {
+        return { valid: false, message: '会员个人可用上限必须为大于0的整数，或留空表示不限制' };
+    }
+    if (rules && rules.qualifyingProductConflictMode != null && !['allow', 'exclusive'].includes(rules.qualifyingProductConflictMode)) {
+        return { valid: false, message: '条件商品冲突策略无效' };
+    }
+    if (rules && rules.allowRepeatInSameOrder != null && typeof rules.allowRepeatInSameOrder !== 'boolean') {
+        return { valid: false, message: '订单内重复命中设置必须为布尔值' };
+    }
+
     const commissionConfig = rules && rules.commissionConfig;
     if (commissionConfig && commissionConfig.enabled) {
         const costType = commissionConfig.costType === 'fixed' ? 'fixed' : 'percent';
