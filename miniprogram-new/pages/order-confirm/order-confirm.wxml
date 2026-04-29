@@ -130,6 +130,22 @@
           <text class="item-price">¥{{item.price}}</text>
           <text class="item-qty">x{{item.quantity}}</text>
         </view>
+        <view class="item-gift-preview" wx:if="{{item.promoGiftItems && item.promoGiftItems.length > 0}}">
+          <view class="item-gift-row" wx:for="{{item.promoGiftItems}}" wx:key="key">
+            <image class="item-gift-image" src="{{item.productImage || '/images/default-product.svg'}}" mode="aspectFill" />
+            <view class="item-gift-info">
+              <view class="item-gift-title-line">
+                <text class="item-gift-tag">活动赠品</text>
+                <text class="item-gift-name">{{item.productName}}</text>
+              </view>
+              <view class="item-gift-price-line">
+                <text class="item-gift-price-old">¥{{item.originalPrice}}</text>
+                <text class="item-gift-price-now">¥0.00</text>
+                <text class="item-gift-qty">x{{item.quantity}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
       </view>
     </view>
     </view>

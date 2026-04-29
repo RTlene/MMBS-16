@@ -163,7 +163,7 @@ Page({
     const benefitMode = this.data.benefitMode || 'promotion';
     const appliedCoupons = (benefitMode === 'coupon' && selectedCouponOpt) ? [{ id: selectedCouponOpt.id }] : [];
     const appliedPromotions = (benefitMode === 'promotion' && this.data.selectedPromotion)
-      ? [{ id: this.data.selectedPromotion.id }]
+      ? [Number(this.data.selectedPromotion.id)]
       : [];
 
     if (!items.length) {
@@ -176,6 +176,7 @@ Page({
     const discountMap = {};
     const giftMap = {};
     let memberDiscountTotal = 0;
+    const itemsWithGiftPreview = items.map((it) => ({ ...it, promoGiftItems: [] }));
 
     const fetchPrice = async (item) => {
       const body = {
@@ -194,7 +195,8 @@ Page({
     };
 
     try {
-      for (const item of items) {
+      for (let idx = 0; idx < items.length; idx += 1) {
+        const item = items[idx];
         const p = await fetchPrice(item);
         const unit = parseFloat(item.price || 0) * (item.quantity || 1);
         const orig = p ? (parseFloat(p.originalAmount) || 0) : unit;
@@ -215,6 +217,7 @@ Page({
           });
         }
         if (p && Array.isArray(p.gifts) && p.gifts.length > 0) {
+          const currentItemGifts = [];
           p.gifts.forEach((g) => {
             const gid = g.skuId ? `sku_${g.skuId}` : `p_${g.productId}`;
             if (!giftMap[gid]) {
@@ -228,7 +231,17 @@ Page({
               };
             }
             giftMap[gid].quantity += parseInt(g.quantity || 0, 10) || 0;
+            currentItemGifts.push({
+              key: `${gid}_${idx}`,
+              productId: g.productId || null,
+              skuId: g.skuId || null,
+              productName: g.productName || '赠品',
+              productImage: g.productImage || '',
+              quantity: parseInt(g.quantity || 0, 10) || 0,
+              originalPrice: parseFloat(g.originalPrice != null ? g.originalPrice : (g.price != null ? g.price : 0)) || 0
+            });
           });
+          itemsWithGiftPreview[idx].promoGiftItems = currentItemGifts.filter((g) => g.quantity > 0);
         }
       }
 
@@ -272,6 +285,7 @@ Page({
         subtotalAfterPromo: subtotal,
         pricingDiscounts,
         giftItems,
+        items: itemsWithGiftPreview,
         originalAmount: orderOrig,
         discountAmount: parseFloat(discountAmount.toFixed(2)),
         totalAmount: parseFloat(totalAmount.toFixed(2)),
@@ -988,7 +1002,7 @@ Page({
       appliedCoupons: this.data.benefitMode === 'coupon' && this.data.selectedCoupon
         ? [{ id: this.data.selectedCoupon.id, code: this.data.selectedCoupon.code }]
         : [],
-      appliedPromotions: this.data.benefitMode === 'promotion' && this.data.selectedPromotion ? [{ id: this.data.selectedPromotion.id }] : [],
+      appliedPromotions: this.data.benefitMode === 'promotion' && this.data.selectedPromotion ? [Number(this.data.selectedPromotion.id)] : [],
       benefitMode: this.data.benefitMode || 'promotion',
       commissionUsage: this.data.useCommission > 0 ? this.data.useCommission : null,
       pointsUsage: this.data.usePoints > 0 ? this.data.usePoints : null

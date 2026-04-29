@@ -1278,7 +1278,12 @@ router.post('/products/calculate-price', async (req, res) => {
         }
         const memberId = memberIdRaw != null && memberIdRaw !== '' ? Number(memberIdRaw) : 0;
         // 归一化为数字数组，避免字符串或单值导致查询/校验异常
-        const norm = (v) => (Array.isArray(v) ? v : (v != null ? [v] : [])).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+        const norm = (v) => (Array.isArray(v) ? v : (v != null ? [v] : []))
+            .map((x) => {
+                if (x && typeof x === 'object') return Number(x.id != null ? x.id : x.value);
+                return Number(x);
+            })
+            .filter((id) => Number.isFinite(id) && id > 0);
         let couponIds = norm(appliedCoupons);
         let promotionIds = norm(appliedPromotions);
         const isConnReset = (err) => (err && (err.code === 'ECONNRESET' || (err.original && err.original.code === 'ECONNRESET')));

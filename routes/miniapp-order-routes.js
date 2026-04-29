@@ -442,10 +442,15 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                     productImage: gift.productImage || null,
                     productSnapshot: {
                         isGift: true,
+                        originalUnitPrice: parseFloat(gift.originalPrice != null ? gift.originalPrice : (gift.price != null ? gift.price : 0)) || 0,
                         deliveryConstraint: null,
                         deliveryConstraintText: '赠品'
                     },
-                    skuSnapshot: gift.skuId ? { id: gift.skuId, name: gift.skuName || '' } : null,
+                    skuSnapshot: gift.skuId ? {
+                        id: gift.skuId,
+                        name: gift.skuName || '',
+                        price: parseFloat(gift.originalPrice != null ? gift.originalPrice : (gift.price != null ? gift.price : 0)) || 0
+                    } : null,
                     appliedCoupons: [],
                     appliedPromotions: item.appliedPromotions || [],
                     discounts: [],

@@ -67,13 +67,32 @@ class OrderManagement {
 
     /** 行上优惠说明（来自 discounts） */
     formatLineDiscountsText(item) {
-        if (!item.discounts || !Array.isArray(item.discounts) || item.discounts.length === 0) return '—';
-        return item.discounts.map((d) => {
-            const typeLabel = { promotion: '促销', coupon: '优惠券', member: '会员折扣', points: '积分抵扣' }[d.type] || (d.type || '优惠');
-            const name = d.name ? ` ${d.name}` : '';
-            const amt = d.amount != null ? ` -¥${parseFloat(d.amount).toFixed(2)}` : '';
-            return `${typeLabel}${name}${amt}`;
-        }).join('；');
+        const segments = [];
+        if (item.discounts && Array.isArray(item.discounts) && item.discounts.length > 0) {
+            segments.push(...item.discounts.map((d) => {
+                const typeLabel = { promotion: '促销', coupon: '优惠券', member: '会员折扣', points: '积分抵扣' }[d.type] || (d.type || '优惠');
+                const name = d.name ? ` ${d.name}` : '';
+                const amt = d.amount != null ? ` -¥${parseFloat(d.amount).toFixed(2)}` : '';
+                return `${typeLabel}${name}${amt}`;
+            }));
+        }
+        if (item.appliedPromotions && Array.isArray(item.appliedPromotions) && item.appliedPromotions.length > 0) {
+            const names = item.appliedPromotions.map((p) => p && (p.name || `促销#${p.id || '-'}`)).filter(Boolean);
+            if (names.length > 0) {
+                segments.push(`参与活动：${names.join('、')}`);
+            }
+        }
+        if (item.productSnapshot && item.productSnapshot.isGift) {
+            segments.push('活动赠品');
+        }
+        if (segments.length === 0) return '—';
+        return segments.join('；');
+    }
+
+    renderGiftPrice(refLine, itemTotal) {
+        const ref = Number.isFinite(refLine) ? refLine : 0;
+        const paid = Number.isFinite(itemTotal) ? itemTotal : 0;
+        return `<span style="text-decoration:line-through;color:#999;">¥${ref.toFixed(2)}</span> <span style="color:#fa541c;font-weight:600;">¥${paid.toFixed(2)}</span>`;
     }
 
     /** 是否门店自提（deliveryType / shippingMethod / storeId 多通道，兼容误落库） */
@@ -723,14 +742,22 @@ class OrderManagement {
                     const refLine = this.lineReferenceSubtotal(item);
                     const refUnit = qty > 0 ? (refLine / qty).toFixed(2) : '0.00';
                     const refCol = `¥${refUnit} × ${qty} = ¥${refLine.toFixed(2)}`;
+                    const isGift = !!(item.productSnapshot && item.productSnapshot.isGift);
+                    const productNameCell = isGift
+                        ? `${item.productName || '-'} <span class="badge bg-warning text-dark ms-1">活动赠品</span>`
+                        : (item.productName || '-');
+                    const linePaid = parseFloat(item.totalAmount || 0);
+                    const paidCell = isGift
+                        ? this.renderGiftPrice(refLine, linePaid)
+                        : `¥${linePaid.toFixed(2)}`;
                     productHtml += `
                         <tr>
                             <td><img src="${item.productImage || '/images/default-product.svg'}" alt="${item.productName || '商品'}" class="img-fluid" style="max-height: 80px;" onerror="this.src='/images/default-product.svg'; this.onerror=null;"></td>
-                            <td>${item.productName || '-'}</td>
+                            <td>${productNameCell}</td>
                             <td>${item.skuName || '-'}</td>
                             <td class="text-nowrap">${refCol}</td>
                             <td>${qty}</td>
-                            <td class="fw-bold">¥${parseFloat(item.totalAmount || 0).toFixed(2)}</td>
+                            <td class="fw-bold">${paidCell}</td>
                             <td class="small text-muted">${this.formatLineDiscountsText(item)}</td>
                         </tr>
                     `;
