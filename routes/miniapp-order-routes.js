@@ -309,6 +309,7 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
         }
 
         const normalizedItems = [];
+        const consumedNonRepeatPromotionIds = new Set();
         let orderTotalAmount = 0;
         let totalQuantity = 0;
 
@@ -372,7 +373,13 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                         promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
                     }
                     const promoResult = await PromotionService.applyPromotionsToOrder(
-                        { productId, skuId, quantity, benefitMode: normalizedBenefitMode },
+                        {
+                            productId,
+                            skuId,
+                            quantity,
+                            benefitMode: normalizedBenefitMode,
+                            usedPromotionIds: Array.from(consumedNonRepeatPromotionIds)
+                        },
                         member.id,
                         normalizedBenefitMode === 'coupon' ? appliedCoupons : [],
                         promotionIds,
@@ -385,6 +392,13 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
                         itemAppliedCoupons = promoResult.appliedCoupons || [];
                         itemAppliedPromotions = promoResult.appliedPromotions || [];
                         itemGifts = Array.isArray(promoResult.gifts) ? promoResult.gifts : [];
+                        const nonRepeatPromotionIds = promoResult.promotionMeta && Array.isArray(promoResult.promotionMeta.nonRepeatPromotionIds)
+                            ? promoResult.promotionMeta.nonRepeatPromotionIds
+                            : [];
+                        nonRepeatPromotionIds.forEach((id) => {
+                            const pid = Number(id);
+                            if (Number.isFinite(pid) && pid > 0) consumedNonRepeatPromotionIds.add(pid);
+                        });
                     }
                 }
             } catch (promoError) {

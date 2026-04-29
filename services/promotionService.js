@@ -402,6 +402,17 @@ class PromotionService {
             if (hasExclusivePromotion && promotions.length > 1) {
                 promotions = [promotions[0]];
             }
+            const usedPromotionIds = Array.isArray(orderData.usedPromotionIds)
+                ? new Set(orderData.usedPromotionIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))
+                : new Set();
+            if (usedPromotionIds.size > 0) {
+                promotions = promotions.filter((promotion) => {
+                    const rules = parsePromotionRules(promotion.rules);
+                    const allowRepeat = !!(rules && rules.allowRepeatInSameOrder === true);
+                    if (allowRepeat) return true;
+                    return !usedPromotionIds.has(Number(promotion.id));
+                });
+            }
 
             // 不可叠加：若用户使用了「不可与促销同享」的优惠券，则促销折扣不生效
             const hasNonStackableCoupon = coupons.some(c => c.stackWithPromotion !== true);
@@ -511,6 +522,23 @@ class PromotionService {
                 discounts: priceCalculation.discounts,
                 savings: priceCalculation.savings,
                 originalAmount: priceCalculation.originalAmount
+            };
+            const promoDiscountIds = (priceCalculation.discounts || [])
+                .filter((d) => d && d.type === 'promotion' && Number.isFinite(Number(d.id)))
+                .map((d) => Number(d.id));
+            const promoGiftIds = (priceCalculation.gifts || [])
+                .filter((g) => g && g.sourceType === 'promotion' && Number.isFinite(Number(g.sourceId)))
+                .map((g) => Number(g.sourceId));
+            const effectivePromotionIds = new Set([...promoDiscountIds, ...promoGiftIds]);
+            const nonRepeatPromotionIds = (promotions || [])
+                .filter((p) => {
+                    const rules = parsePromotionRules(p.rules);
+                    return !(rules && rules.allowRepeatInSameOrder === true);
+                })
+                .map((p) => Number(p.id))
+                .filter((id) => effectivePromotionIds.has(id));
+            finalOrderData.promotionMeta = {
+                nonRepeatPromotionIds
             };
 
             return finalOrderData;
