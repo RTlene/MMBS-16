@@ -1268,7 +1268,7 @@ router.get('/products/:id/available-promotions', async (req, res) => {
 // 计算商品价格（应用运营工具）
 router.post('/products/calculate-price', async (req, res) => {
     try {
-        const { productId, skuId, quantity, memberId: memberIdRaw, appliedCoupons = [], appliedPromotions = [], pointUsage = null, benefitMode = 'auto' } = req.body;
+        const { productId, skuId, quantity, memberId: memberIdRaw, appliedCoupons = [], appliedPromotions = [], pointUsage = null, benefitMode = 'auto', usedPromotionIds = [] } = req.body;
 
         if (!productId || quantity == null || quantity === '') {
             return res.status(400).json({
@@ -1309,7 +1309,14 @@ router.post('/products/calculate-price', async (req, res) => {
             console.log('[calculate-price] body appliedCoupons=', appliedCoupons, 'appliedPromotions=', appliedPromotions, '-> couponIds=', couponIds, 'promotionIds=', promotionIds);
         }
 
-        const orderData = { productId, skuId, quantity };
+        const orderData = {
+            productId,
+            skuId,
+            quantity,
+            usedPromotionIds: Array.isArray(usedPromotionIds)
+                ? usedPromotionIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+                : []
+        };
         orderData.benefitMode = benefitMode;
         let finalOrderData;
         try {

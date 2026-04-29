@@ -178,6 +178,7 @@ Page({
     let memberDiscountTotal = 0;
     const itemsWithGiftPreview = items.map((it) => ({ ...it, promoGiftItems: [] }));
 
+    const consumedNonRepeatPromotionIds = new Set();
     const fetchPrice = async (item) => {
       const body = {
         productId: item.productId,
@@ -186,7 +187,8 @@ Page({
         memberId: memberId || 0,
         benefitMode,
         appliedCoupons,
-        appliedPromotions
+        appliedPromotions,
+        usedPromotionIds: Array.from(consumedNonRepeatPromotionIds)
       };
       let res = await request.post(API.PRODUCT.CALCULATE_PRICE, body, { showLoading: false, showError: false });
       if (res.code === 0 && res.data && res.data.pricing) return res.data.pricing;
@@ -216,6 +218,12 @@ Page({
             if (amt > 0) memberDiscountTotal += amt;
           });
         }
+        if (p && Array.isArray(p.discounts)) {
+          const hitIdsByDiscount = p.discounts
+            .filter((d) => d && d.type === 'promotion' && Number.isFinite(Number(d.id)))
+            .map((d) => Number(d.id));
+          hitIdsByDiscount.forEach((id) => consumedNonRepeatPromotionIds.add(id));
+        }
         if (p && Array.isArray(p.gifts) && p.gifts.length > 0) {
           const currentItemGifts = [];
           p.gifts.forEach((g) => {
@@ -240,6 +248,9 @@ Page({
               quantity: parseInt(g.quantity || 0, 10) || 0,
               originalPrice: parseFloat(g.originalPrice != null ? g.originalPrice : (g.price != null ? g.price : 0)) || 0
             });
+            if (g && g.sourceType === 'promotion' && Number.isFinite(Number(g.sourceId))) {
+              consumedNonRepeatPromotionIds.add(Number(g.sourceId));
+            }
           });
           itemsWithGiftPreview[idx].promoGiftItems = currentItemGifts.filter((g) => g.quantity > 0);
         }
