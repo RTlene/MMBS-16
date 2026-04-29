@@ -18,6 +18,18 @@ function initPromotionManagement() {
     bindEvents();
 }
 
+function togglePromotionCommissionConfig() {
+    const enabledEl = document.getElementById('promotionCommissionEnabled');
+    const wrap = document.getElementById('promotionCommissionConfigWrap');
+    const costTypeEl = document.getElementById('promotionCommissionCostType');
+    const hintEl = document.getElementById('promotionCommissionCostHint');
+    if (!enabledEl || !wrap) return;
+    wrap.style.display = enabledEl.checked ? 'block' : 'none';
+    if (costTypeEl && hintEl) {
+        hintEl.textContent = costTypeEl.value === 'fixed' ? '元/件' : '%';
+    }
+}
+
 // 绑定事件
 function bindEvents() {
     // 搜索输入框回车事件
@@ -30,6 +42,10 @@ function bindEvents() {
     // 筛选条件变化事件
     document.getElementById('typeFilter').addEventListener('change', searchPromotions);
     document.getElementById('statusFilter').addEventListener('change', searchPromotions);
+    const costTypeEl = document.getElementById('promotionCommissionCostType');
+    if (costTypeEl) {
+        costTypeEl.addEventListener('change', togglePromotionCommissionConfig);
+    }
 }
 
 // 加载统计数据
@@ -280,6 +296,13 @@ function showAddPromotionModal() {
     window.promotionManagementData.currentPromotion = null;
     document.getElementById('promotionModalTitle').textContent = '添加促销活动';
     document.getElementById('promotionForm').reset();
+    const enabledEl = document.getElementById('promotionCommissionEnabled');
+    const costTypeEl = document.getElementById('promotionCommissionCostType');
+    const costValueEl = document.getElementById('promotionCommissionCostValue');
+    if (enabledEl) enabledEl.checked = false;
+    if (costTypeEl) costTypeEl.value = 'percent';
+    if (costValueEl) costValueEl.value = '';
+    togglePromotionCommissionConfig();
     updateRulesConfig();
     var list = document.getElementById('promotionMemberLevelsList');
     if (list) list.innerHTML = '';
@@ -300,6 +323,14 @@ function editPromotion(promotionId) {
     document.getElementById('promotionDescription').value = promotion.description || '';
     document.getElementById('startTime').value = formatDateTimeLocal(promotion.startTime);
     document.getElementById('endTime').value = formatDateTimeLocal(promotion.endTime);
+    const commissionCfg = (promotion.rules && promotion.rules.commissionConfig) ? promotion.rules.commissionConfig : {};
+    const enabledEl = document.getElementById('promotionCommissionEnabled');
+    const costTypeEl = document.getElementById('promotionCommissionCostType');
+    const costValueEl = document.getElementById('promotionCommissionCostValue');
+    if (enabledEl) enabledEl.checked = !!commissionCfg.enabled;
+    if (costTypeEl) costTypeEl.value = (commissionCfg.costType === 'fixed') ? 'fixed' : 'percent';
+    if (costValueEl) costValueEl.value = commissionCfg.costValue != null ? commissionCfg.costValue : '';
+    togglePromotionCommissionConfig();
     
     // 更新规则配置
     updateRulesConfig();
@@ -776,6 +807,18 @@ function getRulesConfig() {
             break;
         }
     }
+
+    var commissionEnabledEl = document.getElementById('promotionCommissionEnabled');
+    var commissionCostTypeEl = document.getElementById('promotionCommissionCostType');
+    var commissionCostValueEl = document.getElementById('promotionCommissionCostValue');
+    var commissionEnabled = !!(commissionEnabledEl && commissionEnabledEl.checked);
+    var commissionCostType = commissionCostTypeEl ? commissionCostTypeEl.value : 'percent';
+    var commissionCostValue = commissionCostValueEl ? parseFloat(commissionCostValueEl.value) : 0;
+    rules.commissionConfig = {
+        enabled: commissionEnabled,
+        costType: commissionCostType === 'fixed' ? 'fixed' : 'percent',
+        costValue: Number.isFinite(commissionCostValue) && commissionCostValue > 0 ? commissionCostValue : 0
+    };
     
     return rules;
 }

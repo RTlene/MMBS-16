@@ -237,12 +237,15 @@ class CommissionService {
         }
         orderWithItems.member = order.member;
 
-        if (this._orderItemsHasPromotion(orderWithItems.items)) {
-            console.log(`[佣金] 订单含促销活动，不计提佣金 orderId=${orderId}`);
+        const promotionCommissionMeta = this._evaluatePromotionCommissionMeta(orderWithItems.items);
+        if (promotionCommissionMeta.hasPromotion && !promotionCommissionMeta.commissionEnabled) {
+            console.log(`[佣金] 订单含促销活动且未开启促销佣金，不计提佣金 orderId=${orderId}`);
             return { calculations: [], promotionOrderExcluded: true, noReferrer: false, referrerNotFound: false };
         }
 
-        const bases = await this.getOrderCommerceBases(orderWithItems);
+        const bases = await this.getOrderCommerceBases(orderWithItems, {
+            promotionCommissionCost: promotionCommissionMeta.totalCost
+        });
         const paidOrderAmount = bases.paidAmount != null ? bases.paidAmount : bases.retailAmount;
         const retailRefAmount = bases.retailAmount;
 
@@ -255,7 +258,7 @@ class CommissionService {
             return { calculations: [], noReferrer: false, referrerNotFound: false };
         }
 
-            console.log(`[佣金] 订单 orderId=${orderId} 下单会员 memberId=${member.id} referrerId=${member.referrerId} 可计佣金实付额=${paidOrderAmount} 参考零售价(仅用于按等级计提货成本)=${retailRefAmount} SKU成本合计(可计佣)=${bases.skuCostTotal}`);
+            console.log(`[佣金] 订单 orderId=${orderId} 下单会员 memberId=${member.id} referrerId=${member.referrerId} 可计佣金实付额=${paidOrderAmount} 参考零售价(仅用于按等级计提货成本)=${retailRefAmount} SKU成本合计(可计佣)=${bases.skuCostTotal} 促销佣金成本扣减=${bases.promotionCommissionCost || 0}`);
 
             // 未设置推荐人
             if (member.referrerId == null || member.referrerId === '') {
@@ -788,32 +791,72 @@ class CommissionService {
         return distributorLevel.costRateBase === 'cost' ? 'cost' : 'retail';
     }
 
-    /**
-     * 是否使用了「促销活动」（Promotion），不含：优惠券、会员价、会员等级折扣、积分抵扣等。
-     * 依据：行上 appliedPromotions 非空，或 discounts 中存在 type==='promotion'。
-     */
-    static _orderItemsHasPromotion(items) {
-        if (!items || !Array.isArray(items)) return false;
-        for (const it of items) {
-            const aps = it.appliedPromotions;
-            if (Array.isArray(aps) && aps.length > 0) return true;
-            if (typeof aps === 'string' && aps.trim()) {
-                try {
-                    const parsed = JSON.parse(aps);
-                    if (Array.isArray(parsed) && parsed.length > 0) return true;
-                } catch (_) { /* ignore */ }
+    static _normalizeAppliedPromotions(item) {
+        const aps = item ? item.appliedPromotions : null;
+        if (Array.isArray(aps)) return aps;
+        if (typeof aps === 'string' && aps.trim()) {
+            try {
+                const parsed = JSON.parse(aps);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_) {
+                return [];
             }
-            let discounts = it.discounts;
-            if (typeof discounts === 'string' && discounts.trim()) {
-                try {
-                    discounts = JSON.parse(discounts);
-                } catch (_) {
-                    discounts = null;
-                }
-            }
-            if (Array.isArray(discounts) && discounts.some(d => d && d.type === 'promotion')) return true;
         }
-        return false;
+        return [];
+    }
+
+    static _promotionCommissionConfig(promo) {
+        const cfg = promo && promo.commissionConfig && typeof promo.commissionConfig === 'object'
+            ? promo.commissionConfig
+            : (promo && promo.rules && promo.rules.commissionConfig && typeof promo.rules.commissionConfig === 'object'
+                ? promo.rules.commissionConfig
+                : {});
+        const enabled = !!(cfg.enabled === true || cfg.allowCommission === true);
+        const costType = cfg.costType === 'fixed' ? 'fixed' : 'percent';
+        const n = parseFloat(cfg.costValue);
+        const costValue = Number.isFinite(n) && n > 0 ? n : 0;
+        return { enabled, costType, costValue };
+    }
+
+    static _evaluatePromotionCommissionMeta(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { hasPromotion: false, commissionEnabled: false, totalCost: 0 };
+        }
+        let hasPromotion = false;
+        let commissionEnabled = false;
+        let totalCost = 0;
+        for (const it of items) {
+            const linePaid = this._orderItemPaidSubtotal(it);
+            const qty = parseInt(it && it.quantity, 10) || 0;
+            const promotions = this._normalizeAppliedPromotions(it);
+            if (promotions.length) {
+                hasPromotion = true;
+                for (const promo of promotions) {
+                    const cfg = this._promotionCommissionConfig(promo);
+                    if (!cfg.enabled) continue;
+                    commissionEnabled = true;
+                    if (cfg.costType === 'fixed') {
+                        totalCost += (cfg.costValue * Math.max(qty, 0));
+                    } else {
+                        totalCost += (linePaid * cfg.costValue / 100);
+                    }
+                }
+                continue;
+            }
+            // 兼容历史订单：仅有 discounts(type=promotion)，但没有 appliedPromotions 详情
+            let discounts = it ? it.discounts : null;
+            if (typeof discounts === 'string' && discounts.trim()) {
+                try { discounts = JSON.parse(discounts); } catch (_) { discounts = null; }
+            }
+            if (Array.isArray(discounts) && discounts.some((d) => d && d.type === 'promotion')) {
+                hasPromotion = true;
+            }
+        }
+        return {
+            hasPromotion,
+            commissionEnabled,
+            totalCost: parseFloat((totalCost || 0).toFixed(2))
+        };
     }
 
     /** 后台配置的「佣金除外」商品 ID 集合 */
@@ -892,7 +935,7 @@ class CommissionService {
      * 若配置了佣金除外商品且本订单行命中，则剔除对应行。
      * @returns {{ retailAmount: number, paidAmount: number, skuCostTotal: number }}
      */
-    static async getOrderCommerceBases(order) {
+    static async getOrderCommerceBases(order, options = {}) {
         let items = order.items;
         if (!items || !Array.isArray(items)) {
             const o2 = await Order.findByPk(order.id, {
@@ -909,6 +952,10 @@ class CommissionService {
         let retailAmount = 0;
         let paidAmount = 0;
         let skuCostTotal = 0;
+        const promotionCommissionCostRaw = parseFloat(options.promotionCommissionCost || 0);
+        const promotionCommissionCost = Number.isFinite(promotionCommissionCostRaw) && promotionCommissionCostRaw > 0
+            ? promotionCommissionCostRaw
+            : 0;
 
         if (excludedSet.size === 0) {
             for (const it of items) {
@@ -922,7 +969,10 @@ class CommissionService {
             if (items.length === 0) {
                 paidAmount = parseFloat(parseFloat(order.totalAmount || 0).toFixed(2));
             }
-            return { retailAmount, paidAmount, skuCostTotal };
+            if (promotionCommissionCost > 0) {
+                paidAmount = Math.max(0, parseFloat((paidAmount - promotionCommissionCost).toFixed(2)));
+            }
+            return { retailAmount, paidAmount, skuCostTotal, promotionCommissionCost };
         }
 
         const hasExcludedLine = items.some((it) => {
@@ -942,7 +992,10 @@ class CommissionService {
             if (items.length === 0) {
                 paidAmount = parseFloat(parseFloat(order.totalAmount || 0).toFixed(2));
             }
-            return { retailAmount, paidAmount, skuCostTotal };
+            if (promotionCommissionCost > 0) {
+                paidAmount = Math.max(0, parseFloat((paidAmount - promotionCommissionCost).toFixed(2)));
+            }
+            return { retailAmount, paidAmount, skuCostTotal, promotionCommissionCost };
         }
 
         let commissionableRetail = 0;
@@ -967,7 +1020,10 @@ class CommissionService {
         paidAmount = parseFloat(commissionablePaid.toFixed(2));
         skuCostTotal = parseFloat(skuCostTotal.toFixed(2));
         console.log(`[佣金] 订单行含佣金除外商品，除外参考零售约 ¥${excludedRetailSum.toFixed(2)}、除外实付约 ¥${excludedPaidSum.toFixed(2)}；可计佣金参考零售 ¥${retailAmount.toFixed(2)}、实付 ¥${paidAmount.toFixed(2)}`);
-        return { retailAmount, paidAmount, skuCostTotal };
+        if (promotionCommissionCost > 0) {
+            paidAmount = Math.max(0, parseFloat((paidAmount - promotionCommissionCost).toFixed(2)));
+        }
+        return { retailAmount, paidAmount, skuCostTotal, promotionCommissionCost };
     }
 
     /**

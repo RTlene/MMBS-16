@@ -380,6 +380,17 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
 // 验证促销活动规则
 function validatePromotionRules(type, rules) {
+    const commissionConfig = rules && rules.commissionConfig;
+    if (commissionConfig && commissionConfig.enabled) {
+        const costType = commissionConfig.costType === 'fixed' ? 'fixed' : 'percent';
+        const costValue = Number(commissionConfig.costValue);
+        if (!(costValue > 0)) {
+            return { valid: false, message: '开启促销佣金后，促销成本值必须大于0' };
+        }
+        if (costType === 'percent' && costValue > 100) {
+            return { valid: false, message: '按比例扣减时，促销成本值不能超过100%' };
+        }
+    }
     switch (type) {
         case 'flash_sale':
             if (!rules.discountRate || rules.discountRate <= 0 || rules.discountRate > 100) {

@@ -415,6 +415,7 @@ class PromotionService {
                 ...orderData,
                 unitPrice: effectiveUnitPrice,
                 totalAmount: finalLineAmount,
+                gifts: Array.isArray(priceCalculation.gifts) ? priceCalculation.gifts : [],
                 appliedCoupons: coupons.map(coupon => ({
                     id: coupon.id,
                     name: coupon.name,
@@ -437,6 +438,7 @@ class PromotionService {
                     fullReductionInfo: promotion.fullReductionInfo,
                     fullGiftInfo: promotion.fullGiftInfo,
                     fullDiscountInfo: promotion.fullDiscountInfo,
+                    commissionConfig: promotion.rules && promotion.rules.commissionConfig ? promotion.rules.commissionConfig : null,
                     validFrom: promotion.validFrom || promotion.startTime,
                     validTo: promotion.validTo || promotion.endTime
                 })),
@@ -608,6 +610,7 @@ class PromotionService {
         const originalAmount = unitPrice * quantity;
         let finalPrice = originalAmount;
         const discounts = [];
+        const gifts = [];
 
         // 如果没有传入orderQuantity，使用quantity作为默认值
         const totalQuantity = orderQuantity || quantity;
@@ -657,6 +660,14 @@ class PromotionService {
                         const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
                         discountInfo = result;
                         // 满送不减少金额，但记录赠品信息
+                        if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
+                            gifts.push(...result.gifts.map((g) => ({
+                                ...g,
+                                sourceType: 'promotion',
+                                sourceId: promotion.id,
+                                sourceName: promotion.name
+                            })));
+                        }
                     }
                     break;
                 case 'full_discount':
@@ -702,6 +713,14 @@ class PromotionService {
                         const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, coupon.fullGiftRules);
                         discountInfo = result;
                         // 满送不减少金额，但记录赠品信息
+                        if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
+                            gifts.push(...result.gifts.map((g) => ({
+                                ...g,
+                                sourceType: 'coupon',
+                                sourceId: coupon.id,
+                                sourceName: coupon.name
+                            })));
+                        }
                     }
                     break;
                 case 'full_discount':
@@ -747,6 +766,7 @@ class PromotionService {
             originalAmount,
             finalPrice: Math.max(0, finalPrice),
             discounts,
+            gifts,
             savings,
             savingsRate: Math.round(savingsRate * 100) / 100
         };
@@ -759,6 +779,7 @@ class PromotionService {
         const originalAmount = unitPrice * quantity;
         let finalPrice = originalAmount;
         const discounts = [];
+        const gifts = [];
         const totalQuantity = orderQuantity || quantity;
 
         for (const promotion of promotions) {
@@ -799,6 +820,14 @@ class PromotionService {
                     if (rules && rules.fullGiftRules && rules.fullGiftRules.length > 0) {
                         const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
                         discountInfo = result;
+                        if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
+                            gifts.push(...result.gifts.map((g) => ({
+                                ...g,
+                                sourceType: 'promotion',
+                                sourceId: promotion.id,
+                                sourceName: promotion.name
+                            })));
+                        }
                     }
                     break;
                 case 'full_discount':
@@ -832,6 +861,14 @@ class PromotionService {
                     if (coupon.fullGiftRules) {
                         const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, coupon.fullGiftRules);
                         discountInfo = result;
+                        if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
+                            gifts.push(...result.gifts.map((g) => ({
+                                ...g,
+                                sourceType: 'coupon',
+                                sourceId: coupon.id,
+                                sourceName: coupon.name
+                            })));
+                        }
                     }
                     break;
                 case 'full_discount':
@@ -872,7 +909,7 @@ class PromotionService {
             }
         }
 
-        return { finalPrice: Math.max(0, finalPrice), discounts };
+        return { finalPrice: Math.max(0, finalPrice), discounts, gifts };
     }
 
     /**
@@ -898,6 +935,7 @@ class PromotionService {
             originalAmount,
             finalPrice,
             discounts: result.discounts,
+            gifts: result.gifts || [],
             savings,
             savingsRate: Math.round(savingsRate * 100) / 100
         };

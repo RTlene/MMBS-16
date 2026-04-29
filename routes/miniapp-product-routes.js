@@ -1298,6 +1298,7 @@ router.post('/products/calculate-price', async (req, res) => {
                     originalAmount: finalOrderData.originalAmount,
                     finalPrice,
                     discounts: finalOrderData.discounts || [],
+                    gifts: finalOrderData.gifts || [],
                     savings,
                     savingsRate
                 },

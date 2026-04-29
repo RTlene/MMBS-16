@@ -50,6 +50,7 @@ Page({
     promotionDiscountTotal: 0,
     subtotalAfterPromo: 0,
     pricingDiscounts: [],
+    giftItems: [],
     promotionDiscountInvalidatedByCoupon: 0,  // 选不可与促销同享的券时，保存被失效的促销金额用于展示划掉
     deliveryAllowExpress: true,
     deliveryAllowPickup: true,
@@ -124,6 +125,7 @@ Page({
       subtotalAfterPromo: parseFloat(localOriginal.toFixed(2)),
       promotionDiscountTotal: 0,
       pricingDiscounts: [],
+      giftItems: [],
       pricingLoading: true,
       availableCoupons: [],
       receiverName: appMember.realName || appMember.nickname || '',
@@ -162,6 +164,7 @@ Page({
     let orderOriginalAmount = 0;
     let orderSubtotalAfterPromo = 0;
     const discountMap = {};
+    const giftMap = {};
 
     const fetchPrice = async (item) => {
       const body = {
@@ -193,6 +196,22 @@ Page({
             if (amt > 0) discountMap[name] = (discountMap[name] || 0) + amt;
           });
         }
+        if (p && Array.isArray(p.gifts) && p.gifts.length > 0) {
+          p.gifts.forEach((g) => {
+            const gid = g.skuId ? `sku_${g.skuId}` : `p_${g.productId}`;
+            if (!giftMap[gid]) {
+              giftMap[gid] = {
+                key: gid,
+                productId: g.productId || null,
+                skuId: g.skuId || null,
+                productName: g.productName || '赠品',
+                productImage: g.productImage || '',
+                quantity: 0
+              };
+            }
+            giftMap[gid].quantity += parseInt(g.quantity || 0, 10) || 0;
+          });
+        }
       }
 
       const promotionDiscountTotal = Math.round((orderOriginalAmount - orderSubtotalAfterPromo) * 100) / 100;
@@ -201,6 +220,7 @@ Page({
         name,
         amount: parseFloat((discountMap[name] || 0).toFixed(2))
       }));
+      const giftItems = Object.values(giftMap).filter((g) => g.quantity > 0);
 
       const orderOrig = parseFloat(orderOriginalAmount.toFixed(2));
       let subtotal = parseFloat(orderSubtotalAfterPromo.toFixed(2));
@@ -232,6 +252,7 @@ Page({
         promotionDiscountTotal: parseFloat(promotionDiscountTotal.toFixed(2)),
         subtotalAfterPromo: subtotal,
         pricingDiscounts,
+        giftItems,
         originalAmount: orderOrig,
         discountAmount: parseFloat(discountAmount.toFixed(2)),
         totalAmount: parseFloat(totalAmount.toFixed(2))

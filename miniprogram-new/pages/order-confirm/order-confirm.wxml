@@ -133,6 +133,17 @@
       </view>
     </view>
     </view>
+    <view class="gift-list-card" wx:if="{{giftItems.length > 0}}">
+      <view class="gift-list-title">🎁 满赠赠品</view>
+      <view class="gift-item" wx:for="{{giftItems}}" wx:key="key">
+        <image class="gift-image" src="{{item.productImage || '/images/default-product.svg'}}" mode="aspectFill" />
+        <view class="gift-info">
+          <text class="gift-name">{{item.productName}}</text>
+          <text class="gift-sku" wx:if="{{item.skuId}}">SKU#{{item.skuId}}</text>
+        </view>
+        <text class="gift-qty">x{{item.quantity}}</text>
+      </view>
+    </view>
   </view>
 
   <!-- 价格明细与公式 -->

@@ -207,6 +207,63 @@
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.06);
 }
 
+.gift-list-card {
+  margin-top: 16rpx;
+  background-color: #fff7e6;
+  border: 1rpx solid #ffe7ba;
+  border-radius: 16rpx;
+  padding: 16rpx 20rpx;
+}
+
+.gift-list-title {
+  font-size: 24rpx;
+  color: #ad6800;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
+.gift-item {
+  display: flex;
+  align-items: center;
+  padding: 10rpx 0;
+  border-bottom: 1rpx dashed #ffd591;
+}
+
+.gift-item:last-child {
+  border-bottom: none;
+}
+
+.gift-image {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 8rpx;
+  margin-right: 14rpx;
+  background: #fff;
+}
+
+.gift-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.gift-name {
+  font-size: 24rpx;
+  color: #333;
+}
+
+.gift-sku {
+  font-size: 20rpx;
+  color: #999;
+  margin-top: 4rpx;
+}
+
+.gift-qty {
+  font-size: 24rpx;
+  color: #ad6800;
+  font-weight: 600;
+}
+
 .item-card {
   display: flex;
   padding: 24rpx;

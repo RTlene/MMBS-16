@@ -574,6 +574,30 @@
                                 <label class="form-label">活动描述</label>
                                 <textarea class="form-input" id="promotionDescription" rows="3"></textarea>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">佣金设置</label>
+                                <div class="rule-item" style="margin-bottom:8px;">
+                                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                        <input type="checkbox" id="promotionCommissionEnabled" onchange="togglePromotionCommissionConfig()">
+                                        <span>该促销订单允许参与佣金计算</span>
+                                    </label>
+                                </div>
+                                <div id="promotionCommissionConfigWrap" style="display:none;">
+                                    <div class="rule-item">
+                                        <label>促销成本类型:</label>
+                                        <select class="form-input" id="promotionCommissionCostType" style="width:220px;">
+                                            <option value="percent">按订单行金额比例扣减</option>
+                                            <option value="fixed">按每件固定金额扣减</option>
+                                        </select>
+                                    </div>
+                                    <div class="rule-item">
+                                        <label>促销成本值:</label>
+                                        <input type="number" class="form-input" id="promotionCommissionCostValue" min="0" step="0.01" style="width:160px;" placeholder="例如: 5">
+                                        <span id="promotionCommissionCostHint">%</span>
+                                    </div>
+                                    <div class="form-hint">默认“促销不参与佣金”。开启后，将先扣除促销成本再计算佣金。</div>
+                                </div>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">开始时间</label>
