@@ -221,13 +221,16 @@ router.get('/public/:position', async (req, res) => {
         const { position } = req.params;
         const now = new Date();
         const positionValue = POSITION_MAP[position] ?? position;
-        // 大海报：兼容旧数据（历史上 position 可能存数字或字符串）
-        // - 新：poster(6)
-        // - 旧：homepage(1) 或 'homepage'
-        // - 也兼容误存的 'poster'
-        const positionWhere = position === 'poster'
-            ? { [Op.in]: [POSITION_MAP.homepage, POSITION_MAP.poster, 'homepage', 'poster'] }
-            : positionValue;
+        // 前端展示接口统一兼容新旧 position 存储：
+        // - 新版多为数字（如 activity=5, poster=6）
+        // - 历史数据可能是字符串（如 'activity'、'poster'、'homepage'）
+        // - poster 还需兼容旧首页首图值（homepage=1）
+        let positionWhere = positionValue;
+        if (position === 'poster') {
+            positionWhere = { [Op.in]: [POSITION_MAP.homepage, POSITION_MAP.poster, 'homepage', 'poster'] };
+        } else if (Object.prototype.hasOwnProperty.call(POSITION_MAP, position)) {
+            positionWhere = { [Op.in]: [POSITION_MAP[position], position] };
+        }
 
         const banners = await Banner.findAll({
             where: {

@@ -32,6 +32,10 @@ function bindEventListeners() {
 
     // 图片上传
     document.getElementById('bannerImage').addEventListener('change', handleImageSelect);
+    const customPathInput = document.getElementById('bannerCustomPath');
+    if (customPathInput) {
+        customPathInput.addEventListener('input', syncCustomPageSelectByPath);
+    }
 }
 
 // 加载统计数据
@@ -219,6 +223,8 @@ function showAddBannerModal() {
     document.getElementById('bannerProductId').value = '';
     document.getElementById('bannerProductSearch').value = '';
     document.getElementById('bannerCustomPath').value = '';
+    const customSelect = document.getElementById('bannerCustomPageSelect');
+    if (customSelect) customSelect.value = '';
     hideProductDropdown();
     handleLinkTypeChange('external');
     document.getElementById('bannerModal').classList.add('show');
@@ -251,6 +257,9 @@ async function editBanner(id) {
             document.getElementById('bannerProductId').value = productId;
             document.getElementById('bannerCustomPath').value = linkType === 'custom' ? (currentBanner.linkTarget || '') : '';
             handleLinkTypeChange(linkType);
+            if (linkType === 'custom') {
+                syncCustomPageSelectByPath();
+            }
             
             // 如果是商品类型且有商品ID，加载商品信息
             if (linkType === 'product' && productId) {
@@ -500,6 +509,8 @@ function closeBannerModal() {
     selectedProduct = null;
     document.getElementById('bannerProductSearch').value = '';
     document.getElementById('bannerProductId').value = '';
+    const customSelect = document.getElementById('bannerCustomPageSelect');
+    if (customSelect) customSelect.value = '';
     hideProductDropdown();
     resetImagePreview();
 }
@@ -515,6 +526,8 @@ function handleLinkTypeChange(type) {
     // 如果切换到商品类型，初始化商品选择器
     if (type === 'product') {
         initProductSelector();
+    } else if (type === 'custom') {
+        loadCustomPagesForBanner();
     } else {
         hideProductDropdown();
     }
@@ -524,6 +537,63 @@ function handleLinkTypeChange(type) {
 let productSearchTimeout = null;
 let allProducts = [];
 let selectedProduct = null;
+let customPageOptions = [];
+
+function buildCustomPagePath(slug) {
+    return `/pages/custom-page/custom-page?slug=${encodeURIComponent(slug)}`;
+}
+
+async function loadCustomPagesForBanner() {
+    const selectEl = document.getElementById('bannerCustomPageSelect');
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">加载中...</option>';
+    try {
+        const q = new URLSearchParams({ page: '1', limit: '100', status: 'published' });
+        const response = await fetch(`/api/custom-pages?${q.toString()}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        const result = await response.json();
+        const list = (result.code === 0 && result.data && Array.isArray(result.data.list)) ? result.data.list : [];
+        customPageOptions = list
+            .map((item) => ({ slug: item.slug || '', name: item.name || item.title || '未命名页面' }))
+            .filter((item) => item.slug);
+        selectEl.innerHTML = '<option value="">请选择自定义页（可选）</option>' +
+            customPageOptions.map((item) => `<option value="${item.slug}">${item.name}（${item.slug}）</option>`).join('');
+        syncCustomPageSelectByPath();
+    } catch (error) {
+        console.error('加载自定义页失败:', error);
+        selectEl.innerHTML = '<option value="">加载失败，请手动填写路径</option>';
+    }
+}
+
+function applyCustomPageSelection() {
+    const selectEl = document.getElementById('bannerCustomPageSelect');
+    const pathEl = document.getElementById('bannerCustomPath');
+    if (!selectEl || !pathEl) return;
+    const slug = (selectEl.value || '').trim();
+    if (!slug) return;
+    pathEl.value = buildCustomPagePath(slug);
+}
+
+function syncCustomPageSelectByPath() {
+    const selectEl = document.getElementById('bannerCustomPageSelect');
+    const pathEl = document.getElementById('bannerCustomPath');
+    if (!selectEl || !pathEl) return;
+    const path = (pathEl.value || '').trim();
+    const match = path.match(/[?&]slug=([^&]+)/i);
+    if (!match || !match[1]) {
+        selectEl.value = '';
+        return;
+    }
+    let slug = match[1];
+    try {
+        slug = decodeURIComponent(slug);
+    } catch (_) {}
+    const exists = customPageOptions.some((item) => item.slug === slug);
+    selectEl.value = exists ? slug : '';
+}
 
 // 初始化商品选择器
 async function initProductSelector() {
@@ -672,6 +742,7 @@ window.BannerManagement = {
 window.searchProductsForBanner = searchProductsForBanner;
 window.selectProduct = selectProduct;
 window.showProductDropdown = showProductDropdown;
+window.applyCustomPageSelection = applyCustomPageSelection;
 
 // 获取位置文本（支持数字 1=homepage, 5=activity, 6=poster 等）
 function getPositionText(position) {
