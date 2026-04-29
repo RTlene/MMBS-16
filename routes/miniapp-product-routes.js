@@ -1288,7 +1288,8 @@ router.post('/products/calculate-price', async (req, res) => {
         let promotionIds = norm(appliedPromotions);
         const isConnReset = (err) => (err && (err.code === 'ECONNRESET' || (err.original && err.original.code === 'ECONNRESET')));
         // 未传促销时：自动拉取该商品适用的促销并参与计算（遇 ECONNRESET 重试一次）
-        const shouldAutoApplyPromotions = !(benefitMode === 'coupon' || benefitMode === 'member');
+        // 仅 auto 模式自动匹配促销；promotion 模式要求前端显式选择促销
+        const shouldAutoApplyPromotions = benefitMode === 'auto';
         if (promotionIds.length === 0 && shouldAutoApplyPromotions) {
             try {
                 const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId || null);

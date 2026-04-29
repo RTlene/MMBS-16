@@ -367,7 +367,7 @@ router.post('/orders', authenticateMiniappUser, async (req, res) => {
             try {
                 if (PromotionService && typeof PromotionService.applyPromotionsToOrder === 'function') {
                     let promotionIds = Array.isArray(appliedPromotions) ? appliedPromotions.map((p) => (p && (p.id != null ? p.id : p))).filter((id) => Number.isFinite(Number(id)) && Number(id) > 0) : [];
-                    if (promotionIds.length === 0 && normalizedBenefitMode === 'promotion') {
+                    if (promotionIds.length === 0 && normalizedBenefitMode === 'auto') {
                         const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId);
                         promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
                     }

@@ -604,6 +604,19 @@ class PromotionService {
             const rules = promotion.rules || {};
             const productIds = rules.productIds || [];
             const skuIds = rules.skuIds || [];
+            const participatingProductSkus = Array.isArray(rules.participatingProductSkus) ? rules.participatingProductSkus : [];
+            if (participatingProductSkus.length > 0) {
+                const pid = Number(productId);
+                const sid = skuId != null && skuId !== '' ? Number(skuId) : null;
+                const hit = participatingProductSkus.some((it) => {
+                    if (!it) return false;
+                    if (Number(it.productId) !== pid) return false;
+                    if (it.skuId == null || it.skuId === '') return true; // 未指定 SKU 表示该商品全部 SKU
+                    if (sid == null) return false;
+                    return Number(it.skuId) === sid;
+                });
+                if (!hit) return false;
+            }
             
             // 检查商品限制
             if (Array.isArray(productIds) && productIds.length > 0) {
@@ -1205,6 +1218,20 @@ class PromotionService {
         if (productIds.length > 0) {
             const pid = Number(productId);
             if (!productIds.some((id) => Number(id) === pid)) return false;
+        }
+
+        const participatingProductSkus = (rules && Array.isArray(rules.participatingProductSkus)) ? rules.participatingProductSkus : [];
+        if (participatingProductSkus.length > 0) {
+            const pid = Number(productId);
+            const sid = skuId != null ? Number(skuId) : null;
+            const hit = participatingProductSkus.some((it) => {
+                if (!it) return false;
+                if (Number(it.productId) !== pid) return false;
+                if (it.skuId == null || it.skuId === '') return true;
+                if (sid == null || !Number.isFinite(sid)) return false;
+                return Number(it.skuId) === sid;
+            });
+            if (!hit) return false;
         }
 
         const skuIds = (rules && Array.isArray(rules.skuIds)) ? rules.skuIds : [];

@@ -237,10 +237,49 @@ function addPromotionProductRow(productId) {
     addGenericPromotionProductRow(list, productId);
 }
 
-// 添加一条「参与商品」行（满赠规则用）
-function addFullGiftParticipatingProductRow(productId) {
+// 添加一条「参与商品」行（满赠规则用，支持可选SKU）
+function addFullGiftParticipatingProductRow(productId, skuId) {
     var list = document.getElementById('fullGiftParticipatingProductIdsList');
-    addGenericPromotionProductRow(list, productId);
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'rule-item promo-product-row';
+    row.innerHTML =
+        '<select class="form-input promo-product-select">' +
+        '<option value="">请选择商品</option></select>' +
+        '<select class="form-input promo-product-sku-select"><option value="">可选：全部SKU</option></select>' +
+        '<button type="button" class="btn btn-danger btn-remove-promo-row" style="padding:4px 10px">删除</button>';
+    list.appendChild(row);
+    var productSel = row.querySelector('.promo-product-select');
+    var skuSel = row.querySelector('.promo-product-sku-select');
+    function fillSkuOptions(pid, selectedSkuId) {
+        skuSel.innerHTML = '<option value="">可选：全部SKU</option>';
+        if (!pid) return;
+        loadPromotionProductSkus(pid, function (skus) {
+            skus.forEach(function (sku) {
+                var opt = document.createElement('option');
+                opt.value = sku.id;
+                var specText = sku.specifications ? JSON.stringify(sku.specifications) : '';
+                var stockText = (sku.stock != null ? ' 库存:' + sku.stock : '');
+                opt.textContent = (sku.skuCode || ('SKU#' + sku.id)) + (specText ? ' ' + specText : '') + stockText;
+                if (selectedSkuId && Number(sku.id) === Number(selectedSkuId)) opt.selected = true;
+                skuSel.appendChild(opt);
+            });
+        });
+    }
+    loadPromotionProducts(function (products) {
+        products.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = (p.name || '') + (p.id ? ' (ID:' + p.id + ')' : '');
+            if (productId != null && p.id === Number(productId)) opt.selected = true;
+            productSel.appendChild(opt);
+        });
+        fillSkuOptions(productId, skuId);
+    });
+    productSel.addEventListener('change', function () {
+        fillSkuOptions(productSel.value, null);
+    });
+    row.querySelector('.btn-remove-promo-row').addEventListener('click', function () { row.remove(); });
 }
 
 // 通用：向指定容器添加参与商品行
@@ -461,7 +500,18 @@ function fillRulesConfig(rules) {
         if (discountInput) discountInput.value = r.discountAmount || '';
     }
 
-    if (rules.productIds && Array.isArray(rules.productIds)) {
+    if (rules.participatingProductSkus && Array.isArray(rules.participatingProductSkus) && rules.participatingProductSkus.length > 0) {
+        var type0 = document.getElementById('promotionType') ? document.getElementById('promotionType').value : '';
+        if (type0 === 'full_gift') {
+            var list0 = document.getElementById('fullGiftParticipatingProductIdsList');
+            if (list0) {
+                list0.innerHTML = '';
+                rules.participatingProductSkus.forEach(function (it) {
+                    addFullGiftParticipatingProductRow(it.productId, it.skuId || null);
+                });
+            }
+        }
+    } else if (rules.productIds && Array.isArray(rules.productIds)) {
         var type = document.getElementById('promotionType') ? document.getElementById('promotionType').value : '';
         var listId = type === 'full_gift' ? 'fullGiftParticipatingProductIdsList' : 'promotionProductIdsList';
         var list = document.getElementById(listId);
@@ -757,11 +807,28 @@ function getRulesConfig() {
         case 'full_gift': {
             var giftProductRows = document.querySelectorAll('#fullGiftParticipatingProductIdsList .promo-product-row');
             var giftProductIds = [];
+            var participatingProductSkus = [];
+            var skuIds = [];
             giftProductRows.forEach(function (row) {
                 var psel = row.querySelector('.promo-product-select');
-                if (psel && psel.value) giftProductIds.push(parseInt(psel.value, 10));
+                var ssel = row.querySelector('.promo-product-sku-select');
+                if (psel && psel.value) {
+                    var pid = parseInt(psel.value, 10);
+                    giftProductIds.push(pid);
+                    var item = { productId: pid };
+                    if (ssel && ssel.value) {
+                        var sid = parseInt(ssel.value, 10);
+                        if (!isNaN(sid) && sid > 0) {
+                            item.skuId = sid;
+                            skuIds.push(sid);
+                        }
+                    }
+                    participatingProductSkus.push(item);
+                }
             });
             if (giftProductIds.length > 0) rules.productIds = giftProductIds;
+            if (skuIds.length > 0) rules.skuIds = Array.from(new Set(skuIds));
+            if (participatingProductSkus.length > 0) rules.participatingProductSkus = participatingProductSkus;
 
             const giftRows = document.querySelectorAll('#fullGiftRulesList .full-gift-rule-row');
             rules.fullGiftRules = [];
