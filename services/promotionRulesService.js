@@ -85,13 +85,19 @@ class PromotionRulesService {
                     });
 
                     if (giftProduct) {
+                        const skus = Array.isArray(giftProduct.skus) ? giftProduct.skus : [];
+                        const selectedSku = rule.giftSkuId ? skus.find((s) => Number(s.id) === Number(rule.giftSkuId)) : null;
+                        const originalPrice = selectedSku ? parseFloat(selectedSku.price || 0) : parseFloat(giftProduct.price || 0);
+                        const skuName = selectedSku ? (selectedSku.name || '') : '';
                         bestGift = {
                             gifts: [{
                                 productId: rule.giftProductId,
                                 productName: giftProduct.name,
                                 productImage: giftProduct.images && giftProduct.images.length > 0 ? giftProduct.images[0] : null,
                                 quantity: rule.giftQuantity,
-                                skuId: rule.giftSkuId || null
+                                skuId: rule.giftSkuId || null,
+                                skuName,
+                                originalPrice
                             }],
                             appliedRule: rule,
                             description: `满${rule.minAmount}元送${giftProduct.name}${rule.giftQuantity}件`
@@ -112,10 +118,13 @@ class PromotionRulesService {
                     });
 
                     if (giftProduct) {
+                        const skus = Array.isArray(giftProduct.skus) ? giftProduct.skus : [];
+                        const selectedSku = rule.giftSkuId ? skus.find((s) => Number(s.id) === Number(rule.giftSkuId)) : null;
+                        const originalPrice = selectedSku ? parseFloat(selectedSku.price || 0) : parseFloat(giftProduct.price || 0);
+                        const skuName = selectedSku ? (selectedSku.name || '') : '';
                         // 如果数量条件的赠品价值更高，则使用数量条件
-                        const currentGiftValue = giftProduct.price * rule.giftQuantity;
-                        const existingGiftValue = bestGift.gifts.length > 0 ? 
-                            bestGift.gifts[0].quantity * (await Product.findByPk(bestGift.gifts[0].productId)).price : 0;
+                        const currentGiftValue = originalPrice * rule.giftQuantity;
+                        const existingGiftValue = bestGift.gifts.length > 0 ? ((parseFloat(bestGift.gifts[0].originalPrice || 0) || 0) * (bestGift.gifts[0].quantity || 0)) : 0;
 
                         if (currentGiftValue > existingGiftValue) {
                             bestGift = {
@@ -124,7 +133,9 @@ class PromotionRulesService {
                                     productName: giftProduct.name,
                                     productImage: giftProduct.images && giftProduct.images.length > 0 ? giftProduct.images[0] : null,
                                     quantity: rule.giftQuantity,
-                                    skuId: rule.giftSkuId || null
+                                    skuId: rule.giftSkuId || null,
+                                    skuName,
+                                    originalPrice
                                 }],
                                 appliedRule: rule,
                                 description: `满${rule.minQuantity}件送${giftProduct.name}${rule.giftQuantity}件`

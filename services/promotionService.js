@@ -32,6 +32,45 @@ function parsePromotionRules(rules) {
     }
 }
 
+function pickFirstDefined(obj, keys, defaultValue = undefined) {
+    for (const k of keys) {
+        if (obj && obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
+    }
+    return defaultValue;
+}
+
+function toPositiveNumber(v, fallback = null) {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function normalizeFullGiftRules(rawRules) {
+    const candidates = [];
+    if (Array.isArray(rawRules)) {
+        candidates.push(...rawRules);
+    } else if (rawRules && typeof rawRules === 'object') {
+        if (Array.isArray(rawRules.fullGiftRules)) candidates.push(...rawRules.fullGiftRules);
+        if (Array.isArray(rawRules.full_gift_rules)) candidates.push(...rawRules.full_gift_rules);
+        if (Array.isArray(rawRules.rules)) candidates.push(...rawRules.rules);
+    }
+    return candidates.map((r) => {
+        const conditionType = String(pickFirstDefined(r, ['conditionType', 'condition_type'], 'amount')).toLowerCase();
+        const minAmount = toPositiveNumber(pickFirstDefined(r, ['minAmount', 'min_amount', 'thresholdAmount', 'threshold_amount']), null);
+        const minQuantity = toPositiveNumber(pickFirstDefined(r, ['minQuantity', 'min_quantity', 'thresholdQuantity', 'threshold_quantity']), null);
+        const giftProductId = toPositiveNumber(pickFirstDefined(r, ['giftProductId', 'gift_product_id', 'productId', 'product_id', 'giftId', 'gift_id']), null);
+        const giftSkuId = toPositiveNumber(pickFirstDefined(r, ['giftSkuId', 'gift_sku_id', 'skuId', 'sku_id']), null);
+        const giftQuantity = toPositiveNumber(pickFirstDefined(r, ['giftQuantity', 'gift_quantity', 'quantity']), 1) || 1;
+        return {
+            conditionType: conditionType === 'quantity' ? 'quantity' : 'amount',
+            minAmount,
+            minQuantity,
+            giftProductId,
+            giftSkuId,
+            giftQuantity
+        };
+    }).filter((r) => !!r.giftProductId);
+}
+
 class PromotionService {
     /**
      * 获取商品详情时应用运营工具
@@ -671,8 +710,10 @@ class PromotionService {
                     break;
                 case 'full_gift':
                     // 满送不直接减少金额，而是添加赠品
-                    if (rules && rules.fullGiftRules && rules.fullGiftRules.length > 0) {
-                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
+                    {
+                        const fullGiftRules = normalizeFullGiftRules(rules);
+                        if (fullGiftRules.length === 0) break;
+                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, fullGiftRules);
                         discountInfo = result;
                         // 满送不减少金额，但记录赠品信息
                         if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
@@ -723,9 +764,10 @@ class PromotionService {
                     }
                     break;
                 case 'full_gift':
-                    // 满送不直接减少金额，而是添加赠品
-                    if (coupon.fullGiftRules) {
-                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, coupon.fullGiftRules);
+                    {
+                        const fullGiftRules = normalizeFullGiftRules(coupon);
+                        if (fullGiftRules.length === 0) break;
+                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, fullGiftRules);
                         discountInfo = result;
                         // 满送不减少金额，但记录赠品信息
                         if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
@@ -832,8 +874,10 @@ class PromotionService {
                     }
                     break;
                 case 'full_gift':
-                    if (rules && rules.fullGiftRules && rules.fullGiftRules.length > 0) {
-                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, rules.fullGiftRules);
+                    {
+                        const fullGiftRules = normalizeFullGiftRules(rules);
+                        if (fullGiftRules.length === 0) break;
+                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, fullGiftRules);
                         discountInfo = result;
                         if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
                             gifts.push(...result.gifts.map((g) => ({
@@ -873,8 +917,10 @@ class PromotionService {
                     }
                     break;
                 case 'full_gift':
-                    if (coupon.fullGiftRules) {
-                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, coupon.fullGiftRules);
+                    {
+                        const fullGiftRules = normalizeFullGiftRules(coupon);
+                        if (fullGiftRules.length === 0) break;
+                        const result = await PromotionRulesService.calculateFullGift(originalAmount, totalQuantity, fullGiftRules);
                         discountInfo = result;
                         if (result && Array.isArray(result.gifts) && result.gifts.length > 0) {
                             gifts.push(...result.gifts.map((g) => ({
