@@ -1225,7 +1225,7 @@ function buildCategoryTree(categories, parentId = null) {
 // 计算商品价格（应用运营工具）
 router.post('/products/calculate-price', async (req, res) => {
     try {
-        const { productId, skuId, quantity, memberId: memberIdRaw, appliedCoupons = [], appliedPromotions = [], pointUsage = null } = req.body;
+        const { productId, skuId, quantity, memberId: memberIdRaw, appliedCoupons = [], appliedPromotions = [], pointUsage = null, benefitMode = 'auto' } = req.body;
 
         if (!productId || quantity == null || quantity === '') {
             return res.status(400).json({
@@ -1240,7 +1240,8 @@ router.post('/products/calculate-price', async (req, res) => {
         let promotionIds = norm(appliedPromotions);
         const isConnReset = (err) => (err && (err.code === 'ECONNRESET' || (err.original && err.original.code === 'ECONNRESET')));
         // 未传促销时：自动拉取该商品适用的促销并参与计算（遇 ECONNRESET 重试一次）
-        if (promotionIds.length === 0) {
+        const shouldAutoApplyPromotions = !(benefitMode === 'coupon' || benefitMode === 'member');
+        if (promotionIds.length === 0 && shouldAutoApplyPromotions) {
             try {
                 const available = await PromotionService.getAvailablePromotionsOptimized(productId, skuId || null);
                 promotionIds = (available || []).map((p) => p.id).filter((id) => Number.isFinite(id) && id > 0);
@@ -1260,6 +1261,7 @@ router.post('/products/calculate-price', async (req, res) => {
         }
 
         const orderData = { productId, skuId, quantity };
+        orderData.benefitMode = benefitMode;
         let finalOrderData;
         try {
             finalOrderData = await PromotionService.applyPromotionsToOrder(

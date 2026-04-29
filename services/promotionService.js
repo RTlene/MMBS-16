@@ -310,6 +310,9 @@ class PromotionService {
     static async applyPromotionsToOrder(orderData, memberId, appliedCoupons = [], appliedPromotions = [], pointUsage = null) {
         try {
             const { productId, skuId, quantity } = orderData;
+            const benefitMode = ['auto', 'promotion', 'coupon', 'member'].includes(orderData.benefitMode)
+                ? orderData.benefitMode
+                : 'auto';
             
             // 获取商品信息
             const product = await Product.findByPk(productId, {
@@ -363,10 +366,21 @@ class PromotionService {
             if (promotions.length > 0) {
                 coupons = coupons.filter(c => c.stackWithPromotion === true);
             }
+
+            // 三选一互斥模式（auto 保持历史兼容）
+            if (benefitMode === 'promotion') {
+                coupons = [];
+            } else if (benefitMode === 'coupon') {
+                promotions = [];
+            } else if (benefitMode === 'member') {
+                promotions = [];
+                coupons = [];
+            }
             // 会员价仅单独使用：若本商品有该会员等级会员价，则取消所有其他优惠（促销、券、积分、会员等级折扣）
             let hasMemberBenefit = false;
             let memberPrice = null;
-            if (member && member.memberLevelId) {
+            const memberModeEnabled = benefitMode === 'auto' || benefitMode === 'member';
+            if (memberModeEnabled && member && member.memberLevelId) {
                 const searchSkuId = skuId ? Number(skuId) : 0;
                 const mp = await ProductMemberPrice.findOne({
                     where: {
@@ -402,7 +416,8 @@ class PromotionService {
                 promotions,
                 pointInfo,
                 hasMemberBenefit && memberPrice != null ? null : member,
-                quantity
+                quantity,
+                benefitMode
             );
 
             const q = Math.max(1, parseInt(quantity, 10) || 1);
@@ -915,7 +930,7 @@ class PromotionService {
     /**
      * 计算最终价格：促销与会员折扣不叠加，取两条路径中实付更低（优惠更大）的一方
      */
-    static async calculateFinalPrice(unitPrice, quantity, coupons, promotions, pointInfo, member, orderQuantity = null) {
+    static async calculateFinalPrice(unitPrice, quantity, coupons, promotions, pointInfo, member, orderQuantity = null, benefitMode = 'auto') {
         const originalAmount = unitPrice * quantity;
         const totalQuantity = orderQuantity || quantity;
 
@@ -925,8 +940,17 @@ class PromotionService {
         const couponsForMember = (coupons || []).filter(c => c.stackWithMemberBenefit === true);
         const pathB = await this._calculateOnePath(unitPrice, quantity, [], couponsForMember, pointInfo, true, member, totalQuantity);
 
-        const useB = pathB.finalPrice < pathA.finalPrice;
-        const result = useB ? pathB : pathA;
+        let result = pathA;
+        if (benefitMode === 'member') {
+            result = pathB;
+        } else if (benefitMode === 'coupon' || benefitMode === 'promotion') {
+            result = pathA;
+        } else {
+            // 满赠属于“非金额型权益”。若 A 路径命中赠品，不因 B 路径金额更低而覆盖赠品权益。
+            const hasGiftInPathA = Array.isArray(pathA.gifts) && pathA.gifts.length > 0;
+            const useB = !hasGiftInPathA && pathB.finalPrice < pathA.finalPrice;
+            result = useB ? pathB : pathA;
+        }
         const finalPrice = result.finalPrice;
         const savings = originalAmount - finalPrice;
         const savingsRate = originalAmount > 0 ? (savings / originalAmount) * 100 : 0;

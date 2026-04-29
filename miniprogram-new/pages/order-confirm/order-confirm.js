@@ -51,11 +51,13 @@ Page({
     subtotalAfterPromo: 0,
     pricingDiscounts: [],
     giftItems: [],
+    memberDiscountTotal: 0,
     promotionDiscountInvalidatedByCoupon: 0,  // 选不可与促销同享的券时，保存被失效的促销金额用于展示划掉
     deliveryAllowExpress: true,
     deliveryAllowPickup: true,
     deliveryConstraintHint: '',
-    deliveryForcedType: null
+    deliveryForcedType: null,
+    benefitMode: 'promotion'
   },
 
   onLoad() {
@@ -127,6 +129,7 @@ Page({
       pricingDiscounts: [],
       giftItems: [],
       pricingLoading: true,
+      memberDiscountTotal: 0,
       availableCoupons: [],
       receiverName: appMember.realName || appMember.nickname || '',
       receiverPhone: appMember.phone || appMember.mobile || '',
@@ -154,7 +157,8 @@ Page({
     const items = this.data.items || [];
     const app = getApp();
     const memberId = (app.globalData.memberInfo && app.globalData.memberInfo.id) || (app.globalData.memberId) || 0;
-    const appliedCoupons = selectedCouponOpt ? [{ id: selectedCouponOpt.id }] : [];
+    const benefitMode = this.data.benefitMode || 'promotion';
+    const appliedCoupons = (benefitMode === 'coupon' && selectedCouponOpt) ? [{ id: selectedCouponOpt.id }] : [];
 
     if (!items.length) {
       this.setData({ pricingLoading: false });
@@ -165,6 +169,7 @@ Page({
     let orderSubtotalAfterPromo = 0;
     const discountMap = {};
     const giftMap = {};
+    let memberDiscountTotal = 0;
 
     const fetchPrice = async (item) => {
       const body = {
@@ -172,6 +177,7 @@ Page({
         skuId: item.skuId || null,
         quantity: item.quantity || 1,
         memberId: memberId || 0,
+        benefitMode,
         appliedCoupons,
         appliedPromotions: []
       };
@@ -191,9 +197,15 @@ Page({
         orderSubtotalAfterPromo += finalP;
         if (p && p.discounts && p.discounts.length) {
           p.discounts.forEach(d => {
+            if (!d || d.type !== 'promotion') return;
             const name = (d.name || d.description || '促销').trim();
             const amt = parseFloat(d.amount) || 0;
             if (amt > 0) discountMap[name] = (discountMap[name] || 0) + amt;
+          });
+          p.discounts.forEach(d => {
+            if (!d || d.type !== 'member') return;
+            const amt = parseFloat(d.amount) || 0;
+            if (amt > 0) memberDiscountTotal += amt;
           });
         }
         if (p && Array.isArray(p.gifts) && p.gifts.length > 0) {
@@ -214,7 +226,8 @@ Page({
         }
       }
 
-      const promotionDiscountTotal = Math.round((orderOriginalAmount - orderSubtotalAfterPromo) * 100) / 100;
+      const promotionDiscountTotal = Object.values(discountMap)
+        .reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
       const pricingDiscounts = Object.keys(discountMap).map(name => ({
         type: 'promotion',
         name,
@@ -255,7 +268,8 @@ Page({
         giftItems,
         originalAmount: orderOrig,
         discountAmount: parseFloat(discountAmount.toFixed(2)),
-        totalAmount: parseFloat(totalAmount.toFixed(2))
+        totalAmount: parseFloat(totalAmount.toFixed(2)),
+        memberDiscountTotal: parseFloat((memberDiscountTotal || 0).toFixed(2))
       });
 
       this.loadAvailableCoupons(this.data.items, subtotal);
@@ -545,8 +559,28 @@ Page({
    * 显示优惠券选择器（本页弹窗，并刷新可用优惠券列表）
    */
   onShowCouponPicker() {
+    if (this.data.benefitMode !== 'coupon') {
+      this.setData({ benefitMode: 'coupon' });
+      this.loadOrderPricing(this.data.selectedCoupon || null);
+    }
     this.setData({ showCouponPicker: true });
     this.loadAvailableCoupons();
+  },
+
+  onBenefitModeChange(e) {
+    const mode = e.currentTarget.dataset.mode;
+    if (!mode || mode === this.data.benefitMode) return;
+    const resetData = {
+      benefitMode: mode,
+      showCouponPicker: false
+    };
+    if (mode !== 'coupon') {
+      resetData.selectedCoupon = null;
+      resetData.discountAmount = 0;
+      resetData.promotionDiscountInvalidatedByCoupon = 0;
+    }
+    this.setData(resetData);
+    this.loadOrderPricing(mode === 'coupon' ? this.data.selectedCoupon : null);
   },
 
   /**
@@ -606,6 +640,9 @@ Page({
     const selectedId = selected ? String(selected.id) : '';
     const tappedId = tapId != null ? String(tapId) : (coupon && coupon.id != null ? String(coupon.id) : '');
     const baseAmount = (this.data.subtotalAfterPromo != null && this.data.subtotalAfterPromo > 0) ? this.data.subtotalAfterPromo : this.data.originalAmount;
+    if (this.data.benefitMode !== 'coupon') {
+      this.setData({ benefitMode: 'coupon' });
+    }
     if (selectedId && tappedId && selectedId === tappedId) {
       this.setData({
         selectedCoupon: null,

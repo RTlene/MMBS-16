@@ -153,6 +153,14 @@
       <text class="block-title-text">订单明细</text>
     </view>
     <view class="summary-card">
+    <view class="benefit-mode-row">
+      <text class="summary-label">优惠方式</text>
+      <view class="benefit-mode-group">
+        <view class="benefit-mode-item {{benefitMode === 'promotion' ? 'active' : ''}}" data-mode="promotion" bindtap="onBenefitModeChange">促销</view>
+        <view class="benefit-mode-item {{benefitMode === 'coupon' ? 'active' : ''}}" data-mode="coupon" bindtap="onBenefitModeChange">优惠券</view>
+        <view class="benefit-mode-item {{benefitMode === 'member' ? 'active' : ''}}" data-mode="member" bindtap="onBenefitModeChange">会员折扣</view>
+      </view>
+    </view>
     <view class="summary-row" wx:if="{{pricingLoading}}">
       <text class="summary-label">正在计算价格…</text>
     </view>
@@ -161,7 +169,7 @@
       <text class="summary-label">商品原价</text>
       <text class="summary-value">¥{{orderOriginalAmount || originalAmount}}</text>
     </view>
-    <view class="summary-row promotion-row" wx:if="{{promotionDiscountTotal > 0}}">
+    <view class="summary-row promotion-row" wx:if="{{benefitMode === 'promotion' && promotionDiscountTotal > 0}}">
       <view class="promotion-left">
         <text class="summary-label">促销优惠</text>
         <view class="promotion-detail" wx:for="{{pricingDiscounts}}" wx:key="name">
@@ -171,25 +179,29 @@
       </view>
       <text class="summary-value discount">-¥{{promotionDiscountTotal}}</text>
     </view>
-    <view class="summary-row promotion-invalidated-row" wx:if="{{promotionDiscountInvalidatedByCoupon > 0}}">
+    <view class="summary-row promotion-invalidated-row" wx:if="{{benefitMode === 'coupon' && promotionDiscountInvalidatedByCoupon > 0}}">
       <view class="promotion-left">
         <text class="summary-label">促销优惠</text>
         <text class="promotion-invalidated-hint">使用不可与促销同享的优惠券，本单促销不生效</text>
       </view>
       <text class="summary-value discount promotion-strikethrough">-¥{{promotionDiscountInvalidatedByCoupon}}</text>
     </view>
-    <view class="summary-row" wx:if="{{promotionDiscountTotal > 0 || promotionDiscountInvalidatedByCoupon > 0}}">
+    <view class="summary-row" wx:if="{{(benefitMode === 'promotion' && promotionDiscountTotal > 0) || (benefitMode === 'coupon' && promotionDiscountInvalidatedByCoupon > 0)}}">
       <text class="summary-label">小计（促销后）</text>
       <text class="summary-value">¥{{subtotalAfterPromo}}</text>
+    </view>
+    <view class="summary-row" wx:if="{{benefitMode === 'member' && memberDiscountTotal > 0}}">
+      <text class="summary-label">会员折扣</text>
+      <text class="summary-value discount">-¥{{memberDiscountTotal}}</text>
     </view>
     </block>
     
     <!-- 优惠券选择 -->
-    <view class="summary-row coupon-row" bindtap="onShowCouponPicker">
+    <view class="summary-row coupon-row {{benefitMode !== 'coupon' ? 'coupon-row-disabled' : ''}}" bindtap="onShowCouponPicker">
       <view class="coupon-left">
         <text class="summary-label">优惠券</text>
         <text class="coupon-desc" wx:if="{{selectedCoupon}}">{{selectedCoupon.name}}</text>
-        <text class="coupon-desc placeholder" wx:else>选择优惠券</text>
+        <text class="coupon-desc placeholder" wx:else>{{benefitMode === 'coupon' ? '选择优惠券' : '切换到“优惠券”后可选'}}</text>
       </view>
       <view class="coupon-right">
         <text class="coupon-discount" wx:if="{{selectedCoupon && discountAmount > 0}}">-¥{{discountAmount}}</text>
