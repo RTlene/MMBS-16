@@ -1,8 +1,19 @@
-// 横幅管理
-let banners = [];
-let currentPage = 1;
-let totalPages = 1;
-let currentBanner = null;
+// 横幅管理（支持脚本被重复注入）
+window.__bannerManagementState = window.__bannerManagementState || {
+    banners: [],
+    currentPage: 1,
+    totalPages: 1,
+    currentBanner: null,
+    productSearchTimeout: null,
+    allProducts: [],
+    selectedProduct: null,
+    customPageOptions: [],
+    initialized: false
+};
+
+function getBannerState() {
+    return window.__bannerManagementState;
+}
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -11,6 +22,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 初始化横幅管理
 function initBannerManagement() {
+    const state = getBannerState();
+    if (state.initialized) return;
+    state.initialized = true;
     loadStats();
     loadBanners();
     bindEventListeners();
@@ -67,7 +81,7 @@ async function loadBanners() {
         const status = document.getElementById('statusFilter')?.value || '';
         
         const params = new URLSearchParams({
-            page: currentPage,
+            page: getBannerState().currentPage,
             limit: 10
         });
         
@@ -98,18 +112,18 @@ async function loadBanners() {
             // - 旧版: { data: [...] } 或 { data: { list, totalCount } }
             const payload = result.data;
             if (Array.isArray(payload)) {
-                banners = payload;
-                totalPages = 1;
+                getBannerState().banners = payload;
+                getBannerState().totalPages = 1;
             } else if (payload && typeof payload === 'object') {
-                banners = payload.banners || payload.list || payload.rows || [];
-                const total = Number(payload.total ?? payload.totalCount ?? banners.length) || banners.length;
+                getBannerState().banners = payload.banners || payload.list || payload.rows || [];
+                const total = Number(payload.total ?? payload.totalCount ?? getBannerState().banners.length) || getBannerState().banners.length;
                 const pageSize = Number(params.get('limit')) || 10;
-                totalPages = Number(payload.totalPages) || Math.max(1, Math.ceil(total / pageSize));
+                getBannerState().totalPages = Number(payload.totalPages) || Math.max(1, Math.ceil(total / pageSize));
             } else {
-                banners = [];
-                totalPages = 1;
+                getBannerState().banners = [];
+                getBannerState().totalPages = 1;
             }
-            console.log(`[BannerManagement] 加载到 ${banners.length} 条轮播图记录`);
+            console.log(`[BannerManagement] 加载到 ${getBannerState().banners.length} 条轮播图记录`);
             renderBannersTable();
             renderPagination();
         } else {
@@ -132,12 +146,13 @@ function renderBannersTable() {
     
     tbody.innerHTML = '';
 
-    if (!banners || banners.length === 0) {
+    const state = getBannerState();
+    if (!state.banners || state.banners.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: #999;">暂无轮播图记录</td></tr>';
         return;
     }
 
-    banners.forEach(banner => {
+    state.banners.forEach(banner => {
         const row = document.createElement('tr');
         // 使用 title 或 name 字段，兼容不同的返回格式
         const bannerName = banner.title || banner.name || '未命名';
@@ -169,25 +184,26 @@ function renderPagination() {
     // 上一页按钮
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '上一页';
-    prevBtn.disabled = currentPage === 1;
+    const state = getBannerState();
+    prevBtn.disabled = state.currentPage === 1;
     prevBtn.onclick = () => {
-        if (currentPage > 1) {
-            currentPage--;
+        if (state.currentPage > 1) {
+            state.currentPage--;
             loadBanners();
         }
     };
     pagination.appendChild(prevBtn);
 
     // 页码按钮
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
+    const startPage = Math.max(1, state.currentPage - 2);
+    const endPage = Math.min(state.totalPages, state.currentPage + 2);
 
     for (let i = startPage; i <= endPage; i++) {
         const pageBtn = document.createElement('button');
         pageBtn.textContent = i;
-        pageBtn.className = i === currentPage ? 'active' : '';
+        pageBtn.className = i === state.currentPage ? 'active' : '';
         pageBtn.onclick = () => {
-            currentPage = i;
+            state.currentPage = i;
             loadBanners();
         };
         pagination.appendChild(pageBtn);
@@ -196,10 +212,10 @@ function renderPagination() {
     // 下一页按钮
     const nextBtn = document.createElement('button');
     nextBtn.textContent = '下一页';
-    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.disabled = state.currentPage === state.totalPages;
     nextBtn.onclick = () => {
-        if (currentPage < totalPages) {
-            currentPage++;
+        if (state.currentPage < state.totalPages) {
+            state.currentPage++;
             loadBanners();
         }
     };
@@ -208,14 +224,14 @@ function renderPagination() {
 
 // 搜索横幅
 function searchBanners() {
-    currentPage = 1;
+    getBannerState().currentPage = 1;
     loadBanners();
 }
 
 // 显示添加横幅模态框
 function showAddBannerModal() {
-    currentBanner = null;
-    selectedProduct = null;
+    getBannerState().currentBanner = null;
+    getBannerState().selectedProduct = null;
     document.getElementById('bannerModalTitle').textContent = '添加横幅';
     document.getElementById('bannerForm').reset();
     document.getElementById('bannerLinkType').value = 'external';
@@ -242,8 +258,9 @@ async function editBanner(id) {
         const result = await response.json();
         
         if (result.code === 0) {
-            currentBanner = result.data;
+            getBannerState().currentBanner = result.data;
             document.getElementById('bannerModalTitle').textContent = '编辑横幅';
+            const currentBanner = getBannerState().currentBanner;
             document.getElementById('bannerName').value = currentBanner.name || currentBanner.title || '';
             document.getElementById('bannerPosition').value = currentBanner.position;
             document.getElementById('bannerSort').value = currentBanner.sort || 0;
@@ -347,6 +364,7 @@ async function saveBanner() {
             formData.append('image', imageFile);
         }
 
+        const currentBanner = getBannerState().currentBanner;
         const url = currentBanner ? `/api/banners/${currentBanner.id}` : '/api/banners';
         const method = currentBanner ? 'PUT' : 'POST';
 
@@ -505,8 +523,8 @@ function resetImagePreview() {
 // 关闭横幅模态框
 function closeBannerModal() {
     document.getElementById('bannerModal').classList.remove('show');
-    currentBanner = null;
-    selectedProduct = null;
+    getBannerState().currentBanner = null;
+    getBannerState().selectedProduct = null;
     document.getElementById('bannerProductSearch').value = '';
     document.getElementById('bannerProductId').value = '';
     const customSelect = document.getElementById('bannerCustomPageSelect');
@@ -533,11 +551,7 @@ function handleLinkTypeChange(type) {
     }
 }
 
-// 商品选择器相关变量
-let productSearchTimeout = null;
-let allProducts = [];
-let selectedProduct = null;
-let customPageOptions = [];
+// 商品选择器相关变量（挂到 state，避免重复声明）
 
 function buildCustomPagePath(slug) {
     return `/pages/custom-page/custom-page?slug=${encodeURIComponent(slug)}`;
@@ -556,11 +570,11 @@ async function loadCustomPagesForBanner() {
         });
         const result = await response.json();
         const list = (result.code === 0 && result.data && Array.isArray(result.data.list)) ? result.data.list : [];
-        customPageOptions = list
+        getBannerState().customPageOptions = list
             .map((item) => ({ slug: item.slug || '', name: item.name || item.title || '未命名页面' }))
             .filter((item) => item.slug);
         selectEl.innerHTML = '<option value="">请选择自定义页（可选）</option>' +
-            customPageOptions.map((item) => `<option value="${item.slug}">${item.name}（${item.slug}）</option>`).join('');
+            getBannerState().customPageOptions.map((item) => `<option value="${item.slug}">${item.name}（${item.slug}）</option>`).join('');
         syncCustomPageSelectByPath();
     } catch (error) {
         console.error('加载自定义页失败:', error);
@@ -591,7 +605,7 @@ function syncCustomPageSelectByPath() {
     try {
         slug = decodeURIComponent(slug);
     } catch (_) {}
-    const exists = customPageOptions.some((item) => item.slug === slug);
+    const exists = getBannerState().customPageOptions.some((item) => item.slug === slug);
     selectEl.value = exists ? slug : '';
 }
 
@@ -616,7 +630,7 @@ async function loadProductById(productId) {
         
         if (result.code === 0 && result.data) {
             const product = result.data;
-            selectedProduct = product;
+            getBannerState().selectedProduct = product;
             document.getElementById('bannerProductSearch').value = `${product.name} (ID: ${product.id})`;
             document.getElementById('bannerProductId').value = product.id;
         }
@@ -633,8 +647,8 @@ async function searchProductsForBanner(keyword) {
     const list = document.getElementById('productDropdownList');
     
     // 清除之前的搜索定时器
-    if (productSearchTimeout) {
-        clearTimeout(productSearchTimeout);
+    if (getBannerState().productSearchTimeout) {
+        clearTimeout(getBannerState().productSearchTimeout);
     }
     
     // 如果关键词为空，显示下拉框但不加载
@@ -645,7 +659,7 @@ async function searchProductsForBanner(keyword) {
     }
     
     // 延迟搜索，避免频繁请求
-    productSearchTimeout = setTimeout(async () => {
+    getBannerState().productSearchTimeout = setTimeout(async () => {
         try {
             loading.style.display = 'block';
             list.style.display = 'none';
@@ -708,7 +722,7 @@ function hideProductDropdown() {
 
 // 选择商品
 function selectProduct(productId, productName, categoryName) {
-    selectedProduct = { id: productId, name: productName, category: categoryName };
+    getBannerState().selectedProduct = { id: productId, name: productName, category: categoryName };
     document.getElementById('bannerProductSearch').value = `${productName} (ID: ${productId})`;
     document.getElementById('bannerProductId').value = productId;
     hideProductDropdown();
