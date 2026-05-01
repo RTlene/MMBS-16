@@ -1,5 +1,5 @@
 const request = require('../../utils/request.js');
-const { API, replaceUrlParams } = require('../../config/api.js');
+const { API, replaceUrlParams, CLOUD_ENV, CLOUD_SERVICE_NAME } = require('../../config/api.js');
 const { buildAbsoluteUrl, buildOptimizedImageUrl, resolveImageUrlForDisplay } = require('../../utils/util.js');
 const auth = require('../../utils/auth.js');
 const { parseLaunchSceneParams, persistReferrerFromSceneParams } = require('../../utils/sceneLaunch.js');
@@ -357,6 +357,17 @@ Page({
     if (!slug) throw new Error('页面标识缺失');
     const app = getApp();
     const referrerId = app.globalData.memberId || auth.getMemberId();
+    const base64FromContainer = await this.getCustomPageQrcodeBase64ByCallContainer(slug, referrerId);
+    if (base64FromContainer) {
+      console.log('[CustomPage] qrcode source=callContainer-json, base64Length=', base64FromContainer.length);
+      return this.writeBase64ToTempPng(base64FromContainer);
+    }
+    const binaryPathFromContainer = await this.getCustomPageQrcodeTempPathByCallContainerBinary(slug, referrerId);
+    if (binaryPathFromContainer) {
+      console.log('[CustomPage] qrcode source=callContainer-binary, tempPath=', binaryPathFromContainer);
+      return binaryPathFromContainer;
+    }
+
     const apiPath = replaceUrlParams(API.CUSTOM_PAGE.SHARE_QRCODE, {
       slug: encodeURIComponent(slug)
     });
@@ -369,27 +380,113 @@ Page({
       needAuth: true
     });
     const base64 = this.extractImageBase64(result);
+    console.log('[CustomPage] qrcode source=request-json, hasData=', !!base64, 'length=', base64 ? base64.length : 0);
     if (!base64) throw new Error('获取小程序码失败');
     return this.writeBase64ToTempPng(base64);
   },
 
+  getCustomPageQrcodeBase64ByCallContainer(slug, referrerId) {
+    return new Promise((resolve) => {
+      try {
+        if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+          resolve('');
+          return;
+        }
+        try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+        const token = wx.getStorageSync('token') || '';
+        const path = `/api/miniapp/custom-pages/${encodeURIComponent(slug)}/share-qrcode?format=json${referrerId ? `&referrerId=${encodeURIComponent(referrerId)}` : ''}`;
+        wx.cloud.callContainer({
+          path,
+          method: 'GET',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          config: { env: CLOUD_ENV },
+          service: CLOUD_SERVICE_NAME,
+          timeout: 15000,
+          success: (res) => {
+            const statusCode = res && res.statusCode;
+            const data = res && res.data;
+            const imageBase64 = this.extractImageBase64(data);
+            if (statusCode >= 200 && statusCode < 300 && imageBase64) {
+              resolve(imageBase64);
+              return;
+            }
+            resolve('');
+          },
+          fail: () => resolve('')
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
+  },
+
+  getCustomPageQrcodeTempPathByCallContainerBinary(slug, referrerId) {
+    return new Promise((resolve) => {
+      try {
+        if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+          resolve('');
+          return;
+        }
+        try { wx.cloud.init({ env: CLOUD_ENV, traceUser: true }); } catch (_) {}
+        const token = wx.getStorageSync('token') || '';
+        const path = `/api/miniapp/custom-pages/${encodeURIComponent(slug)}/share-qrcode${referrerId ? `?referrerId=${encodeURIComponent(referrerId)}` : ''}`;
+        wx.cloud.callContainer({
+          path,
+          method: 'GET',
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          config: { env: CLOUD_ENV },
+          service: CLOUD_SERVICE_NAME,
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          success: (res) => {
+            const statusCode = res && res.statusCode;
+            if (!(statusCode >= 200 && statusCode < 300) || !res || !res.data) {
+              resolve('');
+              return;
+            }
+            const fs = wx.getFileSystemManager();
+            const filePath = `${wx.env.USER_DATA_PATH}/custom-page-share-qrcode-bin-${Date.now()}.png`;
+            fs.writeFile({
+              filePath,
+              data: res.data,
+              encoding: 'binary',
+              success: () => resolve(filePath),
+              fail: () => resolve('')
+            });
+          },
+          fail: () => resolve('')
+        });
+      } catch (_) {
+        resolve('');
+      }
+    });
+  },
+
   extractImageBase64(payload) {
     if (!payload) return '';
-    if (typeof payload === 'string') return payload;
-    if (payload.imageBase64) return payload.imageBase64;
-    if (payload.data && payload.data.imageBase64) return payload.data.imageBase64;
-    if (payload.result && payload.result.imageBase64) return payload.result.imageBase64;
-    if (payload.result && payload.result.data && payload.result.data.imageBase64) return payload.result.data.imageBase64;
+    if (typeof payload === 'string') {
+      const s = payload.trim();
+      const m = s.match(/^data:image\/\w+;base64,(.+)$/i);
+      return (m && m[1] ? m[1] : s).replace(/\s+/g, '');
+    }
+    if (payload.imageBase64) return String(payload.imageBase64).trim().replace(/\s+/g, '');
+    if (payload.data && payload.data.imageBase64) return String(payload.data.imageBase64).trim().replace(/\s+/g, '');
+    if (payload.result && payload.result.imageBase64) return String(payload.result.imageBase64).trim().replace(/\s+/g, '');
+    if (payload.result && payload.result.data && payload.result.data.imageBase64) {
+      return String(payload.result.data.imageBase64).trim().replace(/\s+/g, '');
+    }
     return '';
   },
 
   writeBase64ToTempPng(base64) {
     const fs = wx.getFileSystemManager();
     const filePath = `${wx.env.USER_DATA_PATH}/custom-page-share-qrcode-${Date.now()}.png`;
+    const raw = String(base64 || '').trim();
+    const cleaned = raw.replace(/^data:image\/\w+;base64,/i, '').replace(/\s+/g, '');
     return new Promise((resolve, reject) => {
       fs.writeFile({
         filePath,
-        data: base64,
+        data: cleaned,
         encoding: 'base64',
         success: () => resolve(filePath),
         fail: (err) => reject(new Error(`写入小程序码临时文件失败: ${err && err.errMsg ? err.errMsg : 'unknown'}`))
