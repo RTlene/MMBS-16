@@ -85,11 +85,18 @@ router.get('/', async (req, res) => {
             where.paymentMethod = paymentMethod;
         }
         
-        // 日期筛选
-        if (startDate && endDate) {
-            where.createdAt = {
-                [Op.between]: [new Date(startDate), new Date(endDate)]
-            };
+        // 日期筛选（支持仅开始/仅结束；结束日期按当日23:59:59处理）
+        const startAt = startDate ? new Date(startDate) : null;
+        const endAt = endDate ? new Date(endDate) : null;
+        if (endAt && !Number.isNaN(endAt.getTime())) {
+            endAt.setHours(23, 59, 59, 999);
+        }
+        if (startAt && !Number.isNaN(startAt.getTime()) && endAt && !Number.isNaN(endAt.getTime())) {
+            where.createdAt = { [Op.between]: [startAt, endAt] };
+        } else if (startAt && !Number.isNaN(startAt.getTime())) {
+            where.createdAt = { [Op.gte]: startAt };
+        } else if (endAt && !Number.isNaN(endAt.getTime())) {
+            where.createdAt = { [Op.lte]: endAt };
         }
         
         // 搜索（订单号、会员昵称）

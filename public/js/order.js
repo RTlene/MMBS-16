@@ -177,14 +177,27 @@ class OrderManagement {
     async loadOrders() {
         try {
             console.log('[OrderManagement] 开始加载订单列表...');
+            const searchInput = document.getElementById('searchInput');
+            const statusFilter = document.getElementById('statusFilter');
+            const paymentMethodFilter = document.getElementById('paymentMethodFilter');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
             const params = new URLSearchParams({
                 page: this.currentPage,
                 limit: this.pageSize
             });
             
-            if (this.currentStatus) {
-                params.append('status', this.currentStatus);
-            }
+            const statusValue = (statusFilter && statusFilter.value) ? statusFilter.value : (this.currentStatus || '');
+            const searchValue = searchInput && searchInput.value ? searchInput.value.trim() : '';
+            const paymentValue = paymentMethodFilter && paymentMethodFilter.value ? paymentMethodFilter.value : '';
+            const startDate = startDateInput && startDateInput.value ? startDateInput.value : '';
+            const endDate = endDateInput && endDateInput.value ? endDateInput.value : '';
+
+            if (statusValue) params.append('status', statusValue);
+            if (searchValue) params.append('search', searchValue);
+            if (paymentValue) params.append('paymentMethod', paymentValue);
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
 
             const url = `/api/orders?${params}`;
             console.log('[OrderManagement] 请求URL:', url);
@@ -2259,7 +2272,9 @@ window.searchOrders = function() {
     const startDate = document.getElementById('startDate');
     const endDate = document.getElementById('endDate');
     
-    // 这里可以添加搜索逻辑，目前先简单刷新
+    if (statusFilter) {
+        orderManagement.currentStatus = statusFilter.value || '';
+    }
     orderManagement.currentPage = 1;
     orderManagement.loadOrders();
 };
