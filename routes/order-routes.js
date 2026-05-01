@@ -9,6 +9,7 @@ const wechatMiniappOrderService = require('../services/wechatMiniappOrderService
 const { deductStockForOrder, restockForOrder } = require('../services/orderInventoryService');
 const multer = require('multer');
 const { toCsv, parseCsv, rowsToObjects } = require('../utils/csv');
+const XLSX = require('xlsx');
 const { enrichPickupStoreOnOrderJson, enrichPickupStoresOnOrderJsonList } = require('../utils/orderStoreEnrich');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -519,7 +520,7 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 
-// 导出订单（按筛选条件导出全量CSV）
+// 导出订单（按筛选条件导出全量 XLSX，中文表头）
 router.get('/export', async (req, res) => {
     try {
         const { status = '', paymentMethod = '', startDate = '', endDate = '', search = '' } = req.query;
@@ -527,8 +528,15 @@ router.get('/export', async (req, res) => {
         const where = {};
         if (status) where.status = status;
         if (paymentMethod) where.paymentMethod = paymentMethod;
-        if (startDate && endDate) {
-            where.createdAt = { [Op.between]: [new Date(startDate), new Date(endDate)] };
+        const startAt = startDate ? new Date(startDate) : null;
+        const endAt = endDate ? new Date(endDate) : null;
+        if (endAt && !Number.isNaN(endAt.getTime())) endAt.setHours(23, 59, 59, 999);
+        if (startAt && !Number.isNaN(startAt.getTime()) && endAt && !Number.isNaN(endAt.getTime())) {
+            where.createdAt = { [Op.between]: [startAt, endAt] };
+        } else if (startAt && !Number.isNaN(startAt.getTime())) {
+            where.createdAt = { [Op.gte]: startAt };
+        } else if (endAt && !Number.isNaN(endAt.getTime())) {
+            where.createdAt = { [Op.lte]: endAt };
         }
         if (search) {
             where[Op.or] = [{ orderNo: { [Op.like]: `%${search}%` } }];
@@ -549,42 +557,61 @@ router.get('/export', async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
 
-        const headers = [
-            'orderNo',
-            'memberId',
-            'memberNickname',
-            'memberPhone',
-            'referrerId',
-            'status',
-            'paymentMethod',
-            'originalTotal',
-            'actualPay',
-            'createdAt',
-            'isServiceOrder',
-            'items'
-        ];
+        const statusMap = {
+            pending: '待支付',
+            paid: '已支付',
+            shipped: '已发货',
+            delivered: '已收货',
+            completed: '已完成',
+            cancelled: '已取消',
+            refunded: '已退款'
+        };
+        const paymentMap = {
+            wechat: '微信支付',
+            alipay: '支付宝',
+            bank: '银行卡',
+            points: '积分支付',
+            commission: '佣金支付',
+            mixed: '组合支付',
+            pickup: '门店自提',
+            cod: '货到付款',
+            test: '测试支付'
+        };
+        const formatDateTime = (value) => {
+            if (!value) return '';
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        };
 
-        const dataRows = rows.map(o => {
+        const dataRows = rows.map((o) => {
             const items = (o.items || []).map(it => `${it.productName || ''}${it.skuName ? `(${it.skuName})` : ''}x${it.quantity || 0}`).join(';');
             const originalTotal = (o.items || []).reduce((sum, it) => sum + (Number(it.totalAmount) || 0), 0);
-            return [
-                o.orderNo,
-                o.memberId ?? (o.member?.id || ''),
-                o.member?.nickname || '',
-                o.member?.phone || '',
-                o.member?.referrerId || '',
-                o.status,
-                o.paymentMethod || '',
-                originalTotal,
-                o.totalAmount ?? '',
-                o.createdAt,
-                isServiceOrder(o) ? '1' : '0',
-                items
-            ];
+            return {
+                '订单号': o.orderNo || '',
+                '会员ID': o.memberId ?? (o.member?.id || ''),
+                '会员昵称': o.member?.nickname || '',
+                '会员手机号': o.member?.phone || '',
+                '推荐人ID': o.member?.referrerId || '',
+                '订单状态': statusMap[o.status] || o.status || '',
+                '支付方式': paymentMap[o.paymentMethod] || o.paymentMethod || '',
+                '商品原价合计': Number(originalTotal || 0),
+                '订单实付金额': Number(o.totalAmount || 0),
+                '下单时间': formatDateTime(o.createdAt),
+                '是否服务类订单': isServiceOrder(o) ? '是' : '否',
+                '商品明细': items
+            };
         });
 
-        const csv = toCsv(headers, dataRows);
-        sendCsv(res, `orders_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        const sheet = XLSX.utils.json_to_sheet(dataRows, { skipHeader: false });
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, sheet, '订单数据');
+        const xlsxBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        const filename = `orders_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+        res.send(xlsxBuffer);
     } catch (error) {
         console.error('导出订单失败:', error);
         res.status(500).json({ code: 1, message: '导出订单失败: ' + error.message });

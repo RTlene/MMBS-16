@@ -2085,7 +2085,7 @@ window.exportOrders = function() {
             const a = document.createElement('a');
             const href = URL.createObjectURL(blob);
             a.href = href;
-            a.download = `orders_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.download = `orders_${new Date().toISOString().slice(0, 10)}.xlsx`;
             document.body.appendChild(a);
             a.click();
             a.remove();
