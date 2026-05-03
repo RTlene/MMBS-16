@@ -30,6 +30,25 @@ function togglePromotionCommissionConfig() {
     }
 }
 
+/** 满送活动不参与「促销佣金成本」配置，避免与订单 SKU 成本重复扣减 */
+function syncPromotionCommissionUiForPromotionType() {
+    const typeEl = document.getElementById('promotionType');
+    const section = document.getElementById('promotionCommissionFormSection');
+    if (!typeEl || !section) return;
+    const isFullGift = typeEl.value === 'full_gift';
+    section.style.display = isFullGift ? 'none' : '';
+    if (isFullGift) {
+        const enabledEl = document.getElementById('promotionCommissionEnabled');
+        const costValueEl = document.getElementById('promotionCommissionCostValue');
+        if (enabledEl) enabledEl.checked = false;
+        if (costValueEl) costValueEl.value = '';
+        const wrap = document.getElementById('promotionCommissionConfigWrap');
+        if (wrap) wrap.style.display = 'none';
+    } else {
+        togglePromotionCommissionConfig();
+    }
+}
+
 // 绑定事件
 function bindEvents() {
     // 搜索输入框回车事件
@@ -397,6 +416,7 @@ function editPromotion(promotionId) {
         (promotion.memberLevelIds || []).forEach(function (id) { addPromotionMemberLevelRow(id); });
     }
 
+    syncPromotionCommissionUiForPromotionType();
     document.getElementById('promotionModal').classList.add('show');
 }
 
@@ -498,6 +518,7 @@ function updateRulesConfig() {
     if (productsWrap) {
         productsWrap.style.display = (type === 'flash_sale' || type === 'group_buy') ? 'block' : 'none';
     }
+    syncPromotionCommissionUiForPromotionType();
 }
 
 // 填充规则配置
@@ -887,17 +908,22 @@ function getRulesConfig() {
         }
     }
 
-    var commissionEnabledEl = document.getElementById('promotionCommissionEnabled');
-    var commissionCostTypeEl = document.getElementById('promotionCommissionCostType');
-    var commissionCostValueEl = document.getElementById('promotionCommissionCostValue');
-    var commissionEnabled = !!(commissionEnabledEl && commissionEnabledEl.checked);
-    var commissionCostType = commissionCostTypeEl ? commissionCostTypeEl.value : 'percent';
-    var commissionCostValue = commissionCostValueEl ? parseFloat(commissionCostValueEl.value) : 0;
-    rules.commissionConfig = {
-        enabled: commissionEnabled,
-        costType: commissionCostType === 'fixed' ? 'fixed' : 'percent',
-        costValue: Number.isFinite(commissionCostValue) && commissionCostValue > 0 ? commissionCostValue : 0
-    };
+    var promoTypeForCommission = document.getElementById('promotionType').value;
+    if (promoTypeForCommission === 'full_gift') {
+        rules.commissionConfig = { enabled: false, costType: 'percent', costValue: 0 };
+    } else {
+        var commissionEnabledEl = document.getElementById('promotionCommissionEnabled');
+        var commissionCostTypeEl = document.getElementById('promotionCommissionCostType');
+        var commissionCostValueEl = document.getElementById('promotionCommissionCostValue');
+        var commissionEnabled = !!(commissionEnabledEl && commissionEnabledEl.checked);
+        var commissionCostType = commissionCostTypeEl ? commissionCostTypeEl.value : 'percent';
+        var commissionCostValue = commissionCostValueEl ? parseFloat(commissionCostValueEl.value) : 0;
+        rules.commissionConfig = {
+            enabled: commissionEnabled,
+            costType: commissionCostType === 'fixed' ? 'fixed' : 'percent',
+            costValue: Number.isFinite(commissionCostValue) && commissionCostValue > 0 ? commissionCostValue : 0
+        };
+    }
     var perMemberLimitEl = document.getElementById('promotionPerMemberLimit');
     var conflictModeEl = document.getElementById('promotionQualifyingProductConflictMode');
     var allowRepeatEl = document.getElementById('promotionAllowRepeatInSameOrder');

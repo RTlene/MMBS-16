@@ -805,12 +805,6 @@ class CommissionService {
         return [];
     }
 
-    /** 满赠等活动产生的赠品行（与 miniapp 下单 productSnapshot.isGift 一致） */
-    static _orderItemIsGiftLine(it) {
-        const snap = this._parseMaybeJson(it && it.productSnapshot);
-        return !!(snap && snap.isGift === true);
-    }
-
     static _promotionCommissionConfig(promo) {
         const cfg = promo && promo.commissionConfig && typeof promo.commissionConfig === 'object'
             ? promo.commissionConfig
@@ -836,21 +830,20 @@ class CommissionService {
             const qty = parseInt(it && it.quantity, 10) || 0;
             const promotions = this._normalizeAppliedPromotions(it);
             if (promotions.length) {
-                hasPromotion = true;
+                // 满送（full_gift）不在佣金上做额外扣减：赠品成本已体现在订单行 SKU 成本中，避免与促销成本调减重复
+                const promotionsForCommissionGate = promotions.filter((p) => p && p.type !== 'full_gift');
+                if (promotionsForCommissionGate.length > 0) {
+                    hasPromotion = true;
+                }
                 for (const promo of promotions) {
+                    if (promo && promo.type === 'full_gift') {
+                        continue;
+                    }
                     const cfg = this._promotionCommissionConfig(promo);
                     if (!cfg.enabled) continue;
                     commissionEnabled = true;
                     if (cfg.costType === 'fixed') {
-                        // 满送（full_gift）固定成本表示「单位赠品成本」：只按赠品行 quantity 乘，不能用主商品订单件数
-                        const isFullGift = promo && promo.type === 'full_gift';
-                        if (isFullGift) {
-                            if (this._orderItemIsGiftLine(it)) {
-                                totalCost += cfg.costValue * Math.max(qty, 0);
-                            }
-                        } else {
-                            totalCost += cfg.costValue * Math.max(qty, 0);
-                        }
+                        totalCost += cfg.costValue * Math.max(qty, 0);
                     } else {
                         totalCost += (linePaid * cfg.costValue / 100);
                     }

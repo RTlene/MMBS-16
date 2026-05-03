@@ -29,6 +29,16 @@ async function withDbRetry(fn, maxAttempts = 3) {
     throw lastErr;
 }
 
+/** 满送不参与「促销佣金成本」配置；保存时强制关闭，与佣金计算逻辑一致 */
+function normalizePromotionRulesForType(type, rules) {
+    if (!rules || typeof rules !== 'object') return rules;
+    if (type !== 'full_gift') return rules;
+    return {
+        ...rules,
+        commissionConfig: { enabled: false, costType: 'percent', costValue: 0 }
+    };
+}
+
 // 获取促销活动统计
 router.get('/stats', authenticateToken, async (req, res) => {
     try {
@@ -170,7 +180,11 @@ router.post('/', authenticateToken, async (req, res) => {
         }
 
         // 验证规则配置
-        if (promotionData.rules) {
+        if (promotionData.rules && typeof promotionData.rules === 'object') {
+            promotionData.rules = normalizePromotionRulesForType(
+                promotionData.type,
+                { ...promotionData.rules }
+            );
             const validationResult = validatePromotionRules(promotionData.type, promotionData.rules);
             if (!validationResult.valid) {
                 return res.status(400).json({
@@ -241,8 +255,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
 
         // 验证规则配置
-        if (promotionData.rules) {
-            const validationResult = validatePromotionRules(promotionData.type || promotion.type, promotionData.rules);
+        if (promotionData.rules !== undefined && promotionData.rules && typeof promotionData.rules === 'object') {
+            const effectiveType = promotionData.type || promotion.type;
+            promotionData.rules = normalizePromotionRulesForType(effectiveType, { ...promotionData.rules });
+            const validationResult = validatePromotionRules(effectiveType, promotionData.rules);
             if (!validationResult.valid) {
                 return res.status(400).json({
                     code: 1,
@@ -391,15 +407,17 @@ function validatePromotionRules(type, rules) {
         return { valid: false, message: '订单内重复命中设置必须为布尔值' };
     }
 
-    const commissionConfig = rules && rules.commissionConfig;
-    if (commissionConfig && commissionConfig.enabled) {
-        const costType = commissionConfig.costType === 'fixed' ? 'fixed' : 'percent';
-        const costValue = Number(commissionConfig.costValue);
-        if (!(costValue > 0)) {
-            return { valid: false, message: '开启促销佣金后，促销成本值必须大于0' };
-        }
-        if (costType === 'percent' && costValue > 100) {
-            return { valid: false, message: '按比例扣减时，促销成本值不能超过100%' };
+    if (type !== 'full_gift') {
+        const commissionConfig = rules && rules.commissionConfig;
+        if (commissionConfig && commissionConfig.enabled) {
+            const costType = commissionConfig.costType === 'fixed' ? 'fixed' : 'percent';
+            const costValue = Number(commissionConfig.costValue);
+            if (!(costValue > 0)) {
+                return { valid: false, message: '开启促销佣金后，促销成本值必须大于0' };
+            }
+            if (costType === 'percent' && costValue > 100) {
+                return { valid: false, message: '按比例扣减时，促销成本值不能超过100%' };
+            }
         }
     }
     switch (type) {

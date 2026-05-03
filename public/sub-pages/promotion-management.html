@@ -574,8 +574,9 @@
                                 <label class="form-label">活动描述</label>
                                 <textarea class="form-input" id="promotionDescription" rows="3"></textarea>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" id="promotionCommissionFormSection">
                                 <label class="form-label">佣金设置</label>
+                                <div class="form-hint" style="margin-bottom:8px;">金额类促销可配置下方「促销成本」；满送不提供此项，其订单佣金按实付与 SKU 成本计算。</div>
                                 <div class="rule-item" style="margin-bottom:8px;">
                                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                                         <input type="checkbox" id="promotionCommissionEnabled" onchange="togglePromotionCommissionConfig()">
@@ -595,7 +596,7 @@
                                         <input type="number" class="form-input" id="promotionCommissionCostValue" min="0" step="0.01" style="width:160px;" placeholder="例如: 5">
                                         <span id="promotionCommissionCostHint">%</span>
                                     </div>
-                                    <div class="form-hint">默认“促销不参与佣金”。开启后，将先扣除促销成本再计算佣金。</div>
+                                    <div class="form-hint">默认“促销不参与佣金”。开启后，将先扣除促销成本再计算佣金（不适用于满送）。</div>
                                 </div>
                             </div>
                             <div class="form-group">
