@@ -573,6 +573,46 @@ async function loadReferrers() {
     }
 }
 
+// 列表头像：与商品管理媒体展示规则一致（cloud://、COS 私有桶、相对路径）
+const DEFAULT_MEMBER_LIST_AVATAR =
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect fill="#e8e8e8" width="40" height="40"/><circle cx="20" cy="14" r="6" fill="#bfbfbf"/><path fill="#bfbfbf" d="M8 34c0-6 5-10 12-10s12 4 12 10v2H8z"/></svg>'
+    );
+
+function getMemberAvatarDisplayUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const t = url.trim();
+    if (!t) return '';
+    if (/^data:/i.test(t)) return t;
+    const origin =
+        typeof window !== 'undefined' && window.location && window.location.origin
+            ? window.location.origin
+            : '';
+    if (/^cloud:\/\//.test(t)) {
+        return origin + '/api/storage/temp-url?fileId=' + encodeURIComponent(t);
+    }
+    if (/^https:\/\/[^/]+\.cos\.[^/]+\.myqcloud\.com\//.test(t)) {
+        return origin + '/api/storage/cos-url?url=' + encodeURIComponent(t);
+    }
+    if (/^https?:\/\//i.test(t)) return t;
+    return origin + (t.startsWith('/') ? t : '/' + t);
+}
+
+function escapeMemberListHtmlAttr(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/'/g, '&#39;');
+}
+
+window.__onMemberListAvatarError = function (img) {
+    if (!img || img.dataset.fallback === '1') return;
+    img.dataset.fallback = '1';
+    img.src = DEFAULT_MEMBER_LIST_AVATAR;
+};
+
 // 在 renderMembers 函数中添加调试信息
 function renderMembers() {
     const tbody = document.getElementById('memberTableBody');
@@ -588,8 +628,11 @@ function renderMembers() {
         const row = document.createElement('tr');
         const memberIdNum = Number(member.id);
         const checked = selectedMembers.has(memberIdNum) ? ' checked' : '';
+        const avatarDisplay = getMemberAvatarDisplayUrl(member.avatar);
+        const avatarSrc = escapeMemberListHtmlAttr(avatarDisplay || DEFAULT_MEMBER_LIST_AVATAR);
         row.innerHTML = `
             <td><input type="checkbox" class="member-checkbox" value="${member.id}"${checked}></td>
+            <td><img class="member-list-avatar" src="${avatarSrc}" alt="" width="40" height="40" loading="lazy" onerror="window.__onMemberListAvatarError(this)"></td>
             <td>${member.nickname || '-'}</td>
             <td>${member.phone || '-'}</td>
             <td>${member.memberLevelName || '普通会员'}</td>
