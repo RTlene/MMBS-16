@@ -805,6 +805,12 @@ class CommissionService {
         return [];
     }
 
+    /** 满赠等活动产生的赠品行（与 miniapp 下单 productSnapshot.isGift 一致） */
+    static _orderItemIsGiftLine(it) {
+        const snap = this._parseMaybeJson(it && it.productSnapshot);
+        return !!(snap && snap.isGift === true);
+    }
+
     static _promotionCommissionConfig(promo) {
         const cfg = promo && promo.commissionConfig && typeof promo.commissionConfig === 'object'
             ? promo.commissionConfig
@@ -836,7 +842,15 @@ class CommissionService {
                     if (!cfg.enabled) continue;
                     commissionEnabled = true;
                     if (cfg.costType === 'fixed') {
-                        totalCost += (cfg.costValue * Math.max(qty, 0));
+                        // 满送（full_gift）固定成本表示「单位赠品成本」：只按赠品行 quantity 乘，不能用主商品订单件数
+                        const isFullGift = promo && promo.type === 'full_gift';
+                        if (isFullGift) {
+                            if (this._orderItemIsGiftLine(it)) {
+                                totalCost += cfg.costValue * Math.max(qty, 0);
+                            }
+                        } else {
+                            totalCost += cfg.costValue * Math.max(qty, 0);
+                        }
                     } else {
                         totalCost += (linePaid * cfg.costValue / 100);
                     }
